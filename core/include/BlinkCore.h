@@ -18,5 +18,6 @@ typedef struct {
 BMTracker *bm_tracker_new(void);
 void bm_tracker_free(BMTracker *tracker);
 void bm_tracker_reset(BMTracker *tracker);
+BMOutput bm_tracker_invalidate(BMTracker *tracker);
 BMOutput bm_tracker_process(BMTracker *tracker, BMInput input);
 #endif

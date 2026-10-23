@@ -187,12 +187,9 @@ impl Tracker {
         self.right.closed = false;
     }
 
-    fn missing(&mut self, timestamp: f64, phase: u32) -> BMOutput {
+    fn missing(&mut self, phase: u32) -> BMOutput {
         self.clear_temporal();
         self.last_valid = None;
-        if timestamp.is_finite() && timestamp >= 0.0 {
-            self.last_time = Some(timestamp);
-        }
         BMOutput {
             phase,
             calibration: if self.calibrated {
@@ -217,10 +214,7 @@ impl Tracker {
     pub unsafe fn process(&mut self, input: BMInput) -> BMOutput {
         let t = input.timestamp;
         if !t.is_finite() || t < 0.0 || self.last_time.is_some_and(|last| t <= last) {
-            return BMOutput {
-                phase: 5,
-                ..Default::default()
-            };
+            return self.missing(5);
         }
         if !input.confidence.is_finite()
             || input.confidence < 0.6
@@ -230,7 +224,7 @@ impl Tracker {
             || !(4..=MAX_POINTS as u32).contains(&input.left_count)
             || !(4..=MAX_POINTS as u32).contains(&input.right_count)
         {
-            return self.missing(t, 0);
+            return self.missing(0);
         }
         let left = unsafe { slice::from_raw_parts(input.left, input.left_count as usize) };
         let right = unsafe { slice::from_raw_parts(input.right, input.right_count as usize) };
@@ -238,7 +232,7 @@ impl Tracker {
             aperture(left, input.face_width, input.face_height),
             aperture(right, input.face_width, input.face_height),
         ) else {
-            return self.missing(t, 4);
+            return self.missing(4);
         };
         let dt = self.last_valid.map_or(0.0, |last| t - last);
         let reset = dt <= 0.0 || dt > MAX_GAP;
@@ -354,6 +348,20 @@ pub unsafe extern "C" fn bm_tracker_free(tracker: *mut Tracker) {
 pub unsafe extern "C" fn bm_tracker_reset(tracker: *mut Tracker) {
     if let Some(tracker) = unsafe { tracker.as_mut() } {
         *tracker = Tracker::new();
+    }
+}
+
+/// Clear only temporal history after a missing or stale capture; keep eye calibration.
+/// # Safety
+/// `tracker` is null or a live pointer returned by bm_tracker_new, with no concurrent calls.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bm_tracker_invalidate(tracker: *mut Tracker) -> BMOutput {
+    match unsafe { tracker.as_mut() } {
+        Some(tracker) => tracker.missing(0),
+        None => BMOutput {
+            phase: 5,
+            ..Default::default()
+        },
     }
 }
 
@@ -581,5 +589,31 @@ mod tests {
             })
         };
         assert_eq!(output.phase, 0);
+    }
+    #[test]
+    fn invalid_frames_cannot_move_the_capture_clock_into_the_future() {
+        let mut tracker = calibrated();
+        step(&mut tracker, 2.04, 0.03, 0.02);
+        let missing = unsafe {
+            tracker.process(BMInput {
+                left: std::ptr::null(),
+                right: std::ptr::null(),
+                left_count: 0,
+                right_count: 0,
+                face_width: 0.0,
+                face_height: 0.0,
+                timestamp: 10_000.0,
+                confidence: 0.0,
+                sensitivity: 0.5,
+            })
+        };
+        assert_eq!(missing.calibration, 1.0);
+        let fresh = step(&mut tracker, 2.12, 0.3, 0.22);
+        assert_eq!(fresh.phase, 2);
+        assert_eq!(fresh.open_seconds, 0.0);
+        assert_eq!(fresh.tracked_delta, 0.0);
+        assert_eq!(fresh.flags & BLINK, 0);
+        unsafe { bm_tracker_invalidate(&mut tracker) };
+        assert_eq!(step(&mut tracker, 2.16, 0.3, 0.22).phase, 2);
     }
 }

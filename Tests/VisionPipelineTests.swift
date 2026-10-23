@@ -26,15 +26,18 @@ import Vision
         memset(CVPixelBufferGetBaseAddress(buffer!), 0, CVPixelBufferGetDataSize(buffer!))
         CVPixelBufferUnlockBaseAddress(buffer!, [])
         for _ in 0..<25 {
-            service.process(buffer!, timestamp: EyeTrackingService.clock())
+            service.enqueue(buffer!, timestamp: EyeTrackingService.clock())
             try await Task.sleep(for: .milliseconds(35))
         }
         precondition(frames.contains { $0.0 == .noFace } && frames.allSatisfy { [.noFace, .delayed].contains($0.0) })
         let searches = frames.filter { $0.0 == .noFace }
         for pair in zip(searches, searches.dropFirst()) { precondition(pair.1.1 - pair.0.1 >= 0.15) }
         let before = frames.count
-        service.process(buffer!, timestamp: EyeTrackingService.clock() - 1)
-        try await Task.sleep(for: .milliseconds(50))
+        service.enqueue(buffer!, timestamp: EyeTrackingService.clock() - 1)
+        for _ in 0..<20 {
+            if frames.count > before { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
         precondition(frames.count == before + 1 && frames.last!.0 == .delayed)
         let today = statistics.snapshot()["today"] as! [String: Any]
         precondition(today["trackedSeconds"] as! Double == 0)

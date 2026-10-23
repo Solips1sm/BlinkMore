@@ -25,6 +25,8 @@ import Foundation
         _ = step(2.12, closed: true)
         precondition(step(2.16, closed: false).flags & 4 != 0)
         precondition(step(2.20, closed: false).flags & 4 == 0)
+        precondition(bm_tracker_invalidate(tracker).calibration == 1)
+        precondition(step(2.24, closed: false).open_seconds == 0)
         precondition(step(2.19, closed: false).phase == 5)
         bm_tracker_reset(tracker)
         precondition(step(3, closed: false).phase == 1)

@@ -4,10 +4,14 @@ import AppKit
 
 final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     private let sessionQueue = DispatchQueue(label: "com.oxremy.blinkmore.camera", qos: .userInitiated)
+    private let captureQueue = DispatchQueue(label: "com.oxremy.blinkmore.capture", qos: .userInitiated)
     private let videoQueue = DispatchQueue(label: "com.oxremy.blinkmore.inference", qos: .userInitiated)
     private let lock = NSLock()
     private var stopped = false
     private var deliveryPending = false
+    private var pendingImage: (CVPixelBuffer, Double)?
+    private var inferenceScheduled = false
+    private var captureDrops = 0
     private var latestFrame = TrackingFrame()
     private var session: AVCaptureSession?
     private var output: AVCaptureVideoDataOutput?
@@ -64,7 +68,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 let output = AVCaptureVideoDataOutput()
                 output.alwaysDiscardsLateVideoFrames = true
                 output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
-                output.setSampleBufferDelegate(self, queue: self.videoQueue)
+                output.setSampleBufferDelegate(self, queue: self.captureQueue)
                 guard session.canAddOutput(output) else { throw CocoaError(.featureUnsupported) }
                 session.addOutput(output)
                 if let connection = output.connection(with: .video), connection.isVideoRotationAngleSupported(0) {
@@ -86,7 +90,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     }
 
     func stop(completion: (() -> Void)? = nil) {
-        lock.lock(); stopped = true; lock.unlock()
+        lock.lock(); stopped = true; pendingImage = nil; lock.unlock()
         // Retain the service until sample delivery drains, then release it on the main thread.
         sessionQueue.async {
             self.output?.setSampleBufferDelegate(nil, queue: nil)
@@ -107,19 +111,44 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     }
 
     func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        dropped += 1
+        lock.lock(); captureDrops += 1; lock.unlock()
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let image = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        process(image, timestamp: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)))
+        enqueue(image, timestamp: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)))
     }
 
-    func process(_ image: CVPixelBuffer, timestamp: Double) {
+    func enqueue(_ image: CVPixelBuffer, timestamp: Double) {
+        lock.lock()
+        guard !stopped else { lock.unlock(); return }
+        if pendingImage != nil { captureDrops += 1 }
+        pendingImage = (image, timestamp)
+        guard !inferenceScheduled else { lock.unlock(); return }
+        inferenceScheduled = true; lock.unlock()
+        videoQueue.async { self.consumeLatest() }
+    }
+
+    private func consumeLatest() {
+        lock.lock()
+        guard !stopped, let next = pendingImage else {
+            inferenceScheduled = false; pendingImage = nil; lock.unlock(); return
+        }
+        pendingImage = nil; lock.unlock()
+        process(next.0, timestamp: next.1)
+        // Each inference takes the newest capture, rather than the first frame queued while busy.
+        videoQueue.async { self.consumeLatest() }
+    }
+
+    private var totalDropped: Int {
+        lock.lock(); defer { lock.unlock() }; return dropped + captureDrops
+    }
+
+    private func process(_ image: CVPixelBuffer, timestamp: Double) {
         guard !isStopped else { return }
         let now = Self.clock()
-        guard timestamp.isFinite, now - timestamp < 0.25, now - timestamp >= -0.1 else {
-            dropped += 1; missing(.delayed, timestamp: now); return
+        guard timestamp.isFinite, now - timestamp < 0.1, now - timestamp >= -0.1 else {
+            dropped += 1; missing(.delayed, timestamp: timestamp.isFinite ? timestamp : now); return
         }
         guard now - lastProcessed >= 1.0 / 30.0 else { return }
         lastProcessed = now
@@ -153,6 +182,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                     tracker.inputObservation = observation
                     face = VNFaceObservation(boundingBox: observation.boundingBox)
                 } else { return }
+                let landmarkStart = Self.clock()
                 landmarks.inputFaceObservations = [face]
                 try handler.perform([landmarks])
                 guard let measured = landmarks.results?.first,
@@ -184,14 +214,21 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 }
                 lastFrameTime = timestamp
                 var frame = TrackingFrame()
-                frame.phase = [0: TrackingPhase.noFace, 1: .calibrating, 2: .tracking, 3: .eyesClosed, 4: .lowQuality, 5: .delayed][Int(result.phase)] ?? .lowQuality
+                switch result.phase {
+                case 0: frame.phase = .noFace
+                case 1: frame.phase = .calibrating
+                case 2: frame.phase = .tracking
+                case 3: frame.phase = .eyesClosed
+                case 5: frame.phase = .delayed
+                default: frame.phase = .lowQuality
+                }
                 frame.timestamp = timestamp; frame.left = result.left_openness; frame.right = result.right_openness
                 frame.calibration = result.calibration; frame.openSeconds = result.open_seconds
                 frame.trackedDelta = result.tracked_delta; frame.asymmetry = result.asymmetry
                 frame.closedMask = result.closed_mask; frame.events = result.flags; frame.calibrated = result.flags & 2 != 0
-                frame.latencyMs = (finished - timestamp) * 1000; frame.fps = fps; frame.dropped = dropped
+                frame.latencyMs = (finished - timestamp) * 1000; frame.fps = fps; frame.dropped = totalDropped
                 if CommandLine.arguments.contains("--diagnose") {
-                    frame.qualityNote = "core=\(result.phase) confidence=\(measured.confidence) contours=\(lp.count)/\(rp.count) face=\(Int(box.width * Double(CVPixelBufferGetWidth(image))))x\(Int(box.height * Double(CVPixelBufferGetHeight(image))))"
+                    frame.qualityNote = "core=\(result.phase) confidence=\(measured.confidence) contours=\(lp.count)/\(rp.count) face=\(Int(box.width * Double(CVPixelBufferGetWidth(image))))x\(Int(box.height * Double(CVPixelBufferGetHeight(image)))) inputMs=\(Int((now - timestamp) * 1000)) inferenceMs=\(Int((finished - now) * 1000)) landmarksMs=\(Int((finished - landmarkStart) * 1000))"
                 }
                 statistics.record(frame)
                 deliver(frame)
@@ -202,12 +239,11 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     }
 
     private func missing(_ phase: TrackingPhase, timestamp: Double, note: String = "") {
-        let result = bm_tracker_process(core, BMInput(left: nil, left_count: 0, right: nil, right_count: 0,
-            face_width: 0, face_height: 0, timestamp: timestamp, confidence: 0, sensitivity: sensitivity))
+        let result = bm_tracker_invalidate(core)
         var frame = TrackingFrame(phase: phase)
         frame.qualityNote = note
         frame.timestamp = timestamp; frame.calibration = result.calibration
-        frame.dropped = dropped; frame.fps = fps
+        frame.dropped = totalDropped; frame.fps = fps
         frame.latencyMs = max(0, (Self.clock() - timestamp) * 1000)
         deliver(frame)
     }
