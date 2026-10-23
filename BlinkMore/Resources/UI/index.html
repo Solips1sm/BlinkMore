@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <title>BlinkMore</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <script src="dashboard.js" defer></script>
+</head>
+<body>
+<svg xmlns="http://www.w3.org/2000/svg" class="icon-library" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="blink" viewBox="0 0 24 24"><path d="M3 10c2 5 5 7 9 7s7-2 9-7M5 15l-2 3m6-1-1 4m7-4 1 4m3-6 2 3"/></symbol>
+<symbol id="activity" viewBox="0 0 24 24"><path d="M3 16v4m6-9v9m6-15v15m6-11v11"/></symbol>
+<symbol id="settings" viewBox="0 0 24 24"><path d="M5 3v5m0 4v9m7-18v10m0 4v4m7-18v3m0 4v11M2 8h6m1 9h6m1-11h6"/><circle cx="5" cy="10" r="2"/><circle cx="12" cy="15" r="2"/><circle cx="19" cy="8" r="2"/></symbol>
+<symbol id="power" viewBox="0 0 24 24"><path d="M9 3v5m6-5v5M7 8h10v4a5 5 0 0 1-10 0V8Zm5 9v4"/></symbol>
+<symbol id="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></symbol>
+<symbol id="moon" viewBox="0 0 24 24"><path d="M20.5 14a8.5 8.5 0 0 1-10.5-10.5A8.5 8.5 0 1 0 20.5 14Z"/></symbol>
+<symbol id="display" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="3"/><path d="M8 21h8m-4-4v4"/></symbol>
+<symbol id="pause" viewBox="0 0 24 24"><path d="M8 5v14m8-14v14"/></symbol>
+<symbol id="play" viewBox="0 0 24 24"><path d="m8 4 12 8-12 8V4Z"/></symbol>
+<symbol id="calibrate" viewBox="0 0 24 24"><path d="M3 8V4a1 1 0 0 1 1-1h4m8 0h4a1 1 0 0 1 1 1v4m0 8v4a1 1 0 0 1-1 1h-4M8 21H4a1 1 0 0 1-1-1v-4"/><circle cx="12" cy="12" r="4"/><path d="M12 10v4m-2-2h4"/></symbol>
+<symbol id="clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="balance" viewBox="0 0 24 24"><path d="M12 4v16m-4 0h8M4 7h16M6 7l-4 7a5 5 0 0 0 8 0L6 7Zm12 0-4 7a5 5 0 0 0 8 0l-4-7Z"/></symbol>
+<symbol id="speed" viewBox="0 0 24 24"><path d="M5 19a9 9 0 1 1 14 0M12 12l5-5M5 12h1m12 0h1M12 4v1"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="shield" viewBox="0 0 24 24"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></symbol>
+<symbol id="export" viewBox="0 0 24 24"><path d="M12 15V3m-4 4 4-4 4 4M4 13v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/></symbol>
+<symbol id="trash" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
+</svg>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="brand"><img src="brand.svg" width="38" height="38" alt="Anistratenco eight circle logo"><div><strong>BlinkMore</strong><span>by Anistratenco</span></div></div>
+      <div class="header-actions"><span class="power-badge"><svg aria-hidden="true"><use href="#power"/></svg>On AC power</span><button class="icon-button" id="theme-cycle" aria-label="Change appearance"><svg aria-hidden="true"><use href="#sun"/></svg></button></div>
+    </header>
+    <nav class="tabs" role="tablist" aria-label="BlinkMore views">
+      <button role="tab" aria-selected="true" aria-controls="overview" id="tab-overview" data-tab="overview"><svg aria-hidden="true"><use href="#eye"/></svg>Overview</button>
+      <button role="tab" aria-selected="false" aria-controls="activity" id="tab-activity" data-tab="activity" tabindex="-1"><svg aria-hidden="true"><use href="#activity"/></svg>Daily activity</button>
+      <button role="tab" aria-selected="false" aria-controls="settings" id="tab-settings" data-tab="settings" tabindex="-1"><svg aria-hidden="true"><use href="#settings"/></svg>Settings</button>
+    </nav>
+    <main>
+      <section id="overview" role="tabpanel" aria-labelledby="tab-overview">
+        <div class="section-heading"><div><p class="eyebrow" id="today-date">Today</p><h1>A little more blink.</h1><p class="supporting">A quieter rhythm for your eyes and your screen.</p></div><button class="button secondary" data-action="pause" id="pause-button"><svg aria-hidden="true"><use href="#pause"/></svg><span>Pause 5 minutes</span></button></div>
+        <div class="tracking-card glass-panel" id="tracking-card" data-phase="starting">
+          <div class="tracking-copy"><div class="status-label" role="status" aria-live="polite"><i class="status-dot"></i><span id="tracking-title">Starting camera</span></div><p id="tracking-detail">Your camera is starting. Everything stays on this Mac.</p><div class="tracking-actions"><button class="button accent" data-action="calibrate" id="calibrate-button"><svg aria-hidden="true"><use href="#calibrate"/></svg>Recalibrate</button><button class="button secondary" data-action="cameraSettings" id="camera-settings" hidden>Allow camera access</button><button class="button secondary" data-action="retry" id="retry-button" hidden>Try again</button></div><div class="calibration-track" id="calibration-track" hidden><progress id="calibration-progress" value="0" max="1" aria-label="Eye calibration progress"></progress><span id="calibration-label">Look toward the camera</span></div></div>
+          <div class="eyes" aria-label="Live calibrated eye openness"><div class="eye-unit"><svg viewBox="0 0 144 80" aria-hidden="true"><defs><clipPath id="clip-left"><path id="left-clip"/></clipPath></defs><path class="eye-contour" id="left-eye"/><g clip-path="url(#clip-left)"><circle class="iris" cx="72" cy="40" r="15"/><circle class="pupil" cx="72" cy="40" r="7"/></g></svg><span>Left eye <strong id="left-value">Waiting</strong></span></div><div class="eye-unit"><svg viewBox="0 0 144 80" aria-hidden="true"><defs><clipPath id="clip-right"><path id="right-clip"/></clipPath></defs><path class="eye-contour" id="right-eye"/><g clip-path="url(#clip-right)"><circle class="iris" cx="72" cy="40" r="15"/><circle class="pupil" cx="72" cy="40" r="7"/></g></svg><span>Right eye <strong id="right-value">Waiting</strong></span></div></div>
+          <div class="reminder-dial"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="dial-track" cx="60" cy="60" r="52"/><circle class="dial-progress" id="dial-progress" cx="60" cy="60" r="52"/></svg><div><strong id="reminder-value">Waiting</strong><span id="reminder-caption">for your eyes</span></div></div>
+        </div>
+        <div class="metric-grid"><article class="metric glass-panel"><svg aria-hidden="true"><use href="#blink"/></svg><span>Blinks today</span><strong id="today-blinks">0</strong><p>Complete blinks observed</p></article><article class="metric glass-panel"><svg aria-hidden="true"><use href="#clock"/></svg><span>Time in view</span><strong id="today-tracked">0m</strong><p>Only fresh, visible eye data</p></article><article class="metric glass-panel"><svg aria-hidden="true"><use href="#activity"/></svg><span>Blinks per minute</span><strong id="today-rate">Collecting</strong><p>Your observed session average</p></article></div>
+        <div class="bottom-grid"><article class="glass-panel balance-card"><div class="card-heading"><h2>Two eyes, one rhythm.</h2><svg aria-hidden="true"><use href="#balance"/></svg></div><div class="balance-value"><strong id="today-asymmetry">Collecting</strong><span>mean openness difference</span></div><div class="balance-rails" aria-hidden="true"><i id="left-rail"></i><i id="right-rail"></i></div><p>Compared with each eye’s own calibration. A camera measurement, not a diagnosis.</p></article><article class="glass-panel performance-card"><div class="card-heading"><h2>Fresh frames first.</h2><svg aria-hidden="true"><use href="#speed"/></svg></div><div class="performance-metrics"><div><strong id="processing-delay">Waiting</strong><span>current delay</span></div><div><strong id="processing-fps">Waiting</strong><span>frames per second</span></div><div><strong id="processing-p95">Waiting</strong><span>95th percentile delay</span></div></div><p id="performance-detail">Old frames are dropped rather than queued. Reminders wait when tracking is uncertain.</p></article></div>
+      </section>
+      <section id="activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+        <div class="section-heading"><div><p class="eyebrow">Your daily rhythm</p><h1>Small moments, over time.</h1><p class="supporting">A week of observations, stored only on this Mac.</p></div><button class="button secondary" data-action="export"><svg aria-hidden="true"><use href="#export"/></svg>Export statistics</button></div>
+        <article class="glass-panel history-card"><div class="card-heading"><h2>Blinks through the week</h2><span>Last 7 days</span></div><div class="empty-history" id="empty-history"><svg aria-hidden="true"><use href="#activity"/></svg><h3>Your first session starts here.</h3><p>Daily activity appears as your eyes are tracked.</p></div><div id="week-chart" class="week-chart" aria-label="Daily blink counts"></div><div class="history-table-wrap"><table><caption class="sr-only">Daily tracking statistics</caption><thead><tr><th scope="col">Day</th><th scope="col">Blinks</th><th scope="col">Time in view</th><th scope="col">Eye difference</th></tr></thead><tbody id="history-rows"></tbody></table></div></article>
+        <div class="metric-grid"><article class="metric glass-panel"><span>Left eye closures today</span><strong id="today-left-only">0</strong><p>Closures without a matching right closure</p></article><article class="metric glass-panel"><span>Right eye closures today</span><strong id="today-right-only">0</strong><p>Closures without a matching left closure</p></article><article class="metric glass-panel"><span>Reminders today</span><strong id="today-reminders">0</strong><p>Gentle screen fades during tracking</p></article></div>
+        <p class="data-note">Closures, blink counts and openness differences depend on camera visibility and calibration. They do not establish an eye condition.</p>
+      </section>
+      <section id="settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+        <div class="section-heading"><div><p class="eyebrow">Make it feel right</p><h1>Your eyes. Your rhythm.</h1><p class="supporting">Every change applies immediately.</p></div></div>
+        <div class="settings-grid"><article class="glass-panel settings-card"><h2>Screen reminders</h2><label class="switch-row"><span><strong>Gentle screen fades</strong><small>Clear as soon as your eyes close</small></span><input id="reminders-enabled" type="checkbox" role="switch" data-preference="remindersEnabled"><i class="switch-track" aria-hidden="true"></i></label><div class="control-group"><label for="reminder-seconds">Time without a blink <output id="reminder-seconds-value">6 seconds</output></label><input id="reminder-seconds" type="range" min="3" max="30" step="1" data-preference="reminderSeconds"></div><div class="control-group"><label for="fade-seconds">Fade duration <output id="fade-seconds-value">1.5 seconds</output></label><input id="fade-seconds" type="range" min="0.3" max="5" step="0.1" data-preference="fadeSeconds"></div><div class="control-group"><label for="intensity">Fade intensity <output id="intensity-value">65%</output></label><input id="intensity" type="range" min="0.15" max="0.9" step="0.05" data-preference="intensity"></div><label class="color-row" for="fade-color"><span>Fade color</span><input id="fade-color" type="color" value="#000000" data-preference="color"></label><button class="button secondary full-width" data-action="preview"><svg aria-hidden="true"><use href="#eye"/></svg>Preview a 2 second fade</button></article>
+        <article class="glass-panel settings-card"><h2>Detection and appearance</h2><div class="control-group"><label for="sensitivity">Blink sensitivity <output id="sensitivity-value">50%</output></label><input id="sensitivity" type="range" min="0" max="1" step="0.05" data-preference="sensitivity"><p>Higher sensitivity recognizes smaller eyelid closures. Recalibrate after changing your position.</p></div><div class="control-group"><label for="camera-choice">Camera</label><select id="camera-choice" data-preference="cameraID"><option value="">Automatic camera selection</option></select></div><div class="control-group"><span class="field-label">Appearance</span><div class="theme-options" role="group" aria-label="Appearance"><button data-theme="system" aria-pressed="true"><svg aria-hidden="true"><use href="#display"/></svg>System</button><button data-theme="light" aria-pressed="false"><svg aria-hidden="true"><use href="#sun"/></svg>Light</button><button data-theme="dark" aria-pressed="false"><svg aria-hidden="true"><use href="#moon"/></svg>Dark</button></div></div><div class="privacy-note"><svg aria-hidden="true"><use href="#shield"/></svg><p>Camera processing stays on this Mac. Images are never saved or uploaded. Only daily counters and aggregate openness differences are stored.</p></div><button class="button danger-quiet full-width" data-action="reset"><svg aria-hidden="true"><use href="#trash"/></svg>Delete daily statistics</button></article></div>
+      </section>
+    </main>
+    <div id="storage-warning" class="notice warning" role="alert" hidden></div>
+    <div id="toast" class="notice toast" role="status" aria-live="polite" hidden></div>
+    <footer><span><i class="privacy-dot"></i>On this Mac. Always private.</span><span>Rust core. Native Vision. Anistratenco UI.</span></footer>
+  </div>
+</body>
+</html>

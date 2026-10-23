@@ -1,0 +1,267 @@
+import AppKit
+import AVFoundation
+import IOKit.ps
+import UniformTypeIdentifiers
+
+final class ApplicationController: NSObject, NSApplicationDelegate {
+    let preferences = AppPreferences()
+    let statistics = DailyStatistics()
+    private let fade = OverlayFade()
+    private var menu: MenuBarController!
+    private var tracker: EyeTrackingService?
+    private var sessionID = UUID()
+    private var lastCameraStart: Double = 0
+    private var requestingPermission = false
+    private var stoppingCamera = false
+    private var frame = TrackingFrame()
+    private var powerTimer: Timer?
+    private var fadeTimer: Timer?
+    private var saveTimer: Timer?
+    private var dashboard: DashboardWindowController?
+    private var previewUntil: Double = 0
+    private var fadeStarted: Double = 0
+    private var cooldownUntil: Double = 0
+    private var latency: [Double] = []
+    private var cameras: [[String: String]] = []
+    private var notice = ""
+    private var noticeUntil = Date.distantPast
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        menu = MenuBarController()
+        menu.onOpen = { [weak self] in self?.openDashboard() }
+        menu.onPause = { [weak self] in self?.togglePause() }
+        menu.onCalibrate = { [weak self] in self?.tracker?.recalibrate() }
+        preferences.onChange = { [weak self] in
+            guard let self = self else { return }
+            self.applyTheme(); self.tracker?.setSensitivity(self.preferences.sensitivity)
+            self.reconcile(); self.dashboard?.refresh()
+        }
+        updateCameras()
+        NotificationCenter.default.addObserver(self, selector: #selector(updateCameras), name: AVCaptureDevice.wasConnectedNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateCameras), name: AVCaptureDevice.wasDisconnectedNotification, object: nil)
+        applyTheme(); reconcile()
+        powerTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.reconcile(); self?.writeDiagnostics() }
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.updateFade() }
+        saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.statistics.flush() }
+        if !UserDefaults.standard.bool(forKey: "dashboardIntroducedV2") {
+            UserDefaults.standard.set(true, forKey: "dashboardIntroducedV2")
+            openDashboard()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        openDashboard(); return false
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        powerTimer?.invalidate(); fadeTimer?.invalidate(); saveTimer?.invalidate()
+        fade.setVisible(false, color: preferences.fadeColor, intensity: preferences.intensity, duration: 0)
+        statistics.flush(synchronous: true)
+        guard let tracker = tracker else { return .terminateNow }
+        self.tracker = nil
+        tracker.stop { [statistics] in
+            statistics.flush(synchronous: true)
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    @objc private func updateCameras() {
+        if !Thread.isMainThread { DispatchQueue.main.async { [weak self] in self?.updateCameras() }; return }
+        cameras = EyeTrackingService.cameras().map { ["id": $0.uniqueID, "name": $0.localizedName] }
+    }
+
+    private var effectivePhase: TrackingPhase {
+        if [.tracking, .eyesClosed, .calibrating].contains(frame.phase), EyeTrackingService.clock() - frame.timestamp > 0.5 { return .delayed }
+        return frame.phase
+    }
+
+    private func onACPower() -> Bool {
+        guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let source = IOPSGetProvidingPowerSourceType(snapshot)?.takeUnretainedValue() else { return false }
+        return source as String == kIOPSACPowerValue
+    }
+
+    private func reconcile() {
+        guard onACPower() else { NSApplication.shared.terminate(nil); return }
+        if preferences.pauseUntil != nil {
+            stopCamera(); frame.phase = .paused; menu.update(.paused); return
+        }
+        let authorization = AVCaptureDevice.authorizationStatus(for: .video)
+        if authorization == .denied || authorization == .restricted {
+            stopCamera(); frame.phase = .cameraDenied; menu.update(.cameraDenied); return
+        }
+        if authorization == .notDetermined {
+            guard !requestingPermission else { return }
+            requestingPermission = true
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] _ in
+                DispatchQueue.main.async { self?.requestingPermission = false; self?.reconcile() }
+            }
+            return
+        }
+        if tracker != nil {
+            let now = EyeTrackingService.clock()
+            let failed = [.cameraMissing, .cameraError].contains(frame.phase) && now - lastCameraStart > 5
+            let stalled = frame.timestamp > 0 ? now - frame.timestamp > 5 : now - lastCameraStart > 10
+            if failed || stalled { stopCamera() }
+            return
+        }
+        guard !stoppingCamera else { return }
+        lastCameraStart = EyeTrackingService.clock()
+        let token = UUID(); sessionID = token; frame = TrackingFrame()
+        menu.update(.starting)
+        let service = EyeTrackingService(cameraID: preferences.cameraID, sensitivity: preferences.sensitivity, statistics: statistics) { [weak self] value in
+            guard let self = self, self.sessionID == token else { return }
+            self.frame = value
+            if value.latencyMs.isFinite && value.latencyMs > 0 {
+                self.latency.append(value.latencyMs)
+                if self.latency.count > 120 { self.latency.removeFirst(self.latency.count - 120) }
+            }
+            self.menu.update(value.phase); self.updateFade()
+        }
+        tracker = service; service.start()
+    }
+
+    private func stopCamera() {
+        guard let service = tracker else { return }
+        sessionID = UUID(); tracker = nil; stoppingCamera = true
+        service.stop { [weak self] in
+            self?.stoppingCamera = false; self?.statistics.flush()
+        }
+        previewUntil = 0
+        fade.setVisible(false, color: preferences.fadeColor, intensity: preferences.intensity, duration: 0)
+    }
+
+    private func updateFade() {
+        let now = EyeTrackingService.clock()
+        menu?.update(effectivePhase)
+        let fresh = frame.timestamp > 0 && now - frame.timestamp < 0.35
+        if fade.isFaded && fadeStarted > 0 && now - fadeStarted >= 6 {
+            cooldownUntil = now + 5; previewUntil = 0
+        }
+        let preview = now < previewUntil
+        let visible = preferences.pauseUntil == nil && now >= cooldownUntil &&
+            (preview || (preferences.remindersEnabled && fresh && frame.phase == .tracking &&
+                         frame.calibrated && frame.openSeconds >= preferences.reminderSeconds))
+        if visible && !fade.isFaded {
+            fadeStarted = now
+            if !preview { statistics.reminder() }
+        }
+        if !visible { fadeStarted = 0 }
+        fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity, duration: preferences.fadeSeconds)
+    }
+
+    private func writeDiagnostics() {
+        guard CommandLine.arguments.contains("--diagnose") else { return }
+        let value: [String: Any] = ["phase": effectivePhase.rawValue, "calibration": frame.calibration,
+            "delayMs": frame.latencyMs, "fps": frame.fps, "dropped": frame.dropped,
+            "frameAge": max(0, EyeTrackingService.clock() - frame.timestamp), "quality": frame.qualityNote]
+        let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("BlinkMore/diagnostic-status.json")
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]).write(to: url, options: .atomic)
+        } catch { NSLog("Diagnostic status could not be saved") }
+    }
+
+    private func applyTheme() {
+        switch preferences.theme {
+        case "light": NSApp.appearance = NSAppearance(named: .aqua)
+        case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+        default: NSApp.appearance = nil
+        }
+    }
+
+    func openDashboard() {
+        if dashboard == nil {
+            dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot() ?? [:] }, command: { [weak self] in self?.command($0) })
+            dashboard?.onClose = { [weak self] in self?.dashboard = nil }
+        }
+        dashboard?.showWindow(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func togglePause() {
+        preferences.pauseUntil = preferences.pauseUntil == nil ? Date().addingTimeInterval(300) : nil
+    }
+
+    func snapshot() -> [String: Any] {
+        let ordered = latency.sorted()
+        let actualTheme = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
+        let phase = effectivePhase
+        var result: [String: Any] = ["phase": phase.rawValue, "title": phase.title, "detail": phase.detail]
+        result["closedMask"] = frame.closedMask
+        result["left"] = frame.left; result["right"] = frame.right
+        result["calibration"] = frame.calibration; result["openSeconds"] = frame.openSeconds
+        result["latencyMs"] = frame.latencyMs
+        result["p95Ms"] = ordered.isEmpty ? 0 : ordered[min(ordered.count - 1, ordered.count * 95 / 100)]
+        result["fps"] = frame.fps; result["dropped"] = frame.dropped; result["fading"] = fade.isFaded
+        result["actualTheme"] = actualTheme; result["preferences"] = preferences.snapshot()
+        result["statistics"] = statistics.snapshot(); result["cameras"] = cameras
+        result["notice"] = Date() < noticeUntil ? notice : ""
+        return result
+    }
+
+    func command(_ message: [String: Any]) {
+        guard let action = message["action"] as? String else { return }
+        switch action {
+        case "ready": dashboard?.refresh()
+        case "pause": togglePause()
+        case "calibrate": tracker?.recalibrate(); notify("Calibration restarted. Look toward the camera and blink normally.")
+        case "preview": previewUntil = EyeTrackingService.clock() + 2; cooldownUntil = 0; updateFade()
+        case "retry": stopCamera(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reconcile() }
+        case "cameraSettings":
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") { NSWorkspace.shared.open(url) }
+        case "set": setPreference(message)
+        case "export": exportStatistics()
+        case "reset": resetStatistics()
+        default: notify("That control is not available.")
+        }
+        dashboard?.refresh()
+    }
+
+    private func setPreference(_ message: [String: Any]) {
+        guard let key = message["key"] as? String else { return }
+        let value = message["value"]
+        switch key {
+        case "theme": if let v = value as? String { preferences.theme = v }
+        case "color": if let v = value as? String, !preferences.setColor(hex: v) { notify("Choose a valid fade color.") }
+        case "remindersEnabled":
+            if let v = value as? NSNumber, CFGetTypeID(v) == CFBooleanGetTypeID() { preferences.remindersEnabled = v.boolValue }
+        case "cameraID":
+            if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
+                stopCamera(); preferences.cameraID = v.isEmpty ? nil : v
+            }
+        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity":
+            guard let v = value as? NSNumber, CFGetTypeID(v) != CFBooleanGetTypeID(), v.doubleValue.isFinite else { return }
+            switch key {
+            case "reminderSeconds": preferences.reminderSeconds = v.doubleValue
+            case "fadeSeconds": preferences.fadeSeconds = v.doubleValue
+            case "intensity": preferences.intensity = v.doubleValue
+            default: preferences.sensitivity = v.doubleValue
+            }
+        default: notify("That preference is not available.")
+        }
+    }
+
+    private func notify(_ text: String) { notice = text; noticeUntil = Date().addingTimeInterval(5) }
+
+    private func exportStatistics() {
+        let panel = NSSavePanel(); panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "BlinkMore-statistics.json"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do { try statistics.exportData().write(to: url, options: .atomic); notify("Statistics exported.") }
+        catch { notify("Statistics could not be exported. Choose another location.") }
+    }
+
+    private func resetStatistics() {
+        let alert = NSAlert()
+        alert.messageText = "Delete all daily statistics?"
+        alert.informativeText = "Your tracking preferences and calibration are kept. Recovery copies are not deleted. This cannot be undone."
+        alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Delete statistics")
+        if alert.runModal() == .alertSecondButtonReturn {
+            do { try statistics.reset(); notify("Daily statistics deleted.") }
+            catch { notify("Statistics could not be deleted. Your data is still available.") }
+        }
+    }
+}

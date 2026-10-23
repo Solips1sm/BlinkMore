@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.solips1sm.blinkmore-on-ac</string>
+<key>ProgramArguments</key><array><string>REPLACED_BY_INSTALLER</string></array>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+<key>ProcessType</key><string>Interactive</string>
+<key>ThrottleInterval</key><integer>3</integer>
+<key>StandardOutPath</key><string>REPLACED_BY_INSTALLER</string>
+<key>StandardErrorPath</key><string>REPLACED_BY_INSTALLER</string>
+</dict></plist>

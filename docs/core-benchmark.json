@@ -1,0 +1,16 @@
+{
+  "architecture": "x86_64",
+  "scope": "Synthetic eyelid geometry and state only. Excludes camera, Vision and display latency.",
+  "normal": {
+    "updates": 1000000,
+    "elapsed_seconds": 0.627024923,
+    "median_ns": 453,
+    "p95_ns": 714
+  },
+  "two_busy_workers": {
+    "updates": 1000000,
+    "elapsed_seconds": 1.04351966,
+    "median_ns": 508,
+    "p95_ns": 817
+  }
+}

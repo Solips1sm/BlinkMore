@@ -1,542 +1,221 @@
-//
-//  EyeTrackingService.swift
-//  BlinkMore
-//
-//  Created by oxremy on 2/24/25.
-//
-
-import Foundation
-import Combine
 import AVFoundation
 import Vision
 import AppKit
 
-class EyeTrackingService: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
-    @Published var isEyeOpen: Bool = false
-    @Published var isActive: Bool = false
-    @Published var availableCameras: [(id: String, name: String)] = []
-    
-    // Cached preference values
-    private var cachedEARSensitivity: Double = Constants.defaultEARSensitivity
-    private var cancellables = Set<AnyCancellable>()
-    
-    // Camera capture components
-    private var captureSession: AVCaptureSession?
-    private var videoDataOutput: AVCaptureVideoDataOutput?
-    private let captureSessionQueue = DispatchQueue(label: "com.oxremy.blinkmore.capturesession", qos: .userInitiated)
-    private let videoDataOutputQueue = DispatchQueue(label: "com.oxremy.blinkmore.videodata", qos: .userInitiated)
-    
-    // Vision request
-    private let faceLandmarksRequest = VNDetectFaceLandmarksRequest()
-    
-    // Frame skipping for performance
-    private var frameCounter = 0
-    private let frameProcessingInterval = 2 // Process every 2nd frame
-    
-    // Eye Aspect Ratio (EAR) threshold - use cached value instead of direct access
-    private var earThreshold: Double {
-        return cachedEARSensitivity
-    }
-    
-    // State tracking properties to prevent race conditions
-    private var isCleaningUp = false
-    private var isStoppingTracking = false
-    private var trackingStopTime: Date?
-    
-    // Reference to preferences service
-    private let preferencesService = PreferencesService.shared
-    
-    override init() {
+final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
+    private let sessionQueue = DispatchQueue(label: "com.oxremy.blinkmore.camera", qos: .userInitiated)
+    private let videoQueue = DispatchQueue(label: "com.oxremy.blinkmore.inference", qos: .userInitiated)
+    private let lock = NSLock()
+    private var stopped = false
+    private var deliveryPending = false
+    private var latestFrame = TrackingFrame()
+    private var session: AVCaptureSession?
+    private var output: AVCaptureVideoDataOutput?
+    private var errorObserver: NSObjectProtocol?
+    private let core: OpaquePointer
+    private var sensitivity: Double
+    private let cameraID: String?
+    private let statistics: DailyStatistics
+    private let onFrame: (TrackingFrame) -> Void
+    private let faceDetection = VNDetectFaceRectanglesRequest()
+    private let landmarks = VNDetectFaceLandmarksRequest()
+    private let sequence = VNSequenceRequestHandler()
+    private var faceTracker: VNTrackObjectRequest?
+    private var lastFaceSearch = -Double.infinity
+    private var lastProcessed = -Double.infinity
+    private var lastFrameTime: Double = 0
+    private var fps: Double = 0
+    private var dropped = 0
+
+    init(cameraID: String?, sensitivity: Double, statistics: DailyStatistics,
+         onFrame: @escaping (TrackingFrame) -> Void) {
+        self.cameraID = cameraID; self.sensitivity = sensitivity
+        self.statistics = statistics; self.onFrame = onFrame
+        guard let core = bm_tracker_new() else { fatalError("Unable to allocate tracking core") }
+        self.core = core
         super.init()
-        faceLandmarksRequest.constellation = .constellation76Points // Use more detailed landmarks if available
-        
-        // Initialize cached values
-        updateCachedPreferences()
-        
-        // Discover available cameras
-        discoverAvailableCameras()
+        landmarks.constellation = .constellation76Points
+        landmarks.preferBackgroundProcessing = false
+        faceDetection.preferBackgroundProcessing = false
     }
-    
-    deinit {
-        print("EyeTrackingService being deinitialized")
-        
-        // Clean up cancellables
-        cancellables.removeAll()
-        
-        // Avoid potential deadlock by checking thread and using appropriate approach
-        if Thread.isMainThread {
-            // Only clean up if not already cleaning up
-            if !isCleaningUp {
-                isCleaningUp = true
-                self.cleanupResources() 
-            }
-        } else {
-            // Never use sync in deinit - use async instead
-            isCleaningUp = true
-            DispatchQueue.main.async {
-                self.cleanupResources()
-            }
-        }
-        
-        print("EyeTrackingService deinit complete")
+
+    deinit { if let observer = errorObserver { NotificationCenter.default.removeObserver(observer) }; bm_tracker_free(core) }
+
+    static func cameras() -> [AVCaptureDevice] {
+        AVCaptureDevice.DiscoverySession(deviceTypes: [.builtInWideAngleCamera, .external], mediaType: .video, position: .unspecified).devices
     }
-    
-    private func cleanupResources() {
-        // Track cleanup start time for logging
-        let startTime = Date()
-        print("Starting camera resource cleanup")
-        
-        // Stop tracking first if needed
-        if let session = captureSession, session.isRunning {
-            // Try to stop on the session's queue for thread safety
-            captureSessionQueue.sync {
-                session.stopRunning()
+
+    func start() {
+        sessionQueue.async {
+            guard !self.isStopped else { return }
+            let cameras = Self.cameras()
+            let selected = self.cameraID.flatMap { id in cameras.first { $0.uniqueID == id } }
+            guard let device = self.cameraID == nil ? (cameras.first(where: { $0.position == .front }) ?? cameras.first) : selected else {
+                self.deliver(TrackingFrame(phase: .cameraMissing)); return
             }
-            print("Stopped running capture session")
-        }
-        
-        // Explicitly set sample buffer delegate to nil
-        videoDataOutput?.setSampleBufferDelegate(nil, queue: nil)
-        
-        // Force device unlocking in case it was locked for configuration
-        if let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
-           (try? device.lockForConfiguration()) != nil {
-            device.unlockForConfiguration()
-            print("Unlocked camera device configuration")
-        }
-        
-        // Release references
-        videoDataOutput = nil
-        captureSession = nil
-        
-        print("Camera resources cleaned up - took \(Date().timeIntervalSince(startTime)) seconds")
-    }
-    
-    // MARK: - Setup and Configuration
-    
-    func startTracking() {
-        // Make sure we're not in the middle of stopping
-        if isStoppingTracking {
-            print("Cannot start tracking while stop is in progress - try again later")
-            return
-        }
-        
-        // Update cached preferences before starting
-        updateCachedPreferences()
-        
-        // Set up preference change listeners
-        setupPreferenceListeners()
-        
-        // Start the camera capture session on a background queue
-        captureSessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            // Setup camera if not already configured
-            if self.captureSession == nil {
-                self.setupCameraCapture()
-            }
-            
-            // Start the session if it's not running
-            if let session = self.captureSession, !session.isRunning {
-                session.startRunning()
-                
-                DispatchQueue.main.async {
-                    self.isActive = true
-                }
-                
-                print("Eye tracking started")
-            }
-        }
-    }
-    
-    func stopTracking() {
-        // Prevent multiple simultaneous stop calls
-        if isStoppingTracking {
-            print("Stop tracking already in progress, ignoring duplicate call")
-            return
-        }
-        
-        isStoppingTracking = true
-        trackingStopTime = Date()
-        
-        // Clear preference listeners when stopping
-        cancellables.removeAll()
-        
-        // Stop the capture session on the session queue
-        captureSessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            
-            if let session = self.captureSession, session.isRunning {
-                session.stopRunning()
-                
-                // Add a small delay to ensure AVFoundation has time to release resources
-                Thread.sleep(forTimeInterval: 0.1)
-                
-                DispatchQueue.main.async {
-                    self.isActive = false
-                    self.isEyeOpen = false // Reset eye state
-                    self.isStoppingTracking = false
-                    if let stopTime = self.trackingStopTime {
-                        print("Eye tracking stopped - took \(Date().timeIntervalSince(stopTime)) seconds")
-                    } else {
-                        print("Eye tracking stopped")
-                    }
-                }
-            } else {
-                DispatchQueue.main.async {
-                    self.isStoppingTracking = false
-                }
-            }
-        }
-    }
-    
-    // Public method to force synchronous cleanup for app termination
-    func prepareForTermination() {
-        print("Preparing eye tracking for termination")
-        // Cleanup resources synchronously
-        if !isCleaningUp {
-            isCleaningUp = true
-            
-            // Cancel any pending operations
-            cancellables.removeAll()
-            
-            // Force stop on session queue
-            captureSessionQueue.sync {
-                if let session = self.captureSession, session.isRunning {
-                    session.stopRunning()
-                    Thread.sleep(forTimeInterval: 0.1) // Brief pause for cleanup
-                }
-                
-                // Clean up on session queue to avoid threading issues
-                self.videoDataOutput?.setSampleBufferDelegate(nil, queue: nil)
-                self.videoDataOutput = nil
-                self.captureSession = nil
-            }
-            
-            print("Eye tracking termination preparation complete")
-        }
-    }
-    
-    private func setupCameraCapture() {
-        let session = AVCaptureSession()
-        session.sessionPreset = .medium // Lower resolution for better performance
-        
-        // Get the selected camera device
-        guard let device = getSelectedCameraDevice() else {
-            print("Failed to access selected camera")
-            return
-        }
-        
-        // Create input
-        do {
-            let input = try AVCaptureDeviceInput(device: device)
-            if session.canAddInput(input) {
+            do {
+                let session = AVCaptureSession()
+                session.beginConfiguration()
+                if session.canSetSessionPreset(.vga640x480) { session.sessionPreset = .vga640x480 }
+                else { session.sessionPreset = .medium }
+                let input = try AVCaptureDeviceInput(device: device)
+                guard session.canAddInput(input) else { throw CocoaError(.featureUnsupported) }
                 session.addInput(input)
-            } else {
-                print("Failed to add camera input")
-                return
-            }
-        } catch {
-            print("Failed to create camera input: \(error.localizedDescription)")
-            return
-        }
-        
-        // Create and configure video output
-        let videoOutput = AVCaptureVideoDataOutput()
-        videoOutput.setSampleBufferDelegate(self, queue: videoDataOutputQueue)
-        videoOutput.alwaysDiscardsLateVideoFrames = true
-        videoOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA]
-        
-        if session.canAddOutput(videoOutput) {
-            session.addOutput(videoOutput)
-            
-            // Get the connection and set video orientation
-            if let connection = videoOutput.connection(with: .video) {
-                // Handle both newer macOS 14+ and older versions
-                if #available(macOS 14.0, *) {
-                    // For macOS 14.0 and newer, use videoRotationAngle
-                    connection.videoRotationAngle = 0 // 0 degrees = portrait
-                } else {
-                    // For older versions, use the deprecated videoOrientation
-                    connection.videoOrientation = .portrait
+                let output = AVCaptureVideoDataOutput()
+                output.alwaysDiscardsLateVideoFrames = true
+                output.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
+                output.setSampleBufferDelegate(self, queue: self.videoQueue)
+                guard session.canAddOutput(output) else { throw CocoaError(.featureUnsupported) }
+                session.addOutput(output)
+                if let connection = output.connection(with: .video), connection.isVideoRotationAngleSupported(0) {
+                    connection.videoRotationAngle = 0
                 }
-                connection.isEnabled = true
+                session.commitConfiguration()
+                self.errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError, object: session, queue: nil) { [weak self] _ in
+                    self?.deliver(TrackingFrame(phase: .cameraError))
+                }
+                self.session = session; self.output = output
+                guard !self.isStopped else { output.setSampleBufferDelegate(nil, queue: nil); return }
+                session.startRunning()
+                if !session.isRunning { self.deliver(TrackingFrame(phase: .cameraError)) }
+            } catch {
+                self.deliver(TrackingFrame(phase: .cameraError))
+                NSLog("Camera could not start: %@", error.localizedDescription)
             }
-            
-            self.videoDataOutput = videoOutput
-        } else {
-            print("Failed to add video output")
-            return
         }
-        
-        self.captureSession = session
     }
-    
-    // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
-    
+
+    func stop(completion: (() -> Void)? = nil) {
+        lock.lock(); stopped = true; lock.unlock()
+        // Retain the service until sample delivery drains, then release it on the main thread.
+        sessionQueue.async {
+            self.output?.setSampleBufferDelegate(nil, queue: nil)
+            if self.session?.isRunning == true { self.session?.stopRunning() }
+            self.session = nil; self.output = nil
+            if let observer = self.errorObserver { NotificationCenter.default.removeObserver(observer) }; self.errorObserver = nil
+            self.videoQueue.async {
+                DispatchQueue.main.async { withExtendedLifetime(self) { completion?() } }
+            }
+        }
+    }
+
+    func recalibrate() { videoQueue.async { bm_tracker_reset(self.core) } }
+    func setSensitivity(_ value: Double) { videoQueue.async { self.sensitivity = value } }
+
+    private var isStopped: Bool {
+        lock.lock(); defer { lock.unlock() }; return stopped
+    }
+
+    func captureOutput(_ output: AVCaptureOutput, didDrop sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        dropped += 1
+    }
+
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        // Skip frames for performance
-        frameCounter += 1
-        if frameCounter % frameProcessingInterval != 0 {
-            return
+        guard !isStopped, let image = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let now = Self.clock()
+        let timestamp = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
+        guard timestamp.isFinite, now - timestamp < 0.25, now - timestamp >= -0.1 else {
+            dropped += 1; missing(.delayed, timestamp: now); return
         }
-        
-        // Convert sample buffer to pixel buffer
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            return
-        }
-        
-        // Create a request handler with the pixel buffer
-        let imageRequestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up, options: [:])
-        
-        do {
-            // Perform the face landmarks request
-            try imageRequestHandler.perform([faceLandmarksRequest])
-            
-            // Process the results
-            processVisionResults(faceLandmarksRequest)
-        } catch {
-            print("Failed to perform Vision request: \(error.localizedDescription)")
-        }
-    }
-    
-    // MARK: - Vision Results Processing
-    
-    private func processVisionResults(_ request: VNRequest) {
-        // Get the first face observation
-        guard let observations = request.results as? [VNFaceObservation], 
-              let faceObservation = observations.first else {
-            pauseEyeTracking(reason: "No face detected")
-            return
-        }
-        
-        // Check if we have multiple faces - if so, pause tracking
-        if observations.count > 1 {
-            pauseEyeTracking(reason: "Multiple faces detected")
-            return
-        }
-        
-        // Check if we have landmarks
-        guard let landmarks = faceObservation.landmarks else {
-            pauseEyeTracking(reason: "No face landmarks detected")
-            return
-        }
-        
-        // Check if we have both eyes
-        guard let leftEyeLandmarks = landmarks.leftEye, let rightEyeLandmarks = landmarks.rightEye else {
-            pauseEyeTracking(reason: "Eyes not detected")
-            return
-        }
-        
-        // Get eye points
-        let leftEyePoints = leftEyeLandmarks.normalizedPoints
-        let rightEyePoints = rightEyeLandmarks.normalizedPoints
-        
-        // Calculate EAR for both eyes
-        let leftEAR = calculateEAR(points: leftEyePoints)
-        let rightEAR = calculateEAR(points: rightEyePoints)
-        
-        // Average the EAR values
-        let avgEAR = (leftEAR + rightEAR) / 2.0
-        
-        // Determine if eyes are open based on EAR threshold
-        let eyesOpen = avgEAR > earThreshold
-        
-        // Debug output occasionally
-        if frameCounter % 30 == 0 {
-            print("Left EAR: \(leftEAR), Right EAR: \(rightEAR), Average EAR: \(avgEAR), Eyes Open: \(eyesOpen)")
-        }
-        
-        // Update eye state directly without temporal smoothing
-        updateEyeState(eyesOpen)
-    }
-    
-    // MARK: - Eye Aspect Ratio (EAR) calculation
-    
-    /// Calculate the Eye Aspect Ratio (EAR) from eye landmarks
-    /// EAR = (h1 + h2) / (2 * w)
-    /// where h1, h2 are the vertical distances between eye landmarks, and w is the horizontal distance
-    private func calculateEAR(points: [CGPoint]) -> Double {
-        guard points.count >= 6 else {
-            print("Insufficient eye landmarks for EAR calculation")
-            return 0.0
-        }
-        
-        // The exact indices depend on the landmark constellation used
-        // These are approximate for the standard eye landmarks
-        // Adjust these indices if using a different landmark constellation
-        
-        // For vertical distances (height)
-        let h1 = distanceBetween(points[1], points[5]) // Top to bottom landmarks
-        let h2 = distanceBetween(points[2], points[4]) // Top to bottom landmarks
-        
-        // For horizontal distance (width)
-        let w = distanceBetween(points[0], points[3]) // Corner to corner landmarks
-        
-        // Avoid division by zero
-        guard w > 0 else { return 0.0 }
-        
-        // Calculate EAR
-        let ear = (h1 + h2) / (2.0 * w)
-        return ear
-    }
-    
-    /// Calculate Euclidean distance between two points
-    private func distanceBetween(_ point1: CGPoint, _ point2: CGPoint) -> Double {
-        let xDiff = point2.x - point1.x
-        let yDiff = point2.y - point1.y
-        return sqrt(xDiff * xDiff + yDiff * yDiff)
-    }
-    
-    private func updateEyeState(_ currentEyeState: Bool) {
-        // Update published state on main thread if changed
-        DispatchQueue.main.async { [weak self] in
-            if self?.isEyeOpen != currentEyeState {
-                self?.isEyeOpen = currentEyeState
-                print("Eye state changed to: \(currentEyeState ? "OPEN" : "CLOSED")")
+        guard now - lastProcessed >= 1.0 / 30.0 else { return }
+        lastProcessed = now
+        autoreleasepool {
+            do {
+                let handler = VNImageRequestHandler(cvPixelBuffer: image, orientation: .up, options: [:])
+                let face: VNFaceObservation
+                if faceTracker == nil || now - lastFaceSearch >= 0.7 {
+                    try handler.perform([faceDetection])
+                    lastFaceSearch = now
+                    guard let faces = faceDetection.results, faces.count == 1, let found = faces.first else {
+                        faceTracker = nil
+                        missing((faceDetection.results?.count ?? 0) > 1 ? .multipleFaces : .noFace, timestamp: timestamp)
+                        return
+                    }
+                    face = found
+                    let tracker = VNTrackObjectRequest(detectedObjectObservation: VNDetectedObjectObservation(boundingBox: found.boundingBox))
+                    tracker.trackingLevel = .fast
+                    faceTracker = tracker
+                } else if let tracker = faceTracker {
+                    try sequence.perform([tracker], on: image, orientation: .up)
+                    guard let observation = tracker.results?.first as? VNDetectedObjectObservation,
+                          observation.confidence >= 0.6 else {
+                        faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                    }
+                    tracker.inputObservation = observation
+                    face = VNFaceObservation(boundingBox: observation.boundingBox)
+                } else { return }
+                landmarks.inputFaceObservations = [face]
+                try handler.perform([landmarks])
+                guard let measured = landmarks.results?.first,
+                      let left = measured.landmarks?.leftEye,
+                      let right = measured.landmarks?.rightEye else {
+                    faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                }
+                guard abs(measured.yaw?.doubleValue ?? 0) <= 0.65,
+                      abs(measured.pitch?.doubleValue ?? 0) <= 0.55 else {
+                    missing(.lowQuality, timestamp: timestamp); return
+                }
+                let finished = Self.clock()
+                guard finished - timestamp <= 0.25 else {
+                    dropped += 1; missing(.delayed, timestamp: timestamp); return
+                }
+                let lp = left.normalizedPoints.map { BMPoint(x: Double($0.x), y: Double($0.y)) }
+                let rp = right.normalizedPoints.map { BMPoint(x: Double($0.x), y: Double($0.y)) }
+                let box = measured.boundingBox
+                let result = lp.withUnsafeBufferPointer { l in rp.withUnsafeBufferPointer { r in
+                    bm_tracker_process(core, BMInput(left: l.baseAddress, left_count: UInt32(l.count),
+                        right: r.baseAddress, right_count: UInt32(r.count),
+                        face_width: box.width * Double(CVPixelBufferGetWidth(image)),
+                        face_height: box.height * Double(CVPixelBufferGetHeight(image)),
+                        timestamp: timestamp, confidence: Double(measured.confidence), sensitivity: sensitivity))
+                } }
+                if lastFrameTime > 0 && timestamp > lastFrameTime {
+                    let instant = min(60, 1 / (timestamp - lastFrameTime))
+                    fps = fps == 0 ? instant : fps * 0.85 + instant * 0.15
+                }
+                lastFrameTime = timestamp
+                var frame = TrackingFrame()
+                frame.phase = [0: TrackingPhase.noFace, 1: .calibrating, 2: .tracking, 3: .eyesClosed, 4: .lowQuality, 5: .delayed][Int(result.phase)] ?? .lowQuality
+                frame.timestamp = timestamp; frame.left = result.left_openness; frame.right = result.right_openness
+                frame.calibration = result.calibration; frame.openSeconds = result.open_seconds
+                frame.trackedDelta = result.tracked_delta; frame.asymmetry = result.asymmetry
+                frame.closedMask = result.closed_mask; frame.events = result.flags; frame.calibrated = result.flags & 2 != 0
+                frame.latencyMs = (finished - timestamp) * 1000; frame.fps = fps; frame.dropped = dropped
+                if CommandLine.arguments.contains("--diagnose") {
+                    frame.qualityNote = "core=\(result.phase) confidence=\(measured.confidence) contours=\(lp.count)/\(rp.count) face=\(Int(box.width * Double(CVPixelBufferGetWidth(image))))x\(Int(box.height * Double(CVPixelBufferGetHeight(image))))"
+                }
+                statistics.record(frame)
+                deliver(frame)
+            } catch {
+                faceTracker = nil; missing(.lowQuality, timestamp: timestamp)
             }
         }
     }
-    
-    private func pauseEyeTracking(reason: String) {
-        // Update published state on main thread
+
+    private func missing(_ phase: TrackingPhase, timestamp: Double) {
+        let result = bm_tracker_process(core, BMInput(left: nil, left_count: 0, right: nil, right_count: 0,
+            face_width: 0, face_height: 0, timestamp: timestamp, confidence: 0, sensitivity: sensitivity))
+        var frame = TrackingFrame(phase: phase)
+        frame.timestamp = timestamp; frame.calibration = result.calibration
+        frame.dropped = dropped; frame.fps = fps
+        frame.latencyMs = max(0, (Self.clock() - timestamp) * 1000)
+        deliver(frame)
+    }
+
+    private func deliver(_ frame: TrackingFrame) {
+        lock.lock()
+        guard !stopped else { lock.unlock(); return }
+        latestFrame = frame
+        guard !deliveryPending else { lock.unlock(); return }
+        deliveryPending = true; lock.unlock()
+        // One pending main-thread delivery keeps a busy UI from building a frame backlog.
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
-            // Only log if we're changing from open to closed
-            if self.isEyeOpen {
-                print("Pausing eye tracking: \(reason)")
-                self.isEyeOpen = false
-            }
+            self.lock.lock(); let value = self.latestFrame; let stopped = self.stopped
+            self.deliveryPending = false; self.lock.unlock()
+            if !stopped { self.onFrame(value) }
         }
     }
-    
-    // Method to update all cached preference values
-    private func updateCachedPreferences() {
-        cachedEARSensitivity = preferencesService.earSensitivity
-        
-        // Map numeric EAR value to human-readable sensitivity for logging
-        let sensitivityLabel: String
-        let range = Constants.maxEARSensitivity - Constants.minEARSensitivity
-        let step = range / 2.0
-        let relative = cachedEARSensitivity - Constants.minEARSensitivity
-        
-        if relative < step * 0.5 {
-            sensitivityLabel = "high"
-        } else if relative < step * 1.5 {
-            sensitivityLabel = "medium"
-        } else {
-            sensitivityLabel = "low"
-        }
-        
-        print("Cached EAR sensitivity updated to: \(cachedEARSensitivity) (\(sensitivityLabel) sensitivity)")
-    }
-    
-    // Set up listeners for preference changes
-    private func setupPreferenceListeners() {
-        // Cancel any existing subscriptions first
-        cancellables.removeAll()
-        
-        // Listen for EAR sensitivity changes
-        preferencesService.$earSensitivity
-            .dropFirst() // Skip initial value
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] newValue in
-                guard let self = self else { return }
-                self.cachedEARSensitivity = newValue
-                print("Updated cached EAR sensitivity to: \(newValue)")
-            }
-            .store(in: &cancellables)
-    }
-    
-    // MARK: - Camera Discovery and Selection
-    
-    /// Discover all available cameras on the system
-    private func discoverAvailableCameras() {
-        let discoverySession = AVCaptureDevice.DiscoverySession(
-            deviceTypes: [.builtInWideAngleCamera, .externalUnknown],
-            mediaType: .video,
-            position: .unspecified
-        )
-        
-        let cameras = discoverySession.devices.map { device in
-            (id: device.uniqueID, name: device.localizedName)
-        }
-        
-        DispatchQueue.main.async {
-            self.availableCameras = cameras
-            print("Discovered \(cameras.count) camera(s): \(cameras.map { $0.name }.joined(separator: ", "))")
-        }
-    }
-    
-    /// Get the currently selected camera device, falling back to the default front camera
-    private func getSelectedCameraDevice() -> AVCaptureDevice? {
-        // Check if user has selected a specific camera
-        if let selectedID = preferencesService.selectedCameraID {
-            // Try to find the selected camera
-            if let device = AVCaptureDevice(uniqueID: selectedID) {
-                print("Using selected camera: \(device.localizedName)")
-                return device
-            } else {
-                print("Selected camera not found, falling back to default")
-            }
-        }
-        
-        // Fall back to default front camera
-        let device = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front)
-        if let device = device {
-            print("Using default front camera: \(device.localizedName)")
-            // Save this as the default selection
-            DispatchQueue.main.async {
-                self.preferencesService.selectedCameraID = device.uniqueID
-            }
-        }
-        return device
-    }
-    
-    /// Switch to a different camera while tracking is active
-    func switchCamera(to cameraID: String) {
-        guard let newDevice = AVCaptureDevice(uniqueID: cameraID) else {
-            print("Failed to find camera with ID: \(cameraID)")
-            return
-        }
-        
-        print("Switching to camera: \(newDevice.localizedName)")
-        
-        // Save the selection
-        preferencesService.selectedCameraID = cameraID
-        
-        // If tracking is active, restart with new camera
-        if isActive {
-            captureSessionQueue.async { [weak self] in
-                guard let self = self else { return }
-                
-                // Stop current session
-                if let session = self.captureSession, session.isRunning {
-                    session.stopRunning()
-                }
-                
-                // Remove all existing inputs
-                if let session = self.captureSession {
-                    for input in session.inputs {
-                        session.removeInput(input)
-                    }
-                }
-                
-                // Add new camera input
-                do {
-                    let input = try AVCaptureDeviceInput(device: newDevice)
-                    if let session = self.captureSession, session.canAddInput(input) {
-                        session.addInput(input)
-                        session.startRunning()
-                        print("Successfully switched camera")
-                    } else {
-                        print("Failed to add new camera input")
-                    }
-                } catch {
-                    print("Failed to create input for new camera: \(error.localizedDescription)")
-                }
-            }
-        }
-    }
-} 
+
+    static func clock() -> Double { CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) }
+}
