@@ -130,6 +130,8 @@
         text("reminder-value", `${Math.round(clamp(state.calibration) * 100)}%`); text("reminder-caption", "calibrating"); progress = clamp(state.calibration);
       } else if (state.fading) {
         text("reminder-value", "Blink"); text("reminder-caption", "a gentle reset"); progress = 1;
+      } else if (active && preferences.remindersEnabled && state.reminderState === "waitingForBlink") {
+        text("reminder-value", "Blink"); text("reminder-caption", "to reset reminder"); progress = 1;
       } else if (active && preferences.remindersEnabled) {
         text("reminder-value", `${Math.max(0, finite(preferences.reminderSeconds) - finite(state.openSeconds)).toFixed(1)}s`);
         text("reminder-caption", "until reminder"); progress = clamp(finite(state.openSeconds) / Math.max(3, finite(preferences.reminderSeconds)));

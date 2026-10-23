@@ -19,8 +19,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var saveTimer: Timer?
     private var dashboard: DashboardWindowController?
     private var previewUntil: Double = 0
-    private var fadeStarted: Double = 0
-    private var cooldownUntil: Double = 0
+    private var reminderPolicy = ReminderPolicy()
     private var latency: [Double] = []
     private var cameras: [[String: String]] = []
     private var notice = ""
@@ -128,34 +127,28 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         service.stop { [weak self] in
             self?.stoppingCamera = false; self?.statistics.flush()
         }
-        previewUntil = 0
+        previewUntil = 0; reminderPolicy.reset()
         fade.setVisible(false, color: preferences.fadeColor, intensity: preferences.intensity, duration: 0)
     }
 
     private func updateFade() {
         let now = EyeTrackingService.clock()
         menu?.update(effectivePhase)
-        let fresh = frame.timestamp > 0 && now - frame.timestamp < 0.35
-        if fade.isFaded && fadeStarted > 0 && now - fadeStarted >= 6 {
-            cooldownUntil = now + 5; previewUntil = 0
-        }
         let preview = now < previewUntil
-        let visible = preferences.pauseUntil == nil && now >= cooldownUntil &&
-            (preview || (preferences.remindersEnabled && fresh && frame.phase == .tracking &&
-                         frame.calibrated && frame.openSeconds >= preferences.reminderSeconds))
-        if visible && !fade.isFaded {
-            fadeStarted = now
-            if !preview { statistics.reminder() }
-        }
-        if !visible { fadeStarted = 0 }
-        fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity, duration: preferences.fadeSeconds)
+        let decision = reminderPolicy.update(now: now, frame: frame,
+            enabled: preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
+        let visible = preferences.pauseUntil == nil && (preview || decision.visible)
+        if decision.triggered && !preview { statistics.reminder() }
+        fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity,
+                        duration: preview ? min(0.25, preferences.fadeSeconds) : preferences.fadeSeconds)
     }
 
     private func writeDiagnostics() {
         guard CommandLine.arguments.contains("--diagnose") else { return }
         let value: [String: Any] = ["phase": effectivePhase.rawValue, "calibration": frame.calibration,
             "delayMs": frame.latencyMs, "fps": frame.fps, "dropped": frame.dropped,
-            "frameAge": max(0, EyeTrackingService.clock() - frame.timestamp), "quality": frame.qualityNote]
+            "frameAge": max(0, EyeTrackingService.clock() - frame.timestamp), "quality": frame.qualityNote,
+            "reminderState": reminderPolicy.mode.rawValue, "fading": fade.isFaded]
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("BlinkMore/diagnostic-status.json")
         do {
@@ -195,6 +188,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         result["calibration"] = frame.calibration; result["openSeconds"] = frame.openSeconds
         result["latencyMs"] = frame.latencyMs
         result["p95Ms"] = ordered.isEmpty ? 0 : ordered[min(ordered.count - 1, ordered.count * 95 / 100)]
+        result["reminderState"] = reminderPolicy.mode.rawValue
         result["fps"] = frame.fps; result["dropped"] = frame.dropped; result["fading"] = fade.isFaded
         result["actualTheme"] = actualTheme; result["preferences"] = preferences.snapshot()
         result["statistics"] = statistics.snapshot(); result["cameras"] = cameras
@@ -208,7 +202,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         case "ready": dashboard?.refresh()
         case "pause": togglePause()
         case "calibrate": tracker?.recalibrate(); notify("Calibration restarted. Look toward the camera and blink normally.")
-        case "preview": previewUntil = EyeTrackingService.clock() + 2; cooldownUntil = 0; updateFade()
+        case "preview": reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
         case "retry": stopCamera(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reconcile() }
         case "cameraSettings":
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") { NSWorkspace.shared.open(url) }

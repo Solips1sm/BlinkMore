@@ -26,7 +26,7 @@ The build produces `dist/BlinkMore.app` and `dist/BlinkMoreACAgent`. The install
 
 Allow camera access when macOS requests it. A locally signed replacement can require camera approval again. Look toward the camera with your eyes naturally open and blink normally while calibration completes. Open the eight circle menu icon to reach the dashboard. The screen reminder duration and color from the previous installation are retained. Sensitivity uses the new calibrated scale.
 
-Monitoring starts automatically when the charger is connected, including after login and wake. Disconnecting AC stops the app and releases the camera. Pause turns off the camera for five minutes; Resume starts a new calibration immediately. Turning off screen reminders keeps local activity measurement running. Preview applies a two second fade without changing the daily reminder count.
+Monitoring starts automatically when the charger is connected, including after login and wake. Disconnecting AC stops the app and releases the camera. Pause turns off the camera for five minutes; Resume starts a new calibration immediately. Turning off screen reminders keeps local activity measurement running. Preview reaches the selected tint quickly and shows it for two seconds without changing the daily reminder count. Automatic reminders wait for a blink afterward.
 
 ## Tracking and performance
 
@@ -34,7 +34,7 @@ AVFoundation captures 640 × 480 frames and discards late frames. Vision selects
 
 Rust handles contour geometry, pixel aspect correction, independent eye calibration, smoothing, hysteresis, bilateral blink episodes and time accounting. It uses no external crates and allocates no memory during frame processing. Calibration collects at least 18 valid observations and 1.2 seconds of visible data. It derives each eye’s baseline from its upper aperture percentile. The C interface is used only from the capture queue; borrowed landmark buffers stay alive through each call.
 
-Frames older than 250 ms are rejected. Explicit frame invalidation keeps calibration and clears temporal history without advancing the capture clock. Gaps over 250 ms reset blink episodes and the reminder clock, so missed camera time cannot become a phantom blink or an immediate fade. Face loss, uncertain pose and multiple faces clear reminders. Camera errors and a stalled stream trigger bounded retries. Closing the dashboard releases its WebKit view and update timer. Screen overlays redraw only when their color or intensity changes, and animate only on visibility transitions.
+Frames older than 250 ms are rejected. Explicit frame invalidation keeps calibration and clears temporal history without advancing the capture clock. Gaps over 250 ms reset blink episodes and the reminder clock, so missed camera time cannot become a phantom blink or an immediate fade. Face loss, uncertain pose and multiple faces clear reminders. Camera errors and a stalled stream trigger bounded retries. Closing the dashboard releases its WebKit view and update timer. Screen overlays redraw only when their color or intensity changes, and animate only on visibility transitions. Each blink interval receives one cue. A short inference gap does not restart its animation; a fresh eye closure clears it immediately, and lost tracking clears it within half a second. A six second safety limit clears a cue and waits for a blink or a restarted observation interval, rather than repeatedly pulsing the screen.
 
 The Rust benchmark processes one million synthetic updates. The recorded Intel run measured a 714 ns 95th percentile per update, or 817 ns with two additional busy CPU workers. See [the measurement](docs/core-benchmark.json). These values exclude camera capture, Vision and display latency. They establish core overhead, not a measured improvement in real world detection accuracy or a guarantee under arbitrary CPU saturation. The dashboard shows actual camera delay, recent 95th percentile delay and processed frame rate. Eyeglass reflections, lighting, camera angle and CPU contention still affect tracking.
 
@@ -54,7 +54,7 @@ The dashboard includes calibration, visible tracking, eye closure, no face, mult
 
 ## Validation
 
-`Scripts/test.sh` runs eleven Rust tests, Clippy with warnings rejected, JavaScript syntax validation and native preference and persistence tests plus real Swift to Rust ABI and blank frame Vision integration tests on macOS. Coverage includes unordered contours, head roll, face aspect, independent eye sizes, blinks at 15 to 60 fps, unilateral closures, long closures, missing frames, stale time, FFI boundary validation, recovery, deletion ordering and daylight saving rollover.
+`Scripts/test.sh` runs eleven Rust tests, Clippy with warnings rejected, JavaScript syntax validation and native reminder, preference and persistence tests plus real Swift to Rust ABI and blank frame Vision integration tests on macOS. Coverage includes unordered contours, head roll, face aspect, independent eye sizes, blinks at 15 to 60 fps, unilateral closures, long closures, missing frames, stale time, FFI boundary validation, recovery, deletion ordering and daylight saving rollover.
 
 Run the actual WebKit dashboard checks in a logged in macOS GUI session:
 

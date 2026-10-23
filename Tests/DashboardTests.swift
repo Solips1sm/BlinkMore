@@ -66,6 +66,10 @@ import WebKit
             let permissionVisible = try await js("return !document.getElementById('camera-settings').hidden") as! Bool
             precondition(permissionVisible == (phase == .cameraDenied))
         }
+        state["phase"] = "tracking"; state["reminderState"] = "waitingForBlink"
+        controller.refresh(); try await Task.sleep(for: .milliseconds(100))
+        let waitingCaption = try await js("return document.getElementById('reminder-caption').textContent") as! String
+        precondition(waitingCaption == "to reset reminder")
         _ = try await js("document.querySelector('[data-tab=settings]').click(); document.querySelector('[data-theme=dark]').click(); const s=document.getElementById('sensitivity'); s.value='0.8'; s.dispatchEvent(new Event('change')); document.querySelector('[data-action=preview]').click()")
         try await Task.sleep(for: .milliseconds(100))
         precondition(commands.contains(where: { $0["key"] as? String == "theme" && $0["value"] as? String == "dark" }))
