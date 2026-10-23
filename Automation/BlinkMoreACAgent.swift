@@ -35,6 +35,7 @@ final class BlinkMoreACAgent {
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false
         configuration.hides = false
+        if CommandLine.arguments.contains("--diagnose") { configuration.arguments = ["--diagnose"] }
         NSLog("AC power: launching BlinkMore")
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
             DispatchQueue.main.async {

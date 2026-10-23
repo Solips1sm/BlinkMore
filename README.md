@@ -30,7 +30,7 @@ Monitoring starts automatically when the charger is connected, including after l
 
 ## Tracking and performance
 
-AVFoundation captures 640 × 480 frames and discards late frames. Vision detects a single face, follows its bounding box between full searches and finds both eyelid contours. The inference queue is serial and separate from the UI. There is at most one pending UI delivery, so a busy dashboard cannot create an unbounded frame backlog. Full face searches run every 0.7 seconds; a second person entering between searches can take that interval to be detected.
+AVFoundation captures 640 × 480 frames and discards late frames. Vision selects a visible primary face, follows its bounding box between full searches and finds both eyelid contours. Weak detections and faces smaller than 80 pixels are ignored. Overlap keeps the current face selected when background faces appear; equally sized candidates without a tracked match pause monitoring. The inference queue is serial and separate from the UI. There is at most one pending UI delivery, so a busy dashboard cannot create an unbounded frame backlog. Full face searches run every 0.7 seconds during tracking and at most five times per second while a face is absent; a second person entering between searches can take that interval to be detected.
 
 Rust handles contour geometry, pixel aspect correction, independent eye calibration, smoothing, hysteresis, bilateral blink episodes and time accounting. It uses no external crates and allocates no memory during frame processing. Calibration collects at least 18 valid observations and 1.2 seconds of visible data. It derives each eye’s baseline from its upper aperture percentile. The C interface is used only from the capture queue; borrowed landmark buffers stay alive through each call.
 
@@ -40,7 +40,7 @@ The Rust benchmark processes one million synthetic updates. The recorded Intel r
 
 ## Daily activity and privacy
 
-Camera frames and facial landmarks stay in memory. The app has no network entitlement and the local dashboard blocks network requests. It saves daily blink counts, visible tracking time, separate unilateral closure counts, reminder counts and aggregate calibrated openness differences. Files are stored in the app sandbox under `Library/Application Support/BlinkMore/daily-statistics.json`. No raw eye measurements, video or per blink timestamps are written during normal operation. The explicit `--diagnose` launch flag writes one local status file with the current processing phase, calibration progress, quality checks and timing for troubleshooting. It contains no camera images or eye contour coordinates.
+Camera frames and facial landmarks stay in memory. The app has no network entitlement and the local dashboard blocks network requests. It saves daily blink counts, visible tracking time, separate unilateral closure counts, reminder counts and aggregate calibrated openness differences. Files are stored in the app sandbox under `Library/Application Support/BlinkMore/daily-statistics.json`. No raw eye measurements, video or per blink timestamps are written during normal operation. The explicit `--diagnose` launch flag writes one local status file with the current processing phase, calibration progress, quality checks and timing for troubleshooting. It contains no camera images or eye contour coordinates. Passing `--diagnose` to the AC agent forwards the flag to the app it launches.
 
 The eye difference compares current openness against each eye’s own calibrated baseline. It describes unequal movement during tracked open eye periods, rather than anatomical eye size or a medical diagnosis. Separate unilateral closure counters describe short closures without a matching closure in the other eye. Blink rate appears after 30 seconds of visible data; mean eye difference appears after five seconds of calibrated open eye data.
 
@@ -54,7 +54,7 @@ The dashboard includes calibration, visible tracking, eye closure, no face, mult
 
 ## Validation
 
-`Scripts/test.sh` runs ten Rust tests, Clippy with warnings rejected, JavaScript syntax validation and native preference and persistence tests plus a real Swift to Rust ABI test on macOS. Coverage includes unordered contours, head roll, face aspect, independent eye sizes, blinks at 15 to 60 fps, unilateral closures, long closures, missing frames, stale time, FFI boundary validation, recovery, deletion ordering and daylight saving rollover.
+`Scripts/test.sh` runs ten Rust tests, Clippy with warnings rejected, JavaScript syntax validation and native preference and persistence tests plus real Swift to Rust ABI and blank frame Vision integration tests on macOS. Coverage includes unordered contours, head roll, face aspect, independent eye sizes, blinks at 15 to 60 fps, unilateral closures, long closures, missing frames, stale time, FFI boundary validation, recovery, deletion ordering and daylight saving rollover.
 
 Run the actual WebKit dashboard checks in a logged in macOS GUI session:
 

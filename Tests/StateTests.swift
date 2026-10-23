@@ -10,7 +10,7 @@ import AppKit
         let url = root.appendingPathComponent("stats.json")
         let stats = DailyStatistics(url: url, now: date)
         var frame = TrackingFrame(phase: .tracking)
-        frame.trackedDelta = 0.1; frame.events = 4; frame.calibrated = true; frame.asymmetry = 0.2
+        frame.trackedDelta = 0.1; frame.events = 5; frame.calibrated = true; frame.asymmetry = 0.2
         for _ in 0..<400 { stats.record(frame, now: date) }
         stats.reminder(now: date)
         stats.flush(synchronous: true)
@@ -52,6 +52,8 @@ import AppKit
         precondition(DailyRecord(day: "2026-10-25").valid)
         precondition(!DailyRecord(day: "2026-02-30").valid)
         precondition(!DailyRecord(day: "----------").valid)
+        precondition(!DailyRecord(day: "2026-10-25", asymmetryWeighted: 100, asymmetrySeconds: 1).valid)
+        precondition(!DailyRecord(day: "2026-10-25", asymmetrySeconds: -1).valid)
         let suite = "BlinkMoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }

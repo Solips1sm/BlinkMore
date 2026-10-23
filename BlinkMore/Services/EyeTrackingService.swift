@@ -71,7 +71,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                     connection.videoRotationAngle = 0
                 }
                 session.commitConfiguration()
-                self.errorObserver = NotificationCenter.default.addObserver(forName: .AVCaptureSessionRuntimeError, object: session, queue: nil) { [weak self] _ in
+                self.errorObserver = NotificationCenter.default.addObserver(forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: nil) { [weak self] _ in
                     self?.deliver(TrackingFrame(phase: .cameraError))
                 }
                 self.session = session; self.output = output
@@ -111,28 +111,37 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     }
 
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard !isStopped, let image = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard let image = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        process(image, timestamp: CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer)))
+    }
+
+    func process(_ image: CVPixelBuffer, timestamp: Double) {
+        guard !isStopped else { return }
         let now = Self.clock()
-        let timestamp = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
         guard timestamp.isFinite, now - timestamp < 0.25, now - timestamp >= -0.1 else {
             dropped += 1; missing(.delayed, timestamp: now); return
         }
         guard now - lastProcessed >= 1.0 / 30.0 else { return }
         lastProcessed = now
+        // Search at 5 Hz while absent, then return to full eye tracking as soon as a face appears.
+        guard faceTracker != nil || now - lastFaceSearch >= 0.2 else { return }
         autoreleasepool {
             do {
                 let handler = VNImageRequestHandler(cvPixelBuffer: image, orientation: .up, options: [:])
                 let face: VNFaceObservation
                 if faceTracker == nil || now - lastFaceSearch >= 0.7 {
-                    try handler.perform([faceDetection])
                     lastFaceSearch = now
-                    guard let faces = faceDetection.results, faces.count == 1, let found = faces.first else {
-                        faceTracker = nil
-                        missing((faceDetection.results?.count ?? 0) > 1 ? .multipleFaces : .noFace, timestamp: timestamp)
-                        return
+                    try handler.perform([faceDetection])
+                    let selection = FaceSelection.choose(faceDetection.results ?? [], previous: faceTracker?.inputObservation.boundingBox,
+                        imageSize: CGSize(width: CVPixelBufferGetWidth(image), height: CVPixelBufferGetHeight(image)))
+                    switch selection {
+                    case .none:
+                        faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                    case .ambiguous:
+                        faceTracker = nil; missing(.multipleFaces, timestamp: timestamp); return
+                    case .selected(let found): face = found
                     }
-                    face = found
-                    let tracker = VNTrackObjectRequest(detectedObjectObservation: VNDetectedObjectObservation(boundingBox: found.boundingBox))
+                    let tracker = VNTrackObjectRequest(detectedObjectObservation: VNDetectedObjectObservation(boundingBox: face.boundingBox))
                     tracker.trackingLevel = .fast
                     faceTracker = tracker
                 } else if let tracker = faceTracker {
@@ -187,15 +196,16 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 statistics.record(frame)
                 deliver(frame)
             } catch {
-                faceTracker = nil; missing(.lowQuality, timestamp: timestamp)
+                faceTracker = nil; missing(.cameraError, timestamp: timestamp, note: error.localizedDescription)
             }
         }
     }
 
-    private func missing(_ phase: TrackingPhase, timestamp: Double) {
+    private func missing(_ phase: TrackingPhase, timestamp: Double, note: String = "") {
         let result = bm_tracker_process(core, BMInput(left: nil, left_count: 0, right: nil, right_count: 0,
             face_width: 0, face_height: 0, timestamp: timestamp, confidence: 0, sensitivity: sensitivity))
         var frame = TrackingFrame(phase: phase)
+        frame.qualityNote = note
         frame.timestamp = timestamp; frame.calibration = result.calibration
         frame.dropped = dropped; frame.fps = fps
         frame.latencyMs = max(0, (Self.clock() - timestamp) * 1000)

@@ -13,7 +13,7 @@ struct DailyRecord: Codable {
     var valid: Bool {
         Self.validDay(day) &&
         trackedSeconds.isFinite && (0...90001).contains(trackedSeconds) &&
-        asymmetryWeighted.isFinite && asymmetryWeighted >= 0 &&
+        asymmetryWeighted.isFinite && asymmetryWeighted >= 0 && asymmetryWeighted <= asymmetrySeconds + 0.000001 &&
         asymmetrySeconds.isFinite && (0...90001).contains(asymmetrySeconds) &&
         [blinks, leftClosures, rightClosures, reminders].allSatisfy { (0...1_000_000).contains($0) }
     }
@@ -79,7 +79,7 @@ final class DailyStatistics {
     }
 
     func record(_ frame: TrackingFrame, now: Date = Date()) {
-        guard frame.trackedDelta.isFinite, (0...0.25).contains(frame.trackedDelta) else { return }
+        guard frame.events & 1 != 0, frame.trackedDelta.isFinite, (0...0.25).contains(frame.trackedDelta) else { return }
         lock.lock(); defer { lock.unlock() }
         rollDay(now)
         var value = records[day] ?? DailyRecord(day: day)
