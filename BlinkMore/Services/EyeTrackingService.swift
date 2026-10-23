@@ -26,6 +26,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private let sequence = VNSequenceRequestHandler()
     private var faceTracker: VNTrackObjectRequest?
     private var lastFaceSearch = -Double.infinity
+    private var lastFaceTrackFinished = -Double.infinity
     private var lastProcessed = -Double.infinity
     private var lastFrameTime: Double = 0
     private var fps: Double = 0
@@ -150,7 +151,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         guard timestamp.isFinite, now - timestamp < 0.1, now - timestamp >= -0.1 else {
             dropped += 1; missing(.delayed, timestamp: timestamp.isFinite ? timestamp : now); return
         }
-        guard now - lastProcessed >= 1.0 / 30.0 else { return }
+        guard now - lastProcessed >= 1.0 / 15.0 else { return }
         lastProcessed = now
         // Search at 5 Hz while absent, then return to full eye tracking as soon as a face appears.
         guard faceTracker != nil || now - lastFaceSearch >= 0.2 else { return }
@@ -158,7 +159,9 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
             do {
                 let handler = VNImageRequestHandler(cvPixelBuffer: image, orientation: .up, options: [:])
                 let face: VNFaceObservation
+                var locationPass = "cached"
                 if faceTracker == nil || now - lastFaceSearch >= 0.7 {
+                    locationPass = "search"
                     lastFaceSearch = now
                     try handler.perform([faceDetection])
                     let selection = FaceSelection.choose(faceDetection.results ?? [], previous: faceTracker?.inputObservation.boundingBox,
@@ -173,14 +176,19 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                     let tracker = VNTrackObjectRequest(detectedObjectObservation: VNDetectedObjectObservation(boundingBox: face.boundingBox))
                     tracker.trackingLevel = .fast
                     faceTracker = tracker
+                    lastFaceTrackFinished = Self.clock()
                 } else if let tracker = faceTracker {
-                    try sequence.perform([tracker], on: image, orientation: .up)
-                    guard let observation = tracker.results?.first as? VNDetectedObjectObservation,
-                          observation.confidence >= 0.6 else {
-                        faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                    if now - lastFaceTrackFinished >= 0.2 {
+                        locationPass = "track"
+                        try sequence.perform([tracker], on: image, orientation: .up)
+                        guard let observation = tracker.results?.first as? VNDetectedObjectObservation,
+                              observation.confidence >= 0.6 else {
+                            faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                        }
+                        tracker.inputObservation = observation
+                        lastFaceTrackFinished = Self.clock()
                     }
-                    tracker.inputObservation = observation
-                    face = VNFaceObservation(boundingBox: observation.boundingBox)
+                    face = VNFaceObservation(boundingBox: tracker.inputObservation.boundingBox)
                 } else { return }
                 let landmarkStart = Self.clock()
                 landmarks.inputFaceObservations = [face]
@@ -228,7 +236,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 frame.closedMask = result.closed_mask; frame.events = result.flags; frame.calibrated = result.flags & 2 != 0
                 frame.latencyMs = (finished - timestamp) * 1000; frame.fps = fps; frame.dropped = totalDropped
                 if CommandLine.arguments.contains("--diagnose") {
-                    frame.qualityNote = "core=\(result.phase) confidence=\(measured.confidence) contours=\(lp.count)/\(rp.count) face=\(Int(box.width * Double(CVPixelBufferGetWidth(image))))x\(Int(box.height * Double(CVPixelBufferGetHeight(image)))) inputMs=\(Int((now - timestamp) * 1000)) inferenceMs=\(Int((finished - now) * 1000)) landmarksMs=\(Int((finished - landmarkStart) * 1000))"
+                    frame.qualityNote = "locate=\(locationPass) core=\(result.phase) confidence=\(measured.confidence) contours=\(lp.count)/\(rp.count) face=\(Int(box.width * Double(CVPixelBufferGetWidth(image))))x\(Int(box.height * Double(CVPixelBufferGetHeight(image)))) inputMs=\(Int((now - timestamp) * 1000)) inferenceMs=\(Int((finished - now) * 1000)) landmarksMs=\(Int((finished - landmarkStart) * 1000))"
                 }
                 statistics.record(frame)
                 deliver(frame)
