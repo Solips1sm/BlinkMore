@@ -29,19 +29,26 @@ import Vision
             service.enqueue(buffer!, timestamp: EyeTrackingService.clock())
             try await Task.sleep(for: .milliseconds(35))
         }
+        for _ in 0..<60 {
+            if frames.contains(where: { $0.0 == .noFace }) { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
         precondition(frames.contains { $0.0 == .noFace } && frames.allSatisfy { [.noFace, .delayed].contains($0.0) })
         let searches = frames.filter { $0.0 == .noFace }
         for pair in zip(searches, searches.dropFirst()) { precondition(pair.1.1 - pair.0.1 >= 0.15) }
-        let before = frames.count
-        service.enqueue(buffer!, timestamp: EyeTrackingService.clock() - 1)
+        await withCheckedContinuation { continuation in service.stop { continuation.resume() } }
+        // A separate pipeline cannot confuse a pending fresh result with the stale probe.
+        var staleFrames: [TrackingFrame] = []
+        let staleService = EyeTrackingService(cameraID: nil, sensitivity: 0.5, statistics: statistics) { staleFrames.append($0) }
+        staleService.enqueue(buffer!, timestamp: EyeTrackingService.clock() - 1)
         for _ in 0..<20 {
-            if frames.count > before { break }
+            if !staleFrames.isEmpty { break }
             try await Task.sleep(for: .milliseconds(50))
         }
-        precondition(frames.count == before + 1 && frames.last!.0 == .delayed)
+        precondition(staleFrames.count == 1 && staleFrames[0].phase == .delayed)
         let today = statistics.snapshot()["today"] as! [String: Any]
         precondition(today["trackedSeconds"] as! Double == 0)
-        await withCheckedContinuation { continuation in service.stop { continuation.resume() } }
+        await withCheckedContinuation { continuation in staleService.stop { continuation.resume() } }
         print("Vision pipeline tests passed: actual no-face inference, bounded search rate, stale-frame rejection, no invented activity")
     }
 }
