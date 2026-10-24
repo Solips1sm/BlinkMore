@@ -13,6 +13,10 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private var inferenceScheduled = false
     private var captureDrops = 0
     private var delivery = TrackingDelivery()
+    let motion = MotionTrace()
+    private var faceCount = 0
+    private var sceneTimestamp = 0.0
+    private var ownerBox: CGRect?
     private var session: AVCaptureSession?
     private var output: AVCaptureVideoDataOutput?
     private var errorObserver: NSObjectProtocol?
@@ -56,7 +60,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
             let cameras = Self.cameras()
             let selected = self.cameraID.flatMap { id in cameras.first { $0.uniqueID == id } }
             guard let device = self.cameraID == nil ? (cameras.first(where: { $0.position == .front }) ?? cameras.first) : selected else {
-                self.deliver(TrackingFrame(phase: .cameraMissing)); return
+                self.videoQueue.async { self.deliver(TrackingFrame(phase: .cameraMissing)) }; return
             }
             do {
                 let session = AVCaptureSession()
@@ -77,7 +81,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 }
                 session.commitConfiguration()
                 self.errorObserver = NotificationCenter.default.addObserver(forName: AVCaptureSession.runtimeErrorNotification, object: session, queue: nil) { [weak self] _ in
-                    self?.deliver(TrackingFrame(phase: .cameraError))
+                    self?.videoQueue.async { self?.deliver(TrackingFrame(phase: .cameraError)) }
                 }
                 self.session = session; self.output = output
                 guard !self.isStopped else { output.setSampleBufferDelegate(nil, queue: nil); return }
@@ -91,9 +95,9 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                         device.activeVideoMaxFrameDuration = duration
                     } catch { NSLog("Camera keeps its default frame rate: %@", error.localizedDescription) }
                 }
-                if !session.isRunning { self.deliver(TrackingFrame(phase: .cameraError)) }
+                if !session.isRunning { self.videoQueue.async { self.deliver(TrackingFrame(phase: .cameraError)) } }
             } catch {
-                self.deliver(TrackingFrame(phase: .cameraError))
+                self.videoQueue.async { self.deliver(TrackingFrame(phase: .cameraError)) }
                 NSLog("Camera could not start: %@", error.localizedDescription)
             }
         }
@@ -174,14 +178,20 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                     locationPass = "search"
                     lastFaceSearch = now
                     try handler.perform([faceDetection])
-                    let selection = FaceSelection.choose(faceDetection.results ?? [], previous: faceTracker?.inputObservation.boundingBox,
-                        imageSize: CGSize(width: CVPixelBufferGetWidth(image), height: CVPixelBufferGetHeight(image)))
+                    let imageSize = CGSize(width: CVPixelBufferGetWidth(image), height: CVPixelBufferGetHeight(image))
+                    let faces = FaceSelection.qualified(faceDetection.results ?? [], imageSize: imageSize)
+                    faceCount = faces.count; sceneTimestamp = timestamp
+                    let selection = FaceSelection.choose(faces, imageSize: imageSize)
                     switch selection {
                     case .none:
-                        faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                        faceTracker = nil; resetOwner(timestamp: timestamp); missing(.noFace, timestamp: timestamp); return
                     case .ambiguous:
-                        faceTracker = nil; missing(.multipleFaces, timestamp: timestamp); return
-                    case .selected(let found): face = found
+                        faceTracker = nil; resetOwner(timestamp: timestamp); missing(.multipleFaces, timestamp: timestamp); return
+                    case .selected(let found):
+                        if let previous = ownerBox, !FaceSelection.continuous(previous, found.boundingBox) {
+                            bm_tracker_reset(core); statistics.cancelCheck(now: timestamp)
+                        }
+                        face = found; ownerBox = found.boundingBox
                     }
                     let tracker = VNTrackObjectRequest(detectedObjectObservation: VNDetectedObjectObservation(boundingBox: face.boundingBox))
                     tracker.trackingLevel = .fast
@@ -196,6 +206,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                             faceTracker = nil; missing(.noFace, timestamp: timestamp); return
                         }
                         tracker.inputObservation = observation
+                        ownerBox = observation.boundingBox
                         lastFaceTrackFinished = Self.clock()
                     }
                     face = VNFaceObservation(boundingBox: tracker.inputObservation.boundingBox)
@@ -262,6 +273,11 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         }
     }
 
+    private func resetOwner(timestamp: Double) {
+        guard ownerBox != nil else { return }
+        bm_tracker_reset(core); ownerBox = nil; statistics.cancelCheck(now: timestamp)
+    }
+
     private func missing(_ phase: TrackingPhase, timestamp: Double, note: String = "") {
         let result = bm_tracker_invalidate(core)
         var frame = TrackingFrame(phase: phase)
@@ -272,7 +288,10 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         deliver(frame)
     }
 
-    private func deliver(_ frame: TrackingFrame) {
+    private func deliver(_ input: TrackingFrame) {
+        var frame = input
+        frame.faceCount = faceCount; frame.sceneTimestamp = sceneTimestamp
+        motion.record(frame)
         lock.lock()
         guard !stopped else { lock.unlock(); return }
         delivery.replace(frame)

@@ -48,3 +48,18 @@ assert.equal((trace.left.match(/L/g)||[]).length, 1);
 assert.equal(motion([{t:12,left:1,right:1}], 11).left, "");
 assert.equal(motion([{t:1,left:1,right:1}], 40).left, "");
 assert.equal((motion([{t:10,left:1,right:1},{t:10.1,left:null,right:null},{t:10.2,left:1,right:1}],11).left.match(/M/g)||[]).length,2);
+
+assert.equal(projection.span,80);
+assert.equal(projection.height,20);
+assert.equal(projection.area,1600);
+assert.deepEqual(projection.center,[80,50]);
+const nativeTrace=motion([{t:10,left:1,right:0.5,events:0},{t:10.066,left:0.1,right:0.1,events:0},{t:10.133,left:1,right:1,events:4}],11,15);
+assert.equal(nativeTrace.events.length,1);
+assert.equal(nativeTrace.events[0].type,"blink");
+assert(nativeTrace.left.includes("75.20"));
+assert(nativeTrace.difference.includes("48.00"));
+assert.equal(nativeTrace.areas.filter(Boolean).length,2);
+assert(Math.abs(nativeTrace.observed-0.133)<1e-8);
+assert.equal(motion([{t:1,left:1,right:1}],2,9).left,"");
+assert.equal((motion([{t:10,left:1,right:1},{t:10.3,left:1,right:1}],11).left.match(/M/g)||[]).length,2);
+console.log("Studio model passed: pixel geometry, native brief closure, signed difference, filled segments, event ticks and missing intervals");

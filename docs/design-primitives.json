@@ -22,7 +22,8 @@
     "src/platform/ui/glass-surface.ts",
     "src/platform/ui/control-recipe.ts",
     "src/assistant/conversation/styles/chat.tokens.css",
-    "src/platform/ui/loading/LogoBreathingRail.tsx"
+    "src/platform/ui/loading/LogoBreathingRail.tsx",
+    "src/site/chrome/navbar/NavbarThemeToggle.tsx"
   ],
   "note": "Bundled CSS and Comfortaa assets are unchanged. Product roles reuse the shared surface and pill recipes. The local loading rail adapts LogoBreathingRail.tsx with determinate calibration and exercise progress. The eye SVG is independently authored around the eight circle motif.",
   "assets": {
@@ -34,5 +35,11 @@
       "source": "src/app/fonts/Comfortaa-OFL.txt",
       "sha256": "c89ab37b152eaa07dc5e8d100d6ffb968226a0c4988bdff16a97e73174e9c77c"
     }
+  },
+  "themeIcons": {
+    "source": "lucide-react 1.27.0, main project NavbarThemeToggle.tsx",
+    "geometry": "Exact Sun and Moon icon nodes, inline SVG without React runtime",
+    "license": "UI/vendor/LUCIDE-LICENSE.txt",
+    "motion": "16px stacked icons, 90 degree rotation and scale, reduced motion honored"
   }
 }

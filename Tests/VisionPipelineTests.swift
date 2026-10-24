@@ -28,10 +28,15 @@ import Vision
         let background = VNFaceObservation(boundingBox: CGRect(x: 0.75, y: 0.2, width: 0.15, height: 0.2))
         let peer = VNFaceObservation(boundingBox: CGRect(x: 0.65, y: 0.2, width: 0.35, height: 0.6))
         let size = CGSize(width: 640, height: 480)
-        if case .selected(let face) = FaceSelection.choose([background, main], previous: nil, imageSize: size) { precondition(face === main) } else { preconditionFailure() }
-        if case .ambiguous = FaceSelection.choose([main, peer], previous: nil, imageSize: size) {} else { preconditionFailure() }
-        if case .selected(let face) = FaceSelection.choose([peer, main], previous: main.boundingBox, imageSize: size) { precondition(face === main) } else { preconditionFailure() }
-        if case .none = FaceSelection.choose([], previous: nil, imageSize: size) {} else { preconditionFailure() }
+        if case .ambiguous = FaceSelection.choose([background, main], imageSize: size) {} else { preconditionFailure() }
+        if case .ambiguous = FaceSelection.choose([main, peer], imageSize: size) {} else { preconditionFailure() }
+        if case .ambiguous = FaceSelection.choose([peer, main], imageSize: size) {} else { preconditionFailure() }
+        if case .none = FaceSelection.choose([], imageSize: size) {} else { preconditionFailure() }
+        if case .selected(let face) = FaceSelection.choose([main], imageSize: size) { precondition(face === main) } else { preconditionFailure() }
+        let tiny = VNFaceObservation(boundingBox: CGRect(x: 0.8,y: 0.2,width: 0.05,height: 0.1))
+        precondition(FaceSelection.qualified([main,tiny],imageSize:size).count == 1)
+        precondition(FaceSelection.continuous(main.boundingBox,main.boundingBox))
+        precondition(!FaceSelection.continuous(main.boundingBox,peer.boundingBox))
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let statistics = DailyStatistics(url: root.appendingPathComponent("stats.json"))

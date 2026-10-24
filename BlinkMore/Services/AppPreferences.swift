@@ -32,6 +32,14 @@ final class AppPreferences {
         get { defaults.object(forKey: "remindersEnabled") == nil || defaults.bool(forKey: "remindersEnabled") }
         set { defaults.set(newValue, forKey: "remindersEnabled"); onChange?() }
     }
+    var detectionAlerts: Bool {
+        get { defaults.object(forKey: "detectionAlerts") == nil || defaults.bool(forKey: "detectionAlerts") }
+        set { defaults.set(newValue, forKey: "detectionAlerts"); onChange?() }
+    }
+    var soundEnabled: Bool {
+        get { defaults.bool(forKey: "soundEnabled") }
+        set { defaults.set(newValue, forKey: "soundEnabled"); onChange?() }
+    }
     var exercisesEnabled: Bool {
         get { defaults.bool(forKey: "exercisesEnabled") }
         set { defaults.set(newValue, forKey: "exercisesEnabled"); onChange?() }
@@ -86,7 +94,7 @@ final class AppPreferences {
     }
     func snapshot() -> [String: Any] {
         ["reminderSeconds": reminderSeconds, "fadeSeconds": fadeSeconds, "intensity": intensity,
-         "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
+         "detectionAlerts": detectionAlerts, "soundEnabled": soundEnabled, "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
          "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0,
          "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "resetGoal": resetGoal, "dayGoal": dayGoal]
     }

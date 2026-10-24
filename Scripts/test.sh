@@ -17,6 +17,8 @@ if [[ $(uname -s) == Darwin ]]; then
   test-results/exercise-tests
   swiftc -parse-as-library Tests/EyeCheckTests.swift BlinkMore/Core/TrackingState.swift BlinkMore/Core/EyeCheck.swift -o test-results/eye-check-tests
   test-results/eye-check-tests
+  swiftc -parse-as-library Tests/MotionTraceTests.swift BlinkMore/Core/TrackingState.swift BlinkMore/Core/MotionTrace.swift -o test-results/motion-tests
+  test-results/motion-tests
   cargo build --manifest-path core/Cargo.toml --locked
   swiftc -parse-as-library -import-objc-header core/include/BlinkCore.h Tests/CoreBridgeTests.swift core/target/debug/libblinkmore_core.a -o test-results/core-bridge-tests
   test-results/core-bridge-tests

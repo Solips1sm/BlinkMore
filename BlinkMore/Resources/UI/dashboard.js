@@ -6,7 +6,7 @@
   const text = (id, value) => { const el = $(id); if (el && el.textContent !== String(value)) el.textContent = String(value); };
   const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
   const pages = ["activity", "practice", "history", "settings-page", "examine"], tabOrder = [0, 4, 1, 2, 3];
-  let motionSamples = [], lastMotionTime = null;
+  let motionSpan = 30, studio = "motion", practiceBlinks = 0;
   let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", lastCheck = "idle", historySelection = null;
   function svg(name, attributes = {}) {
     const node = document.createElementNS(svgNS, name);
@@ -17,9 +17,10 @@
     if (selected === 1 && index !== 1 && ["running", "paused", "completed"].includes(current?.exercise?.phase)) send({ action: "exercise", command: "end" });
     if (selected === 4 && index !== 4) {
       if (current?.eyeCheck?.phase === "running") send({ action: "cancelCheck" });
-      motionSamples = []; lastMotionTime = null;
+
     }
-    if (selected !== index) document.querySelector("main").scrollTop = 0;
+    const changed = selected !== index;
+    if (changed) document.querySelector("main").scrollTop = 0;
     window.scrollTo(0, 0);
     selected = index; document.body.dataset.page = String(index);
     document.querySelectorAll("[data-tab]").forEach(button => {
@@ -28,6 +29,15 @@
       if (active && focus) button.focus();
     });
     pages.forEach((page, i) => $(page).hidden = i !== index);
+    const activeTab = document.querySelector(`[data-tab="${index}"]`), nav = document.querySelector("nav");
+    nav.style.setProperty("--tab-x", `${activeTab.offsetLeft}px`);
+    nav.style.setProperty("--tab-width", `${activeTab.offsetWidth}px`);
+    if (changed) {
+      send({ action: "view", tab: index });
+      if (!document.documentElement.classList.contains("reduce-motion") && !matchMedia("(prefers-reduced-motion:reduce)").matches) {
+        $(pages[index]).animate([{ opacity: .35, transform: "translateY(5px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 180, easing: "ease-out" });
+      }
+    }
     if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
     if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); }
     if (current && index === 4) { geometry(current); liveView(current); }
@@ -45,10 +55,33 @@
   document.querySelectorAll("[data-routine]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: "start", routine: button.dataset.routine })));
   document.querySelectorAll("[data-history]").forEach(button => button.addEventListener("click", () => selectTab(2)));
   document.querySelectorAll("[data-inspect]").forEach(button => button.addEventListener("click", () => { selectTab(4); $("measurement-details").open = true; if (current) geometry(current); }));
+  new ResizeObserver(() => {
+    const tab = document.querySelector(`[data-tab="${selected}"]`), nav = document.querySelector("nav");
+    nav.style.setProperty("--tab-x", `${tab.offsetLeft}px`); nav.style.setProperty("--tab-width", `${tab.offsetWidth}px`);
+  }).observe(document.querySelector("nav"));
+  document.querySelectorAll("[data-span]").forEach(button => button.addEventListener("click", () => {
+    motionSpan = Number(button.dataset.span);
+    document.querySelectorAll("[data-span]").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+    if (current) liveView(current);
+  }));
+  document.querySelectorAll("[data-studio]").forEach(button => button.addEventListener("click", () => {
+    studio = button.dataset.studio; $("examine").dataset.studio = studio;
+    document.querySelectorAll("[data-studio]").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+    $("geometry-workspace").hidden = studio !== "geometry";
+    text("scan-reference", studio === "geometry" ? "Pixel geometry" : studio === "difference" ? "Difference in percentage points" : "Own reference for each eye");
+    document.querySelector(".motion-panel").hidden = studio === "geometry";
+    if (current) liveView(current);
+    if (current) geometry(current);
+  }));
+  ["points", "axes"].forEach(overlay => $("overlay-" + overlay).addEventListener("click", event => {
+    const button = event.currentTarget, visible = button.getAttribute("aria-pressed") !== "true";
+    button.setAttribute("aria-pressed", String(visible));
+    document.querySelectorAll(overlay === "points" ? ".landmark-points" : ".principal-axes").forEach(g => g.toggleAttribute("hidden", !visible));
+  }));
   $("measurement-details").addEventListener("toggle", () => { if (current && $("measurement-details").open) geometry(current); });
   $("review-check").addEventListener("click", () => $("check-session").scrollIntoView({ block: "nearest" }));
   $("theme-cycle").addEventListener("click", () => {
-    const choices = ["system", "light", "dark"]; send({ action: "set", key: "theme", value: choices[(choices.indexOf(current?.preferences?.theme ?? "system") + 1) % 3] });
+    send({ action: "set", key: "theme", value: current?.actualTheme === "dark" ? "light" : "dark" });
   });
   const preferenceLabel = (key, n) => ["intensity", "sensitivity"].includes(key) ? fmt(n * 100, 0, "%") : ["reminderSeconds", "fadeSeconds"].includes(key) ? fmt(n, key === "fadeSeconds" ? 1 : 0, "s") : fmt(n);
   document.querySelectorAll("[data-preference]").forEach(input => {
@@ -134,10 +167,16 @@
     const fragment = document.createDocumentFragment(), descriptions = [];
     if ($("week-days").childElementCount !== Math.min(7, week.length)) $("week-days").replaceChildren();
     if (finite(baseline)) fragment.append(svg("path", { d: `M24 ${102 - baseline / maximum * 88}H616`, class: "week-baseline" }));
+    let previousPoint = null;
     week.slice(-7).forEach((day, i) => {
       const x = 46 + i * 91.3, valid = finite(day.blinkRate), y = valid ? 102 - day.blinkRate / maximum * 88 : 102;
       if (valid) fragment.append(svg("path", { d: `M${x} 102V${y}`, class: `week-stem${i === 6 ? " week-today" : ""}` }));
       else fragment.append(svg("circle", { cx: x, cy: 100, r: 3, class: "week-missing" }));
+      if (valid) {
+        if (previousPoint) fragment.append(svg("path", { d: `M${previousPoint[0]} ${previousPoint[1]}L${x} ${y}`, class: "week-connection" }));
+        const point = svg("circle", { cx:x,cy:y,r:3.2,class:i === 6 ? "week-point week-today" : "week-point" });
+        const title = svg("title"); title.textContent = `${day.day}: ${fmt(day.blinkRate,1)} blinks per tracked minute`; point.append(title); fragment.append(point); previousPoint = [x,y];
+      } else previousPoint = null;
       const date = new Date(`${day.day}T12:00:00`);
       let button = $("week-days").children[i];
       if (!button) {
@@ -173,6 +212,9 @@
     const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
     $("exercise-progress").style.transform = `scaleX(${progress})`; document.querySelector(".exercise-progress").setAttribute("aria-valuenow", String(Math.round(progress * 100)));
     const feedback = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    if (running && lastExercise !== "running" && lastExercise !== "paused") practiceBlinks = state.statistics.lifetime?.blinks ?? 0;
+    text("practice-blinks", feedback ? fmt(Math.max(0, (state.statistics.lifetime?.blinks ?? 0) - practiceBlinks)) : "Unavailable");
+    ["left", "right"].forEach(side => text("practice-" + side, feedback ? fmt(state[side] * 100, 0, "% ref") : "Unavailable"));
     text("exercise-feedback", done ? "Saved to today’s activity." : look ? "Timer guidance. You can look away." : feedback ? "Live eyelid feedback" : "Camera feedback off. The guide still works.");
     if (running && !look) $("practice-lid").setAttribute("d", BlinkMetrics.aperture(feedback ? (state.left + state.right) / 2 : 1, 300, 85, 230) ?? "");
     $("exercise-pause").hidden = !running; $("exercise-resume").hidden = !paused;
@@ -186,13 +228,18 @@
   }
   function scan(side, points, data, active) {
     const projection = active ? BlinkMetrics.contour(points, data.width, data.height) : null;
+    for (const [metric, digits, suffix] of [["span",1," px"],["height",1," px"],["area",1," px²"],["tilt",1,"°"]]) text(`${side}-${metric}`, projection ? fmt(projection[metric], digits, suffix) : "Unavailable");
     $(`${side}-wait`).hidden = projection !== null;
     text(`${side}-aperture`, projection ? fmt(data[`${side}Aperture`], 3) : "Waiting");
     text(`${side}-count`, projection ? projection.points.length : "Waiting");
     const dots = document.createDocumentFragment(), axes = document.createDocumentFragment();
     if (projection) {
       $(`${side}-outline`).setAttribute("d", projection.points.map((p, i) => `${i === 0 ? "M" : "L"}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(" ") + "Z");
-      projection.points.forEach(([x, y]) => { const dot = document.createElementNS(svgNS, "circle"); dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("r", 1.65); dots.append(dot); });
+      projection.points.forEach(([x, y], i) => {
+        const dot = svg("circle", {cx:x,cy:y,r:1.65}), title = svg("title");
+        title.textContent = `Landmark ${i+1}: ${fmt(points[i][0]*data.width,1)}, ${fmt(points[i][1]*data.height,1)} px in face coordinates`;
+        dot.append(title); dots.append(dot);
+      });
       projection.axes.forEach(([a, b]) => { const line = document.createElementNS(svgNS, "path"); line.setAttribute("d", `M${a[0]},${a[1]}L${b[0]},${b[1]}`); axes.append(line); });
     } else { $(`${side}-outline`).setAttribute("d", ""); }
     $(`${side}-points`).replaceChildren(dots); $(`${side}-axes`).replaceChildren(axes);
@@ -206,16 +253,28 @@
     text("live-fps", active && state.fps > 0 ? fmt(state.fps, 1) : "Waiting");
     $("start-check").disabled = !active || (state.calibration ?? 0) < 1;
     const time = state.sampleTime;
-    if (finite(time) && time > 0 && time !== lastMotionTime) {
-      if (lastMotionTime !== null && time < lastMotionTime) motionSamples = [];
-      motionSamples.push({ t: time, left: active ? state.left : null, right: active ? state.right : null });
-      motionSamples = motionSamples.filter(p => p.t >= time - 30).slice(-160); lastMotionTime = time;
-    }
     const traceNow = finite(time) ? time + (finite(state.frameAgeMs) ? Math.max(0, state.frameAgeMs) / 1000 : 0) : 0;
-    const trace = BlinkMetrics.motion(motionSamples, traceNow);
-    $("motion-left").setAttribute("d", trace.left); $("motion-right").setAttribute("d", trace.right);
+    const trace = BlinkMetrics.motion(state.motion ?? [], traceNow, motionSpan);
+    const difference = studio === "difference";
+    text("motion-title", difference ? "Left minus right opening" : "Opening over time");
+    text("motion-reference-label", difference ? "Zero = equal relative opening" : "Dashed = 100% reference");
+    document.querySelector(".motion-lane-labels").hidden = difference;
+    document.querySelector(".motion-reference").setAttribute("d", difference ? "M12 84H628" : "M12 32H628M12 112H628");
+    $("motion-left").setAttribute("d", difference ? trace.difference : trace.left); $("motion-right").setAttribute("d", difference ? "" : trace.right);
+    $("motion-left-area").setAttribute("d", difference ? "" : trace.areas[0]); $("motion-right-area").setAttribute("d", difference ? "" : trace.areas[1]);
+    const marks = document.createDocumentFragment();
+    for (const event of trace.events) {
+      const marker = svg("path", { d: `M${event.x} 165v5`, class: `trace-event event-${event.type}` });
+      const title = svg("title"); title.textContent = event.type === "blink" ? "Bilateral blink" : `${event.type} closure`; marker.append(title); marks.append(marker);
+    }
+    $("motion-events").replaceChildren(marks);
+    text("motion-start", `${motionSpan}s ago`);
+    text("motion-coverage", `${fmt(trace.observed,1)}s observed`);
+    text("motion-event-count", `${trace.events.filter(e=>e.type === "blink").length} blinks in view`);
+    $("motion-chart").setAttribute("aria-label", ` ${difference ? "Left minus right opening, minus 100 to plus 100 percentage points, zero centered" : "Left and right opening in separate lanes"} over ${motionSpan} seconds. ${difference ? "Above zero means the left is relatively more open; below zero means the right is relatively more open." : "Dashed lines mark 100 percent reference; display caps at 150 percent."} Gaps have no measurement. ${fmt(trace.observed,1)} seconds observed. ${trace.events.length} closure events.`);
     const check = state.eyeCheck ?? { phase: "idle" }, running = check.phase === "running", done = check.phase === "completed";
     $("review-check").hidden = !["completed", "cancelled"].includes(check.phase);
+    $("check-session").dataset.phase = check.phase;
     $("check-session").hidden = check.phase === "idle"; $("start-check").hidden = running; $("cancel-check").hidden = !running;
     text("check-status", running ? "Observing both eyes" : done ? "Observation complete" : "Observation ended");
     text("check-remaining", running ? `${fmt(Math.ceil(check.remaining ?? 0))}s remaining` : "");
@@ -242,6 +301,8 @@
     text("face-crop", active ? `${fmt(g.width)} × ${fmt(g.height)} px` : "Waiting");
     text("face-aspect", active && g.height > 0 ? fmt(g.width / g.height, 3) : "Waiting");
     text("vision-confidence", active ? fmt(g.confidence, 2) : "Waiting");
+    const left = active ? BlinkMetrics.contour(g.left, g.width, g.height) : null, right = active ? BlinkMetrics.contour(g.right, g.width, g.height) : null;
+    text("eye-spacing", left && right ? `Contour center separation ${fmt(Math.hypot(left.center[0]-right.center[0],left.center[1]-right.center[1]),1)} px. Pixel geometry changes with camera distance and angle.` : "Geometry waits for fresh landmarks.");
     text("eye-difference", fmt(state.statistics.today?.asymmetry, 1, "%")); text("closed-share", fmt(state.statistics.today?.closedPercent, 1, "%"));
     const close = 0.38 + 0.28 * (state.preferences.sensitivity ?? 0.5);
     text("threshold-equation", `${fmt(close * 100)}% / ${fmt((close + 0.16) * 100)}%`);
@@ -266,6 +327,10 @@
     document.documentElement.classList.toggle("dark", state.actualTheme === "dark");
     document.documentElement.classList.toggle("reduce-motion", Boolean(state.reducedMotion));
     $("tracking-status").dataset.phase = state.phase;
+    text("attention-banner", state.attention || ""); $("attention-banner").hidden = !state.attention;
+    $("theme-cycle").setAttribute("aria-label", state.actualTheme === "dark" ? "Switch to light appearance" : "Switch to dark appearance");
+    const scene = state.scene ?? {}, freshScene = finite(scene.ageMs) && scene.ageMs >= 0 && scene.ageMs <= 1500;
+    text("scene-summary", freshScene ? `${scene.count} measurable ${scene.count === 1 ? "face" : "faces"} in view${scene.count > 1 ? ", observation paused" : ""}` : "Scene check pending");
     const preparing = ["starting", "calibrating"].includes(state.phase), calibrated = state.phase === "calibrating";
     const rail = $("tracking-rail"); rail.hidden = !preparing; rail.dataset.determinate = String(calibrated);
     rail.setAttribute("aria-label", calibrated ? "Eye calibration" : "Starting camera");

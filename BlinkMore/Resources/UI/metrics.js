@@ -43,21 +43,36 @@ const BlinkMetrics = (() => {
     const scale = Math.min(172 / Math.max(1, maxX - minX), 74 / Math.max(1, maxY - minY));
     const draw = ([x, y]) => [100 + (x - (minX + maxX) / 2) * scale, 56 + (y - (minY + maxY) / 2) * scale];
     const axis = (i, distance) => draw([center[0] + (i === 0 ? distance * c : -distance * s), center[1] + (i === 0 ? distance * s : distance * c)]);
-    return { points: pixels.map(draw), axes: [[axis(0, lo[0]), axis(0, hi[0])], [axis(1, lo[1]), axis(1, hi[1])]], aperture: (hi[1] - lo[1]) / (hi[0] - lo[0]), span: hi[0] - lo[0] };
+    return { points: pixels.map(draw), axes: [[axis(0, lo[0]), axis(0, hi[0])], [axis(1, lo[1]), axis(1, hi[1])]], aperture: (hi[1] - lo[1]) / (hi[0] - lo[0]), span: hi[0] - lo[0], height: hi[1] - lo[1], tilt: angle * 180 / Math.PI, center, area: Math.abs(pixels.reduce((sum, p, i) => { const q = pixels[(i + 1) % pixels.length]; return sum + p[0] * q[1] - q[0] * p[1]; }, 0)) / 2 };
   }
-  function motion(samples, now) {
-    const paths = [[], []]; let previous = null;
-    if (!Array.isArray(samples) || !finite(now)) return { left: "", right: "" };
-    for (const sample of samples.slice(-160)) {
-      if (!finite(sample.t) || sample.t > now || sample.t < now - 30) continue;
-      if (!finite(sample.left) || !finite(sample.right)) { previous = null; continue; }
+  function motion(samples, now, span = 30) {
+    const paths = [[], []], areas = [[], []], events = [], difference = [];
+    let previous = null, segmentStart = null, segmentEnd = null, observed = 0;
+    if (!Array.isArray(samples) || !finite(now) || ![15,30,60].includes(span)) return { left: "", right: "", difference: "", areas: ["",""], events: [], observed: 0 };
+    const closeArea = () => {
+      if (segmentStart !== null) [80,160].forEach((base, i) => areas[i].push(`L${segmentEnd} ${base}L${segmentStart} ${base}Z`));
+      segmentStart = null;
+    };
+    for (const sample of samples.slice(-1000)) {
+      if (!finite(sample.t) || sample.t > now || sample.t < now - span) continue;
+      if (!finite(sample.left) || !finite(sample.right)) { closeArea(); previous = null; continue; }
       if (previous !== null && sample.t <= previous) continue;
-      const command = previous === null || sample.t - previous > 0.5 ? "M" : "L";
-      const x = 12 + (sample.t - now + 30) / 30 * 616;
-      [sample.left, sample.right].forEach((v, side) => paths[side].push(`${command}${x.toFixed(2)} ${(76 - Math.max(0, Math.min(1.5, v)) / 1.5 * 64).toFixed(2)}`));
+      const connected = previous !== null && sample.t - previous <= 0.25;
+      if (!connected) closeArea();
+      const command = connected ? "L" : "M", x = (12 + (sample.t - now + span) / span * 616).toFixed(2);
+      if (segmentStart === null) segmentStart = x;
+      segmentEnd = x;
+      [sample.left, sample.right].forEach((v, side) => {
+        const point = `${command}${x} ${(80 + side * 80 - Math.max(0, Math.min(1.5, v)) / 1.5 * 72).toFixed(2)}`;
+        paths[side].push(point); areas[side].push(point);
+      });
+      difference.push(`${command}${x} ${(84-Math.max(-1,Math.min(1,sample.left-sample.right))*72).toFixed(2)}`);
+      if (sample.events & 60) events.push({ x: Number(x), type: sample.events & 4 ? "blink" : sample.events & 32 ? "long" : sample.events & 8 ? "left" : "right" });
+      if (connected) observed += sample.t - previous;
       previous = sample.t;
     }
-    return { left: paths[0].join(""), right: paths[1].join("") };
+    closeArea();
+    return { left: paths[0].join(""), right: paths[1].join(""), difference: difference.join(""), areas: areas.map(p=>p.join("")), events, observed };
   }
   return { activity, ring, contour, aperture, motion };
 })();

@@ -28,7 +28,7 @@ enum TrackingPhase: String {
         case .tracking: return "Both eyes visible."
         case .eyesClosed: return "Detected closure clears the reminder."
         case .noFace: return "Move into view to resume."
-        case .multipleFaces: return "Waiting for an unambiguous primary face."
+        case .multipleFaces: return "Observation pauses until only one measurable face remains."
         case .lowQuality: return "Face the camera in even light and keep both eyes visible."
         case .delayed: return "Waiting for fresh eye data."
         case .paused: return "Camera off. Resumes after five minutes."
@@ -62,6 +62,8 @@ struct TrackingFrame {
     var faceWidth: Double = 0
     var faceHeight: Double = 0
     var faceConfidence: Double = 0
+    var faceCount = 0
+    var sceneTimestamp = 0.0
 }
 
 struct TrackingDelivery {

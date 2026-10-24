@@ -1,0 +1,36 @@
+{
+  "version": "2.6.0",
+  "date": "2026-10-24",
+  "fixture": "Synthetic data only. No camera frames or identity data.",
+  "checks": {
+    "rustTests": 11,
+    "rustFmtClippy": "passed",
+    "webModels": "passed",
+    "swiftStatePoliciesABI": "passed",
+    "blankFrameVision": "passed",
+    "nativeWKWebView": "passed for five pages, two themes, small window fit, geometry overlays, studio windows, native menu and blink icon",
+    "hardware": "Pending new executable camera consent and human observation"
+  },
+  "render": {
+    "light": {
+      "fixture": "451 synthetic native samples; excludes capture and Vision",
+      "meanMs": 8.533333333333319,
+      "p95Ms": 9.999999999999545,
+      "samples": 30,
+      "theme": "light"
+    },
+    "dark": {
+      "fixture": "451 synthetic native samples; excludes capture and Vision",
+      "meanMs": 6.366666666666697,
+      "p95Ms": 8,
+      "samples": 30,
+      "theme": "dark"
+    }
+  },
+  "limits": [
+    "Render timings measure synchronous JavaScript updates, not camera, inference or display latency.",
+    "Scene searches run at 0.7 second intervals while tracking; tiny or weak faces are not counted.",
+    "Geometric continuity cannot identify a person replacing another at the same position.",
+    "The webcam does not measure retinal anatomy, iris color, acuity or eye pressure."
+  ]
+}

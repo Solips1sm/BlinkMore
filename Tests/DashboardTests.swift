@@ -31,6 +31,11 @@ import WebKit
             "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "resetGoal": 2.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
             "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 12.7, "recentSeconds": 52.0, "recentBins": bins, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5, "resets": 6]],
             "cameras": [["id": "test-camera", "name": "QA camera"]]]
+        state["scene"] = ["count":1,"ageMs":300.0]
+        state["motion"] = (0..<451).map { i -> [String:Any] in
+            let close = i % 69 == 0
+            return ["t":70.0+Double(i)/15,"left":close ? 0.16 : 1.0+sin(Double(i)/27)*0.05,"right":close ? 0.18 : 0.93+sin(Double(i)/27)*0.04,"events":i % 69 == 1 ? 4 : 0]
+        }
         var commands: [[String: Any]] = []
         let controller = DashboardWindowController(resources: root.appendingPathComponent("BlinkMore/Resources/UI"), snapshot: { state }, command: { message in
             commands.append(message)
@@ -82,10 +87,17 @@ import WebKit
                     let colors = try await js("return ['#pause-button span','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s);return [s,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]})")
                     precondition(contrast >= 4.5, "Text contrast: \(contrast), \(String(describing: colors))")
                 }
-                if tab < 2 { try await expect("const main=document.querySelector('main'); return main.scrollHeight <= main.clientHeight+1", true) }
+                if tab < 2 {
+                    try await expect("const main=document.querySelector('main'); return main.scrollHeight <= main.clientHeight+1", true) }
                 if tab == 4 {
                     try await expect("return window.scrollY", 0)
-                    _ = try await js("const original=state.sampleTime;for(let i=0;i<=150;i++){const s={...state,sampleTime:original-30+i/5,left:i%23===0?.16:1+Math.sin(i/9)*.05,right:i%23===0?.18:.93+Math.sin(i/9)*.04};window.blinkmore.update(s)};window.blinkmore.update(state)", arguments: ["state": state])
+
+                }
+                if tab == 4 {
+                    try await expect("const graph=document.getElementById('motion-chart').getBoundingClientRect(),main=document.querySelector('main').getBoundingClientRect();return graph.bottom<=main.bottom+1",true)
+                    let timings = try await js("const times=[];for(let i=0;i<30;i++){const start=performance.now();window.blinkmore.update(state);times.push(performance.now()-start)}times.sort((a,b)=>a-b);return {samples:30,p95Ms:times[28],meanMs:times.reduce((a,b)=>a+b,0)/30,theme:state.actualTheme,fixture:'451 synthetic native samples; excludes capture and Vision'}",arguments:["state":state])
+                    let data = try JSONSerialization.data(withJSONObject:timings!,options:[.prettyPrinted,.sortedKeys])
+                    try data.write(to:output.appendingPathComponent("studio-render-\(theme).json"))
                 }
                 try await screenshot("dashboard-\(theme)-\(tab)")
             }
@@ -122,6 +134,7 @@ import WebKit
         try await expect("return document.querySelectorAll('#left-points circle').length", 8)
         try await expect("return document.getElementById('left-aperture').textContent", "0.258")
         try await expect("return document.body.dataset.page", "4")
+        precondition(controller.showsLive)
         try await expect("return document.getElementById('live-difference').textContent", "7%")
         _ = try await js("document.getElementById('start-check').click()")
         try await Task.sleep(for: .milliseconds(100))
@@ -139,6 +152,29 @@ import WebKit
         try await refresh()
         try await expect("return document.getElementById('check-status').textContent", "Observation complete")
         try await expect("return document.activeElement.id", "review-check")
+        state["eyeCheck"] = ["phase":"idle"]
+        state["title"] = "Tracking"; state["detail"] = "Both eyes visible."
+        try await refresh()
+        _ = try await js("document.querySelector('[data-span=\"15\"]').click()")
+        try await expect("return document.getElementById('motion-start').textContent", "15s ago")
+        _ = try await js("document.querySelector('[data-studio=\"difference\"]').click()")
+        try await expect("return document.getElementById('motion-title').textContent", "Left minus right opening")
+        try await expect("return document.getElementById('motion-right').getAttribute('d')", "")
+        try await screenshot("dashboard-live-difference")
+        _ = try await js("document.querySelector('[data-studio=\"geometry\"]').click()")
+        try await expect("return document.getElementById('geometry-workspace').hidden", false)
+        try await expect("return document.getElementById('left-span').textContent.includes('px')", true)
+        _ = try await js("document.getElementById('overlay-points').click()")
+        try await expect("return getComputedStyle(document.getElementById('left-points')).display", "none")
+        _ = try await js("document.getElementById('overlay-points').click();document.querySelector('.anatomy').open=true")
+        _ = try await js("document.getElementById('geometry-workspace').scrollIntoView({block:'start'})")
+        try await screenshot("dashboard-live-geometry")
+        state["attention"] = "More than one face. Observation paused."
+        state["scene"] = ["count":2,"ageMs":100.0]
+        try await refresh()
+        try await expect("return document.getElementById('scene-summary').textContent", "2 measurable faces in view, observation paused")
+        try await expect("return document.getElementById('attention-banner').hidden", false)
+        state["attention"] = ""; state["scene"] = ["count":1,"ageMs":100.0]
         state["frameAgeMs"] = 900.0; try await refresh()
         try await expect("return document.querySelectorAll('#left-points circle').length", 0)
         controller.selectTab(0); try await refresh()

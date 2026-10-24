@@ -17,6 +17,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     private var ready = false
     private var updating = false
     private var selectedTab = 0
+    var showsLive: Bool { selectedTab == 4 }
     var onClose: (() -> Void)?
 
     init(resources: URL? = nil, snapshot: @escaping () -> [String: Any], command: @escaping ([String: Any]) -> Void) {
@@ -61,6 +62,10 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
               let url = message.frameInfo.request.url, allowed(url),
               let body = message.body as? [String: Any], let action = body["action"] as? String,
               action.count < 40 else { return }
+        if action == "view" {
+            if let index = body["tab"] as? Int, (0...4).contains(index) { selectedTab = index; refresh() }
+            return
+        }
         if action == "ready" { ready = true; selectTab(selectedTab) }
         command(body); refresh()
     }

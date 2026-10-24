@@ -15,6 +15,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var requestingPermission = false
     private var stoppingCamera = false
     private var frame = TrackingFrame()
+    private var attention = AttentionPolicy()
     private var powerTimer: Timer?
     private var fadeTimer: Timer?
     private var saveTimer: Timer?
@@ -193,7 +194,13 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let decision = reminderPolicy.update(now: now, frame: frame,
             enabled: !systemSuspended && !exercise.active && !checking && preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
         let visible = !systemSuspended && !exercise.active && !checking && preferences.pauseUntil == nil && (preview || decision.visible)
-        if decision.triggered && !preview { statistics.reminder() }
+        if decision.triggered && !preview {
+            statistics.reminder()
+            if preferences.soundEnabled { NSSound(named: "Pop")?.play() }
+        }
+        if attention.update(phase: effectivePhase, now: now, enabled: preferences.detectionAlerts && !systemSuspended && !userIdle && preferences.pauseUntil == nil), preferences.soundEnabled {
+            NSSound(named: "Pop")?.play()
+        }
         fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity,
                         duration: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : preview ? min(0.25, preferences.fadeSeconds) : preferences.fadeSeconds)
     }
@@ -225,7 +232,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     func openDashboard(tab: Int? = nil) {
         if dashboard == nil {
-            dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot() ?? [:] }, command: { [weak self] in self?.command($0) })
+            dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot(includeMotion: self?.dashboard?.showsLive == true) ?? [:] }, command: { [weak self] in self?.command($0) })
             dashboard?.onClose = { [weak self] in
                 guard let self = self else { return }
                 if self.exercise.phase != .idle { self.exercise.end(now: EyeTrackingService.clock()); self.reminderPolicy.waitForBlink() }
@@ -242,7 +249,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         preferences.pauseUntil = preferences.pauseUntil == nil ? Date().addingTimeInterval(300) : nil
     }
 
-    func snapshot() -> [String: Any] {
+    func snapshot(includeMotion: Bool = false) -> [String: Any] {
         let ordered = latency.sorted()
         let actualTheme = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
         let phase = effectivePhase
@@ -251,6 +258,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         result["eyeCheck"] = statistics.checkSnapshot(now: EyeTrackingService.clock())
         result["sampleTime"] = frame.timestamp
         result["closedMask"] = frame.closedMask
+        result["attention"] = attention.message
+        result["scene"] = ["count": frame.faceCount, "ageMs": frame.sceneTimestamp > 0 ? max(0, EyeTrackingService.clock() - frame.sceneTimestamp) * 1000 : -1]
+        if includeMotion { result["motion"] = tracker?.motion.snapshot() ?? [] }
         result["left"] = frame.left; result["right"] = frame.right
         result["geometry"] = ["left": frame.leftContour.map { [$0.x, $0.y] },
             "right": frame.rightContour.map { [$0.x, $0.y] },
@@ -329,10 +339,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         switch key {
         case "theme": if let v = value as? String { preferences.theme = v }
         case "color": if let v = value as? String, !preferences.setColor(hex: v) { notify("Choose a valid fade color.") }
-        case "remindersEnabled", "exercisesEnabled":
+        case "remindersEnabled", "exercisesEnabled", "detectionAlerts", "soundEnabled":
             if let v = value as? NSNumber, CFGetTypeID(v) == CFBooleanGetTypeID() {
                 if key == "remindersEnabled" { preferences.remindersEnabled = v.boolValue }
-                else { preferences.exercisesEnabled = v.boolValue }
+                else if key == "exercisesEnabled" { preferences.exercisesEnabled = v.boolValue }
+                else if key == "detectionAlerts" { preferences.detectionAlerts = v.boolValue }
+                else { preferences.soundEnabled = v.boolValue }
             }
         case "cameraID":
             if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
