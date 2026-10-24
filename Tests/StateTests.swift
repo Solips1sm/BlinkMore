@@ -88,6 +88,13 @@ import AppKit
             metrics.record(measured, now: date)
         }
         let comparison = metrics.snapshot(now: date)
+        let lifetime = comparison["lifetime"] as! [String: Any]
+        precondition(lifetime["blinks"] as? Int == 78 && lifetime["days"] as? Int == 2)
+        precondition(abs((lifetime["trackedSeconds"] as! Double) - 360) < 0.001)
+        metrics.flush(synchronous: true)
+        let restoredMetrics = DailyStatistics(url: root.appendingPathComponent("metrics.json"), now: date)
+        let restoredLifetime = restoredMetrics.snapshot(now: date)["lifetime"] as! [String: Any]
+        precondition(restoredLifetime["blinks"] as? Int == 78 && restoredLifetime["days"] as? Int == 2)
         precondition(abs((comparison["baselineRate"] as! Double) - 12) < 0.001)
         precondition(abs((comparison["relativePercent"] as! Double) - 50) < 0.001)
         precondition(abs((comparison["recentRate"] as! Double) - 18) < 0.001)
@@ -110,6 +117,12 @@ import AppKit
         precondition(collecting.snapshot(now: date)["recentRate"] as? Double == 0)
         try metrics.reset()
         precondition(metrics.snapshot(now: date)["recentRate"] is NSNull)
+        precondition((metrics.snapshot(now: date)["lifetime"] as! [String: Any])["blinks"] as? Int == 0)
+        preferences.blinkGoal = 500; preferences.minuteGoal = 45; preferences.dayGoal = 4
+        let restoredPreferences = AppPreferences(defaults: defaults)
+        precondition(restoredPreferences.blinkGoal == 500 && restoredPreferences.minuteGoal == 45 && restoredPreferences.dayGoal == 4)
+        preferences.blinkGoal = -1; preferences.minuteGoal = 1000; preferences.dayGoal = 100
+        precondition(preferences.blinkGoal == 10 && preferences.minuteGoal == 720 && preferences.dayGoal == 7)
         print("State tests passed: persistence, legacy history, rate windows, personal baseline, closure types, reset, recovery, DST, validation, preferences")
     }
 }

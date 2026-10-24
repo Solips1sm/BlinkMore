@@ -17,6 +17,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - run: rustup default stable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
       - run: cargo fmt --manifest-path core/Cargo.toml -- --check
       - run: Scripts/test.sh
   macos:
@@ -26,6 +29,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - run: rustup default stable
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
       - run: Scripts/test.sh
       - run: Scripts/build.sh
       - run: ditto -c -k --sequesterRsrc --keepParent dist/BlinkMore.app dist/BlinkMore-macOS.zip

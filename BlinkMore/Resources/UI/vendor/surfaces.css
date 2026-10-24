@@ -1,0 +1,2708 @@
+/*
+ * File Charter
+ * Role: Shared surface core for cross-route glass carriers, shared nav-row/icon primitives, and
+ *   scroll or input policies used by both chat and non-chat routes.
+ * Workflow position: Loaded globally after foundations and before route-local CSS owners.
+ * Primary exports: Glass utilities, shared nav-row/icon primitives, scroll policy utilities, and
+ *   interaction-state helpers that multiple route trees depend on.
+ * Non-goals: Route-owned site shell controls such as CTA buttons, footer branding, and navbar-only
+ *   structure. Those live in surfaces-site.css so chat and other focused routes can skip them.
+ */
+
+/* The clear affordance is a child of the field's own containing block, never a
+   viewport overlay: the browser then scrolls, clips, and stacks it with the
+   field. Positioning it anywhere else is what let it drift off its field during
+   momentum scrolling and paint over unrelated chrome. */
+.glass-media {
+  background: rgb(var(--background) / 58%);
+  border: 1px solid var(--sf-edge-overlay);
+  border-radius: var(--rad-chat-stage);
+  box-shadow: var(--sf-shd-contact), var(--sf-shd-panel);
+  -webkit-backdrop-filter: blur(var(--glass-backdrop-blur));
+  backdrop-filter: blur(var(--glass-backdrop-blur));
+}
+
+.glass-media[data-refracted-glass="true"] {
+  background: transparent;
+  border-color: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.anistratenco-gauge {
+  position: relative;
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 10rem;
+  aspect-ratio: 1;
+  color: rgb(var(--foreground));
+}
+
+.anistratenco-gauge > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.anistratenco-gauge circle {
+  fill: none;
+  transform: rotate(135deg);
+  transform-origin: 80px 80px;
+}
+
+.anistratenco-gauge__track {
+  filter: drop-shadow(var(--gauge-depth-shadow));
+  stroke: var(--gauge-track-fill);
+  stroke-width: 12;
+}
+
+.anistratenco-gauge__progress {
+  filter: drop-shadow(var(--gauge-depth-shadow));
+  stroke-width: 12;
+  stroke-linecap: round;
+}
+
+.anistratenco-gauge__label {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 0.25rem;
+  max-width: 58%;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.anistratenco-input-clear-layer {
+  display: contents;
+  pointer-events: none;
+}
+
+.anistratenco-input-clear-button[data-input-clear-button] {
+  position: absolute;
+  top: var(--anistratenco-input-clear-top, 0);
+  left: var(--anistratenco-input-clear-left, 0);
+  z-index: 2;
+}
+
+.anistratenco-field-icon-button[data-icon-only] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  pointer-events: auto;
+  border-color: var(--sf-edge-control);
+  box-shadow: var(--sf-shd-ctl);
+}
+
+.anistratenco-field-icon-button::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+  border-radius: inherit;
+  backdrop-filter: blur(var(--blur-icon));
+}
+
+.anistratenco-field-icon-button[data-icon-only]:where(:hover, :focus-visible) {
+  border-color: var(--sf-child-stroke-hover);
+  box-shadow: var(--sf-shd-ctl), var(--sf-shd-in-subt);
+}
+
+.anistratenco-field-icon-button:focus-visible {
+  outline: 2px solid var(--sf-focus-outline);
+  outline-offset: 2px;
+}
+
+/* Even boxes keep the rounded X centered at 1x and 2x. Its bevel stays inside
+   the viewBox, above the inert blur layer and the shared control's inset rim. */
+.anistratenco-field-icon-button svg {
+  position: relative;
+  z-index: 1;
+}
+
+.anistratenco-input-clear-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.anistratenco-input-clear-animation {
+  position: absolute;
+  top: var(--anistratenco-input-clear-top, 0);
+  left: var(--anistratenco-input-clear-left, 0);
+  z-index: 1;
+  width: var(--anistratenco-input-clear-width, 0);
+  height: var(--anistratenco-input-clear-height, 0);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.anistratenco-input-clear-mirror,
+.anistratenco-input-clear-placeholder {
+  z-index: 2;
+}
+
+.anistratenco-input-clear-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  filter: blur(var(--clear-blur));
+}
+
+.dark .anistratenco-input-clear-glow {
+  mix-blend-mode: screen;
+}
+
+body [data-anistratenco-clear-active="true"] {
+  caret-color: transparent !important;
+}
+
+body [data-anistratenco-clear-active="true"]::placeholder {
+  color: transparent !important;
+  opacity: 0 !important;
+}
+
+:where(.search-shell:has([data-anistratenco-clear-active="true"]))
+  .search-shell-emphasized-caret {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anistratenco-input-clear-glow {
+    display: none;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   Route loading surfaces
+
+   One owner for the "the app is working" state. `PageLoadingSurface` renders the
+   navigation scrim, the root route fallback, and the Chat workspace fallback;
+   the scrim deliberately sits below dialogs (200) and above all app chrome, so
+   its value comes from the shared stacking scale rather than a local number.
+   ------------------------------------------------------------------------- */
+
+.page-loading-surface {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  pointer-events: none;
+  background-color: rgb(var(--background) / 88%);
+  backdrop-filter: blur(var(--blur-base));
+  animation: anistratenco-page-loading-veil-in var(--dur-lazy, 500ms)
+    var(--ease-emph, cubic-bezier(0.22, 1, 0.36, 1)) both;
+}
+
+/* The veil is an intensity, not a cut. It used to reach its full 88% fill and
+   12px blur on the first painted frame, which is the hard flash a route change
+   reads as. Opacity now resolves first and the blur trails behind it, so the
+   page sharpens away gradually instead of getting a blurred sheet snapped over
+   it. Opacity leading the blur is the design-system rule for a soft entrance
+   (docs/design-system-motion.md): running them on one duration leaves every
+   soft frame too transparent to read, so no soft veil is ever actually seen.
+   The blur ramp carries an extra stop so it deepens evenly rather than
+   front-loading nearly all 12px into the first third of the entry. */
+@keyframes anistratenco-page-loading-veil-in {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+
+  45% {
+    opacity: 1;
+    backdrop-filter: blur(2px);
+  }
+
+  72% {
+    backdrop-filter: blur(6px);
+  }
+
+  100% {
+    backdrop-filter: blur(var(--blur-base));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-loading-surface {
+    animation: none;
+  }
+}
+
+/* The navigation scrim and a route fallback are the same surface, and a
+   navigation that resolves into a fallback used to paint both: two
+   full-viewport backdrop blurs, two looping rail animations, two inline
+   `\3c style>` blocks. That is the most compositing work on exactly the
+   navigations that are already slowest, and the shadowed copy restarts the
+   rail animation mid-load, so the veil reads as one much longer wait than it
+   is. The fallback owns the wait (it outlives the route change; the scrim
+   retires with it), so the scrim stands down while any non-navigation surface
+   is painting. Expressed as a document query for the same reason as the
+   workspace lock below: surface policy belongs to the document, not a leaf. */
+html:has([data-page-loading]:not([data-navigation-loading]))
+[data-navigation-loading] {
+  display: none;
+}
+
+/* A workspace fallback mounts a full-height shell, so the document itself must
+   be locked and the site chrome suppressed for the duration. This is a document
+   query rather than styles injected from the fallback: a route segment cannot
+   address `html`/`body` from its own markup, and injecting a global stylesheet
+   plus `!important` from a component puts document policy in a leaf. */
+html:has([data-page-loading="workspace"]),
+html:has([data-page-loading="workspace"]) body {
+  height: 100%;
+  overflow: hidden;
+}
+
+html:has([data-page-loading="workspace"]) body {
+  overscroll-behavior: none;
+}
+
+html:has([data-page-loading="workspace"]) body > header,
+html:has([data-page-loading="workspace"]) body > footer,
+html:has([data-page-loading="workspace"]) .scroll-to-top {
+  display: none;
+}
+
+html:has([data-page-loading="workspace"]) main {
+  height: 100dvh;
+  min-height: 100dvh;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* ----------------------------------------------------------------------------
+   Shared field UX: labels, validation states, and explicit failure feedback
+   ------------------------------------------------------------------------- */
+
+/* Shared field geometry stays below utilities so intentional compact controls
+   can override it without falling back to the browser's intrinsic 20ch width. */
+@layer primitives {
+  .anistratenco-field-control-shell,
+  .anistratenco-field-control {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .anistratenco-field-control {
+    display: block;
+    padding: 0.625rem 0.875rem;
+    line-height: 1.5;
+  }
+
+  .anistratenco-field-control-input {
+    min-height: 2.75rem;
+  }
+
+  .anistratenco-field-control-textarea {
+    min-height: 6rem;
+    resize: vertical;
+  }
+}
+
+.anistratenco-field-root {
+  min-width: 0;
+  transform-origin: center;
+  transition:
+    filter var(--field-emph),
+    transform var(--field-emph);
+}
+
+.anistratenco-field-label {
+  letter-spacing: 0;
+  transition:
+    color var(--field-move),
+    transform var(--field-move);
+}
+
+.anistratenco-field-control-shell {
+  /*
+   * The field's ADORNMENT LINE — the distance from either end edge to the
+   * CENTRE of the mark that decorates that end.
+   *
+   * It is derived, not chosen: the trailing control owns it (its edge inset
+   * plus half its own size), and the leading mark is placed on it. Both ends
+   * therefore mirror each other by construction. They used to be positioned
+   * twice instead of derived once — a 2.5rem leading gutter centres a 1rem
+   * mark at 20px while a 2rem control inset by 0.375rem centres at 22px — and
+   * the 2px disagreement is exactly what made the reveal (eye) button read as
+   * sitting further in from the field's end than the leading icon does from
+   * its start. Move `--field-adorn-inset` and both marks move together.
+   *
+   * WHY THIS IS THE OPTICALLY CENTRED VALUE. The shell is a full-radius pill,
+   * so each end is capped by a semicircle of radius `height / 2` whose centre
+   * is one radius in from that edge. A control nested with an equal edge inset
+   * on every side is `height - 2 × inset` across, which puts its own centre at
+   * the same point: `inset + (height - 2 × inset) / 2 == height / 2`. For the
+   * 44px / 2rem / 0.375rem field this is 22px on both sides, so the mark is
+   * concentric with the cap it sits in and with the mark at the other end.
+   * That coincidence — not the number 22 — is the law; change the field height
+   * or the control size without keeping it and the mark drifts off the cap.
+   */
+  --field-adorn-inset: 0.375rem;
+  --field-adorn-control: 2rem;
+  --field-adorn-line: calc(
+    var(--field-adorn-inset) +
+    var(--field-adorn-control) /
+    2
+  );
+
+  /* The containing block for the adornments below. Owned here rather than by a
+     `relative` utility in markup: adornment geometry is only correct while this
+     is positioned, so the two must not be separable. */
+  position: relative;
+  border-radius: 9999px;
+  transform-origin: 50% 50%;
+  transition:
+    filter var(--field-move),
+    transform var(--field-emph);
+}
+
+.anistratenco-field-control-shell-multiline {
+  border-radius: var(--rad-chat-soft);
+}
+
+/*
+ * Field adornment contract — the shell owns the geometry, the call site only
+ * supplies the mark. Adopt it with `anistratenco-field-leading-slot` on a
+ * leading box and `anistratenco-field-trailing-slot` on the trailing control.
+ *
+ * Both rules are written as `shell > slot` deliberately. A trailing slot is
+ * normally an `AnistratencoIconButton`, and the shared pill recipe in this file
+ * declares `position: relative` unlayered, which outranks Tailwind's layered
+ * `absolute` utility. A slot that asked for `absolute` in markup therefore lost
+ * and stayed in flow, doing two things at once: it pushed the shell taller than
+ * the control it belongs to, and it laid the button out at the shell's left
+ * edge underneath the field. The inflated shell then re-centred every
+ * `inset-y-0` leading slot against the wrong box, which is why the leading icon
+ * of every secret field sat below its control. The compound selector outranks
+ * the recipe on specificity, so a call site can no longer defeat the geometry.
+ */
+.anistratenco-field-control-shell > .anistratenco-field-leading-slot,
+.anistratenco-field-control-shell > .anistratenco-field-trailing-slot {
+  position: absolute;
+  z-index: 1;
+}
+
+/* A leading slot is a fixed gutter that the control's own start padding matches,
+   so it stops where the text starts. The mark inside it is centred on the
+   field's adornment line rather than on the gutter's own midpoint: the gutter is
+   a text measurement and the adornment line is an optical one, and only the
+   second one is what the eye compares across the field. The offset is the
+   difference between them, so a call site that overrides `--field-adorn-slot`
+   (or the inset, or the trailing control size) still gets a mirrored pair.
+   The mark is not pushed to the field's edge — anchoring it there reads as a
+   cramped icon and pulls it out of line with the text it labels. */
+.anistratenco-field-control-shell > .anistratenco-field-leading-slot {
+  --field-adorn-slot-width: var(--field-adorn-slot, 2.5rem);
+
+  inset-block: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--field-adorn-slot-width);
+  padding-inline-start: calc(
+    2 *
+    var(--field-adorn-line) -
+    var(--field-adorn-slot-width)
+  );
+}
+
+/* A trailing slot keeps its own control size and centres on the shell without
+   contributing to the shell's height. It is inset by an edge gutter rather than
+   sitting flush at `right: 0`: the shell is a full-radius pill, so a control
+   placed flush lands on the rounded cap and its own circle reads as spilling
+   out of the field's end. The gutter matches the search shell's own edge inset,
+   so a field and a search box reserve their edge space the same way. The inset
+   is part of this contract, never a call-site utility — a call site that
+   re-insets its own slot is what put it on the cap to begin with. It is also
+   the source of `--field-adorn-line`, so this rule is what the leading mark
+   above is placed against. */
+.anistratenco-field-control-shell > .anistratenco-field-trailing-slot {
+  top: 50%;
+  right: var(--field-adorn-inset, 0.375rem);
+  translate: 0 -50%;
+}
+
+.anistratenco-field-control-shell > .anistratenco-field-icon-button {
+  right: calc(var(--field-adorn-line) - 14px);
+  z-index: 2;
+}
+
+.anistratenco-validation-tooltip {
+  --validation-tooltip-width: min(20rem, calc(100vw - 1.5rem));
+
+  position: fixed;
+  z-index: var(--z-tip);
+  width: var(--validation-tooltip-width);
+  max-width: var(--validation-tooltip-width);
+  overflow: hidden;
+  pointer-events: none;
+  background: rgb(var(--white) / 20%);
+  border: 1px solid rgb(var(--white) / 40%);
+  border-radius: 0.75rem;
+  box-shadow: var(--sf-shd-micro);
+  isolation: isolate;
+  backdrop-filter: blur(var(--blur-subtle)) saturate(var(--sat-subtle));
+  transform: translate(-50%, -100%);
+}
+
+.anistratenco-validation-tooltip[data-placement="bottom"] {
+  transform: translate(-50%, 0);
+}
+
+.dark .anistratenco-validation-tooltip {
+  background: rgb(28 28 30 / 40%);
+  border-color: rgb(var(--white) / 12%);
+}
+
+.anistratenco-validation-tooltip__glass {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgb(255 255 255 / 18%);
+  border-radius: inherit;
+}
+
+.dark .anistratenco-validation-tooltip__glass {
+  background: rgb(255 255 255 / 5.5%);
+}
+
+.anistratenco-validation-tooltip__label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1rem;
+  color: rgb(var(--foreground));
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.dark .anistratenco-validation-tooltip__label {
+  color: rgb(var(--white) / 94%);
+}
+
+.anistratenco-field-control {
+  min-width: 0;
+  font-size: var(--type-control-size);
+  color: rgb(var(--foreground));
+  caret-color: var(--caret-color);
+  outline: none;
+  background: var(--search-fill);
+  border: 1px solid var(--search-bdr);
+  border-radius: var(--search-rad);
+  box-shadow:
+    inset 0 1px 0 var(--search-inset),
+    var(--search-shd);
+  backdrop-filter: blur(18px) saturate(112%);
+  transition:
+    background-color var(--field-move),
+    border-color var(--field-move),
+    box-shadow var(--field-move),
+    color var(--field-move),
+    filter var(--field-move);
+}
+
+.anistratenco-field-control-textarea {
+  border-radius: var(--rad-chat-soft);
+}
+
+.anistratenco-field-control:focus {
+  background: var(--search-fill-f);
+  border-color: color-mix(
+    in srgb,
+    rgb(var(--accent)) 52%,
+    var(--search-bdr-f) 48%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--search-inset),
+    var(--search-shd);
+}
+
+.dark .anistratenco-field-control {
+  background: rgb(7 7 9 / 58%);
+  border-color: color-mix(in srgb, var(--search-bdr) 82%, var(--bg4) 18%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--search-shd);
+}
+
+.dark :where(.anistratenco-field-control:not(.auth-field-control)):focus {
+  background: rgb(5 5 7 / 68%);
+  border-color: color-mix(
+    in srgb,
+    rgb(var(--accent)) 58%,
+    var(--search-bdr) 42%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--search-shd);
+}
+
+:where(
+  .icon-button,
+  .button-pill,
+  .pill-button,
+  .blue-pill-button,
+  .red-pill-button,
+  .island-button
+):focus-visible {
+  outline: 2px solid var(--sf-focus-outline);
+  outline-offset: var(--sf-focus-outline-offset);
+}
+
+.anistratenco-field-control::placeholder {
+  transition:
+    color 120ms var(--ease-std),
+    opacity 120ms var(--ease-std);
+}
+
+.anistratenco-field-control:focus::placeholder {
+  color: transparent;
+  opacity: 0;
+}
+
+.anistratenco-field-root[data-invalid="true"] .anistratenco-field-control,
+.anistratenco-field-control[aria-invalid="true"] {
+  color: var(--field-bad-text);
+  background-color: var(--field-bad-bg);
+  border-color: var(--field-bad-bdr);
+  box-shadow: var(--field-bad-shd);
+}
+
+.anistratenco-field-root[data-invalid="true"]
+  .anistratenco-field-control::placeholder,
+.anistratenco-field-control[aria-invalid="true"]::placeholder {
+  color: color-mix(in srgb, var(--field-danger) 48%, transparent);
+}
+
+.anistratenco-field-root[data-invalid="true"]
+  .anistratenco-field-control:focus-visible,
+.anistratenco-field-control[aria-invalid="true"]:focus-visible {
+  box-shadow: var(--field-bad-foc);
+}
+
+.anistratenco-field-root[data-warning="true"]:not([data-invalid="true"])
+  .anistratenco-field-control {
+  background-color: var(--field-warn-bg);
+  border-color: var(--field-warn-bdr);
+}
+
+.anistratenco-field-root[data-success="true"]:not([data-invalid="true"])
+  .anistratenco-field-control {
+  background-color: var(--field-ok-bg);
+  border-color: var(--field-ok-bdr);
+}
+
+.anistratenco-field-root[data-invalid="true"] .anistratenco-field-label {
+  color: var(--field-danger);
+  transform: translateX(1px);
+}
+
+.anistratenco-field-root[data-warning="true"]:not([data-invalid="true"])
+  .anistratenco-field-label {
+  color: var(--field-warning);
+}
+
+.anistratenco-field-root[data-success="true"]:not([data-invalid="true"])
+  .anistratenco-field-label {
+  color: var(--field-success);
+}
+
+.anistratenco-field-message {
+  letter-spacing: 0;
+  transform-origin: 0 0;
+  transition:
+    color var(--field-move),
+    opacity var(--field-move),
+    transform var(--field-move);
+}
+
+.anistratenco-field-message[data-visible="true"] {
+  animation: anistratenco-field-message-enter 180ms
+    cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+.anistratenco-checkbox-field[data-invalid="true"] {
+  color: var(--field-bad-text);
+  background: var(--field-bad-bg);
+  border-color: var(--field-bad-bdr);
+  box-shadow: var(--sf-ring-shd-bad);
+}
+
+.anistratenco-checkbox-field {
+  transition:
+    background-color var(--field-move),
+    border-color var(--field-move),
+    box-shadow var(--field-move),
+    color var(--field-move),
+    transform var(--field-emph);
+}
+
+.anistratenco-checkbox-control {
+  background: var(--slider-rail-fill);
+  background-repeat: no-repeat;
+  background-position: center;
+  border: 1px solid color-mix(in srgb, rgb(var(--foreground)) 18%, transparent);
+  border-radius: var(--radius-full);
+  box-shadow: var(--slider-rail-shadow), var(--shd-md);
+}
+
+.anistratenco-checkbox-control:hover:not(:checked, :indeterminate, :disabled) {
+  background: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 14%,
+    rgb(var(--background))
+  );
+
+  /* Edge/inset law, colour spectre: this control's rim is ink (foreground at
+   * 32%), so its highlight has to be ink too. The shared white insets
+   * (`--sf-shd-floa-isl`, `--sf-shd-in-subt`) composited to ~33% white in
+   * light and painted a brighter line than the near-black rim above it. */
+  border-color: rgb(var(--foreground) / 32%);
+  box-shadow:
+    inset 0 1px 0 rgb(var(--foreground) / 24%),
+    var(--sf-shd-contact);
+  transform: translateY(-1px);
+}
+
+.anistratenco-checkbox-control:is(:checked, :indeterminate) {
+  background-color: rgb(var(--accent));
+  border-color: rgb(var(--white) / 26%);
+  box-shadow: var(--sf-sab-rai);
+}
+
+.anistratenco-checkbox-control[type="radio"] {
+  border-radius: 50%;
+}
+
+.anistratenco-checkbox-control[type="radio"]:checked {
+  background-image: radial-gradient(
+    circle at center,
+    rgb(var(--accent-fg)) 0 28%,
+    transparent 32%
+  );
+  background-size: 100% 100%;
+}
+
+.anistratenco-checkbox-control:focus-visible {
+  outline: 2px solid var(--sf-focus-outline);
+  outline-offset: var(--sf-focus-outline-offset);
+}
+
+.anistratenco-checkbox-control:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.anistratenco-checkbox-control:disabled {
+  opacity: 0.48;
+}
+
+.dark
+  .anistratenco-checkbox-control:hover:not(
+    :checked,
+    :indeterminate,
+    :disabled
+  ) {
+  background: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(0 0 0 / 2%));
+  border-color: rgb(var(--white) / 18%);
+}
+
+.dark .anistratenco-checkbox-control:not(:checked, :indeterminate) {
+  background: color-mix(
+    in srgb,
+    var(--slider-rail-fill) 72%,
+    rgb(var(--black)) 28%
+  );
+  border-color: rgb(var(--white) / 16%);
+}
+
+[data-failure-pulse="true"] {
+  animation: anistratenco-field-failure-pulse 380ms
+    cubic-bezier(0.2, 0.85, 0.25, 1);
+}
+
+.auth-notice-slot {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--dur-slide) var(--ease-slide);
+}
+
+.auth-notice-slot[data-visible="true"] {
+  grid-template-rows: 1fr;
+}
+
+.auth-notice-clip {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.auth-notice-content {
+  padding-bottom: 0.75rem;
+}
+
+.auth-notice-content > div {
+  visibility: visible;
+  opacity: 1;
+  transition:
+    opacity var(--dur-fast) ease-out,
+    visibility var(--dur-fast);
+}
+
+.auth-notice-content > div[data-visible="false"] {
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.ui-button-feedback-content {
+  display: inline-flex;
+  gap: inherit;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+@keyframes anistratenco-field-failure-pulse {
+  0% {
+    filter: none;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  16% {
+    filter: saturate(1.08);
+    transform: translate3d(-3px, 0, 0) scale(1.002);
+  }
+
+  34% {
+    transform: translate3d(2.5px, 0, 0) scale(0.998);
+  }
+
+  54% {
+    transform: translate3d(-1.5px, 0, 0) scale(1.001);
+  }
+
+  74% {
+    transform: translate3d(0.75px, 0, 0) scale(1);
+  }
+
+  100% {
+    filter: none;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes anistratenco-field-message-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-notice-slot,
+  .auth-notice-content > div {
+    transition-duration: 1ms;
+  }
+
+  [data-failure-pulse="true"],
+  .anistratenco-field-message[data-visible="true"] {
+    animation: none;
+  }
+
+  .anistratenco-field-control,
+  .anistratenco-field-control-shell,
+  .anistratenco-field-label,
+  .anistratenco-field-message,
+  .anistratenco-checkbox-field {
+    transition-duration: 1ms;
+  }
+}
+
+.search-shell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--search-fill);
+  border: 1px solid var(--search-bdr);
+  border-radius: var(--search-rad);
+  box-shadow:
+    inset 0 1px 0 var(--search-inset),
+    var(--search-shd);
+  isolation: isolate;
+  backdrop-filter: blur(18px) saturate(112%);
+  transition:
+    background-color 150ms var(--ease-std),
+    border-color 150ms var(--ease-std),
+    box-shadow 150ms var(--ease-std);
+}
+
+.search-shell:focus-within,
+.dialog-field-shell:focus-within {
+  background: var(--search-fill-f);
+  border-color: color-mix(
+    in srgb,
+    rgb(var(--accent)) 52%,
+    var(--search-bdr-f) 48%
+  );
+  box-shadow:
+    inset 0 1px 0 var(--search-inset),
+    var(--search-shd);
+}
+
+.dark :is(.search-shell, .dialog-field-shell) {
+  background: rgb(7 7 9 / 58%);
+  border-color: color-mix(in srgb, var(--search-bdr) 82%, var(--bg4) 18%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--search-shd);
+}
+
+.dark :is(.search-shell, .dialog-field-shell):focus-within {
+  background: rgb(5 5 7 / 68%);
+  border-color: color-mix(
+    in srgb,
+    rgb(var(--accent)) 58%,
+    var(--search-bdr) 42%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 5%),
+    var(--search-shd);
+}
+
+.search-shell-input {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-size: var(--type-control-size);
+  line-height: 1.5;
+  color: rgb(var(--foreground));
+  text-indent: 0;
+  appearance: none;
+  caret-color: var(--caret-color);
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+}
+
+.search-shell-input-composer-scale {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+@media (width >= 768px) {
+  .search-shell-input-composer-scale {
+    font-size: 0.9375rem;
+  }
+}
+
+.search-shell-input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+.search-shell-input-emphasized-caret {
+  caret-color: transparent;
+}
+
+.search-shell-emphasized-caret {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 1px;
+  height: 1.125rem;
+  pointer-events: none;
+  background: var(--caret-color);
+  border-radius: 9999px;
+  transform: translateY(-50%);
+  animation: search-shell-emphasized-caret-blink 1.05s steps(1, end) infinite;
+}
+
+@keyframes search-shell-emphasized-caret-blink {
+  0%,
+  46% {
+    opacity: 1;
+  }
+
+  47%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .search-shell-emphasized-caret {
+    animation: none;
+  }
+}
+
+.search-shell-input::placeholder {
+  color: var(--search-place);
+  opacity: 1;
+  transition:
+    color 120ms var(--ease-std),
+    opacity 120ms var(--ease-std);
+}
+
+.search-shell-input:focus::placeholder {
+  color: transparent;
+  opacity: 0;
+}
+
+/* Keep the native caret in a centered line box instead of stretching it into
+   the shell edge, where browser painting can make its tips look soft. */
+
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-decoration {
+  appearance: none;
+}
+
+.search-shell-icon {
+  color: var(--search-icon);
+}
+
+.search-shell-clear-ink {
+  color: var(--search-clear);
+}
+
+.search-shell-concentric {
+  gap: var(--search-gap);
+  padding-inline: var(--search-pad);
+}
+
+.search-shell-leading-slot,
+.search-shell-trailing-slot {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--search-slot);
+  height: var(--search-slot);
+}
+
+.search-shell-input-inline {
+  flex: 1 1 auto;
+  align-self: center;
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  padding-block: 0;
+  padding-inline: 0;
+  line-height: inherit;
+}
+
+.search-shell-concentric > .search-shell-input-inline:first-child {
+  padding-inline-start: var(--search-edge);
+}
+
+.search-shell-concentric > .search-shell-input-inline:last-child {
+  padding-inline-end: var(--search-edge);
+}
+
+.search-shell-action-button {
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* Native disclosure markers are replaced by AnimatedChevron across the product. */
+summary {
+  list-style: none;
+}
+
+summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Placement and box only. The open/closed turn is owned by the shared chevron
+ * owner (`platform/ui/controls/animated-chevron.css`), which the adopting
+ * chevron opts into with `state="details"`. Do not restate a rotation here: an
+ * unlayered rule in that file already wins over this one, so a copy would read
+ * as dead code while silently disagreeing with the real turn. */
+.disclosure-chevron-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-inline-start: 0.625rem;
+  vertical-align: -0.125rem;
+}
+
+/* Listing toolbar backdrop — neutral white glass, no blue tint */
+.listing-toolbar-backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: inherit;
+  box-shadow: var(--glass-shadow);
+  backdrop-filter: blur(var(--glass-blur-md)) saturate(var(--sat-muted));
+}
+
+.dark .listing-toolbar-backdrop {
+  background: rgb(28 28 30 / 60%);
+  border-color: rgb(255 255 255 / 5%);
+  box-shadow: var(--glass-shadow);
+}
+
+/* ---------- Core Glass Carriers – Semantic Tier Progression ---------- */
+.glass,
+.glass-subtle,
+.glass-minimal,
+.glass-crystal {
+  position: relative;
+}
+
+.glass::before,
+.glass-minimal::before,
+.glass-crystal::before,
+.message::before,
+.glass-layer::before,
+.glass-interactive::before,
+.glass-interactive::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  border-radius: inherit;
+}
+
+/* Shared two-layer interaction state for navigation and dialog controls. */
+.glass-interactive::before,
+.glass-interactive::after {
+  z-index: var(--glass-int-lay-z, -1);
+}
+
+.glass-interactive::before {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: inset 0 1px 0 rgb(var(--white) / 0%);
+  opacity: 0;
+  transform: scale(0.95);
+
+  /* Edge/inset law: the rim rides the inset's beat. On `--dur-fast` the boundary
+   * arrived before the highlight it contains, so for those frames the layer had
+   * a rim it had not yet lit. */
+  transition:
+    opacity var(--dur-base) var(--ease-std),
+    transform var(--dur-base) var(--ease-std),
+    box-shadow var(--dur-base) var(--ease-std),
+    border-color var(--dur-base) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
+}
+
+.glass-interactive::after {
+  background: var(--glass-nav-ovr);
+  opacity: 0;
+  transition:
+    opacity var(--dur-base) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
+}
+
+.glass-interactive:is(:hover:not(:disabled), :focus-visible, :focus-within),
+.glass-interactive[data-active="true"],
+.glass-interactive-active {
+  color: rgb(var(--foreground));
+  transform: translateY(-1px);
+}
+
+.glass-interactive:is(
+  :hover:not(:disabled),
+  :focus-visible,
+  :focus-within
+)::before,
+.glass-interactive[data-active="true"]::before,
+.glass-interactive-active::before {
+  background: var(--gla-nav-hov-fil);
+  border-color: var(--gla-nav-hov-bdr);
+  box-shadow: var(--gla-nav-hov-shd);
+  opacity: 1;
+  backdrop-filter: blur(var(--glass-int-blur, var(--blur-interact)))
+    saturate(var(--glass-int-sat, var(--sat-interact)));
+  transform: scale(1);
+}
+
+.glass-interactive[data-active="true"]::before,
+.glass-interactive-active::before {
+  background: var(--gla-nav-act-fil);
+  border-color: var(--gla-nav-act-bdr);
+  box-shadow: var(--gla-nav-act-shd);
+}
+
+.glass-interactive:is(
+  :hover:not(:disabled),
+  :focus-visible,
+  :focus-within
+)::after,
+.glass-interactive[data-active="true"]::after,
+.glass-interactive-active::after {
+  opacity: 1;
+}
+
+.glass-interactive[data-active="true"]::after,
+.glass-interactive-active::after {
+  background: var(--gla-nav-act-ovr);
+}
+
+/* Base carrier */
+.glass {
+  background: var(--glass-base-fill);
+  border: 1px solid var(--glass-base-bdr);
+  box-shadow: var(--glass-base-shd);
+  backdrop-filter: blur(var(--blur-card)) saturate(var(--sat-base));
+}
+
+.glass::before {
+  background: var(--glas-base-shee);
+}
+
+/* Subtle carrier */
+.glass-subtle {
+  background: var(--glas-subt-fill);
+  border: 1px solid var(--glas-subt-bdr);
+  box-shadow: var(--glas-shd-subt);
+  backdrop-filter: blur(var(--blur-subtle)) saturate(var(--sat-subtle));
+}
+
+/* Minimal carrier */
+.glass-minimal {
+  background: var(--glas-mini-fill);
+  border: 1px solid var(--glas-mini-bdr);
+  box-shadow: var(--glas-shd-mini);
+  backdrop-filter: blur(var(--blur-min)) saturate(var(--sat-min));
+}
+
+.glass-minimal::before {
+  background: var(--glas-mini-shee);
+}
+
+/* Global panel/header icon button family */
+.icon-button {
+  /*
+   * Token correction: the previous --bg2/--bd2/--bd4 aliases came from the
+   * neutral foundation layer and rendered as gray chrome in light
+   * theme. Icon buttons are child controls, so their fill, edge, and inset
+   * must stay on the semantic white-lift surface family.
+   */
+  --icon-button-bg: var(--sf-child-fill);
+  --ico-btn-bdr: var(--sf-edge-subtle);
+  --ico-btn-shd: var(--sf-shd-micro);
+
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: rgb(var(--foreground) / 80%);
+  appearance: none;
+  touch-action: manipulation;
+  cursor: pointer;
+  user-select: none;
+  background: var(--icon-button-bg);
+  background-clip: padding-box;
+  border: 1px solid var(--ico-btn-bdr);
+  border-radius: 9999px;
+  box-shadow: var(--ico-btn-shd);
+  backdrop-filter: blur(var(--blur-icon));
+  transition:
+    color 150ms var(--ease-std),
+    background-color 150ms var(--ease-std),
+    border-color 150ms var(--ease-std),
+    box-shadow 150ms var(--ease-std),
+    filter 150ms var(--ease-std),
+    transform 120ms var(--ease-expr);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-button:where(:hover) {
+  --icon-button-bg: var(--sf-child-fill-hover);
+  --ico-btn-bdr: var(--sf-child-stroke-hover);
+  --ico-btn-shd: var(--sf-child-shadow-hover);
+
+  color: rgb(var(--foreground));
+}
+
+.icon-button:where(:focus-visible) {
+  outline: none;
+  box-shadow: var(--sf-rsa-sub), var(--ico-btn-shd);
+}
+
+.icon-button[aria-pressed="true"] {
+  --icon-button-bg: var(--sf-child-fill-selected);
+  --ico-btn-bdr: var(--sf-child-stroke-selected);
+  --ico-btn-shd: var(--sf-child-shadow-selected);
+
+  color: rgb(var(--foreground));
+}
+
+.icon-button:where(:active:not(:disabled)) {
+  filter: var(--ctl-press-fx);
+  transform: scale(var(--press-scale));
+}
+
+.icon-button:where(:disabled),
+.anistratenco-checkbox-control:disabled,
+.anistratenco-slider__input:disabled,
+.island-button:disabled,
+.msg-action-btn:disabled,
+.sidebar-nav-btn:disabled,
+.dot-btn:disabled,
+.sidebar-new-chat-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.icon-button > svg {
+  flex-shrink: 0;
+  color: currentcolor;
+  pointer-events: none;
+}
+
+/* Shared pill slider. Native range input owns pointer, keyboard, and focus behavior. */
+@keyframes anistratenco-loading-rail-fill {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(0%);
+  }
+
+  50.001% {
+    transform: translateX(-75%);
+  }
+
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+.anistratenco-slider {
+  --anistratenco-slider-control-height: 2.5rem;
+  --anistratenco-slider-track-height: 0.625rem;
+  --anistratenco-slider-thumb-width: 1.75rem;
+  --anistratenco-slider-thumb-height: 1.25rem;
+
+  position: relative;
+  width: 100%;
+  min-height: var(--anistratenco-slider-control-height);
+}
+
+.anistratenco-slider[data-marked="true"] {
+  min-height: 5rem;
+}
+
+.anistratenco-slider[data-density="compact"] {
+  --anistratenco-slider-control-height: 2rem;
+
+  min-height: var(--anistratenco-slider-control-height);
+}
+
+.anistratenco-slider__track-clip {
+  position: absolute;
+  top: calc(
+    (
+      var(--anistratenco-slider-control-height) -
+      var(--anistratenco-slider-track-height)
+    ) /
+    2
+  );
+  right: 0;
+  left: 0;
+  z-index: 0;
+  height: var(--anistratenco-slider-track-height);
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: 9999px;
+}
+
+.anistratenco-slider__track {
+  position: absolute;
+  inset: 0 calc(var(--anistratenco-slider-thumb-width) / 2);
+  background: var(--slider-rail-fill);
+  border-radius: 9999px;
+  box-shadow: var(--slider-rail-shadow);
+}
+
+.anistratenco-slider__fill {
+  position: relative;
+  display: block;
+  height: 100%;
+  background: var(--slider-progress-fill);
+  border-radius: inherit;
+  box-shadow: var(--slider-progress-shadow);
+  transition: width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.anistratenco-slider__fill::after {
+  position: absolute;
+  top: 50%;
+  right: calc(var(--anistratenco-slider-thumb-width) / -2);
+  width: var(--anistratenco-slider-thumb-width);
+  height: 100%;
+  content: "";
+  background: var(--slider-progress-cap);
+  border-radius: inherit;
+  transform: translateY(-50%);
+}
+
+.anistratenco-slider[data-dragging="true"] .anistratenco-slider__fill {
+  transition: none;
+}
+
+.anistratenco-slider__input {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 100%;
+  height: var(--anistratenco-slider-control-height);
+  padding: 0;
+  margin: 0;
+  overflow: clip;
+  appearance: none;
+  cursor: grab;
+  background: transparent;
+}
+
+.anistratenco-slider__input::-webkit-slider-runnable-track {
+  height: var(--anistratenco-slider-track-height);
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
+}
+
+.anistratenco-slider__input::-webkit-slider-thumb {
+  width: var(--anistratenco-slider-thumb-width);
+  height: var(--anistratenco-slider-thumb-height);
+  margin-top: calc(
+    (
+      var(--anistratenco-slider-track-height) -
+      var(--anistratenco-slider-thumb-height)
+    ) /
+    2
+  );
+  appearance: none;
+  background: var(--slider-thumb-fill);
+  border: 1px solid var(--slider-thumb-stroke);
+  border-radius: 0.625rem;
+  box-shadow: var(--slider-thumb-shadow);
+  -webkit-backdrop-filter: blur(6px) saturate(110%);
+  backdrop-filter: blur(6px) saturate(110%);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.anistratenco-slider__input::-moz-range-track {
+  height: var(--anistratenco-slider-track-height);
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
+}
+
+.anistratenco-slider__input::-moz-range-progress {
+  height: var(--anistratenco-slider-track-height);
+  background: transparent;
+  border-radius: 9999px;
+}
+
+.anistratenco-slider__input::-moz-range-thumb {
+  width: var(--anistratenco-slider-thumb-width);
+  height: var(--anistratenco-slider-thumb-height);
+  background: var(--slider-thumb-fill);
+  border: 1px solid var(--slider-thumb-stroke);
+  border-radius: 0.625rem;
+  box-shadow: var(--slider-thumb-shadow);
+  -webkit-backdrop-filter: blur(6px) saturate(110%);
+  backdrop-filter: blur(6px) saturate(110%);
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.anistratenco-slider__input:active {
+  cursor: grabbing;
+}
+
+.anistratenco-slider[data-dragging="true"]
+  .anistratenco-slider__input::-webkit-slider-thumb {
+  box-shadow: var(--slider-thumb-shadow);
+  transform: scale(1.045, 1.025);
+}
+
+.anistratenco-slider[data-dragging="true"]
+  .anistratenco-slider__input::-moz-range-thumb {
+  box-shadow: var(--slider-thumb-shadow);
+  transform: scale(1.045, 1.025);
+}
+
+.anistratenco-slider[data-settling="true"]
+  .anistratenco-slider__input::-webkit-slider-thumb {
+  animation: anistratenco-slider-double-bounce 300ms
+    cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.anistratenco-slider[data-settling="true"]
+  .anistratenco-slider__input::-moz-range-thumb {
+  animation: anistratenco-slider-double-bounce 300ms
+    cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes anistratenco-slider-double-bounce {
+  0% {
+    transform: scale(1.045, 1.025);
+  }
+
+  40% {
+    transform: scale(0.985, 1.012);
+  }
+
+  68% {
+    transform: scale(1.012, 0.994);
+  }
+
+  85% {
+    transform: scale(0.997, 1.003);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anistratenco-slider__fill,
+  .anistratenco-slider__input::-webkit-slider-thumb,
+  .anistratenco-slider__input::-moz-range-thumb {
+    transition: none;
+  }
+
+  .anistratenco-slider[data-settling="true"]
+    .anistratenco-slider__input::-webkit-slider-thumb,
+  .anistratenco-slider[data-settling="true"]
+    .anistratenco-slider__input::-moz-range-thumb {
+    animation: none;
+  }
+}
+
+.anistratenco-slider__input:focus-visible {
+  outline: 2px solid var(--sf-focus-outline);
+  outline-offset: 2px;
+  border-radius: 9999px;
+}
+
+.anistratenco-slider__marks {
+  position: absolute;
+  inset-inline: calc(var(--anistratenco-slider-thumb-width) / 2);
+  top: calc(50% + 0.25rem);
+  z-index: 2;
+  height: 1.25rem;
+  pointer-events: none;
+}
+
+.anistratenco-slider__mark {
+  position: absolute;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+}
+
+.anistratenco-slider__mark[data-edge="start"] {
+  transform: translateY(-50%);
+}
+
+.anistratenco-slider__mark[data-edge="end"] {
+  transform: translate(-100%, -50%);
+}
+
+.anistratenco-slider__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.anistratenco-slider__mark[data-active="true"] .anistratenco-slider__label {
+  color: rgb(var(--accent));
+}
+
+.icon-button,
+.island-button,
+[data-bubble-tooltip-surface="icon-button"],
+.bubble-tooltip[data-bubble-tooltip-surface="icon-button"] {
+  --bub-tip-in-wai: var(--bub-tiwi-btn);
+}
+
+.icon-button\:search {
+  width: var(--search-slot);
+  height: var(--search-slot);
+}
+
+.icon-button\:search > svg {
+  width: 15px;
+  height: 15px;
+}
+
+.icon-button\:search-inline {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.icon-button\:search-inline > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button\:sm {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.icon-button\:sm > svg {
+  width: 16px;
+  height: 16px;
+}
+
+.icon-button\:lg {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.icon-button\:lg > svg {
+  width: 18px;
+  height: 18px;
+}
+
+.icon-button\:xl {
+  width: 2.5rem;
+  height: 2.5rem;
+}
+
+.icon-button\:xl > svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Liquid carrier */
+.glass-liquid {
+  background: var(--glas-liqu-fill);
+  border: 1px solid var(--glas-liqu-bdr);
+  box-shadow: var(--glas-shd-liqu);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(var(--sat-liquid));
+}
+
+/* Matte carrier */
+
+/* Crystal carrier */
+.glass-crystal {
+  background: var(--glas-crys-fill);
+  border: 1px solid var(--glas-crys-bdr);
+  box-shadow: var(--glas-shd-crys);
+  backdrop-filter: blur(var(--blur-crystal)) saturate(var(--sat-crystal));
+}
+
+.glass-crystal::before {
+  background: var(--glas-crys-shee);
+}
+
+/* Frosted carrier */
+.glass-frosted {
+  background: var(--glas-fros-fill);
+  border: 1px solid var(--glas-fros-bdr);
+  box-shadow: var(--glas-shd-fros);
+  backdrop-filter: blur(var(--blur-frost)) saturate(var(--sat-frost));
+}
+
+.glass-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  contain: paint;
+  color: rgb(var(--muted-fg));
+  background: var(--sheen);
+  border: 1px solid var(--shlb);
+  border-radius: 9999px;
+  box-shadow: var(--shd-md);
+  isolation: isolate;
+  transition:
+    background-color 150ms,
+    border-color 150ms,
+    color 150ms;
+}
+
+.glass-pill:hover {
+  color: rgb(var(--foreground));
+  background: var(--bg5);
+}
+
+.glass-pill[data-active="true"] {
+  color: rgb(var(--foreground));
+  background: var(--bg5);
+  border-color: var(--bd5);
+}
+
+.dialog-glass-lift {
+  --glass-int-lay-z: 0;
+  --glass-int-blur: 24px;
+  --glass-int-sat: 140%;
+
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    color var(--dur-fast) var(--ease-std),
+    transform var(--press-dur) var(--ease-expr),
+    box-shadow var(--dur-fast) var(--ease-std),
+    border-color var(--dur-fast) var(--ease-std),
+    background-color var(--dur-fast) var(--ease-std);
+}
+
+:where(.dialog-glass-lift) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dialog-close-button.glass-interactive:is(
+  :hover:not(:disabled),
+  :focus-visible,
+  [data-active="true"]
+) {
+  transform: none;
+}
+
+.dialog-glass-lift:active:not(:disabled) {
+  filter: var(--ctl-press-fx);
+  transform: scale(var(--press-scale));
+}
+
+.dialog-concentric-control-shell,
+.dialog-select-trigger-shell {
+  --dlg-ctl-rad: 9999px;
+  --dlg-ctl-in: 0.125rem;
+
+  border-radius: var(--dlg-ctl-rad);
+}
+
+.dialog-concentric-control-shell {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  padding: var(--dlg-ctl-in);
+}
+
+.dialog-concentric-control-button,
+.dialog-concentric-control-input {
+  border-radius: calc(var(--dlg-ctl-rad) - var(--dlg-ctl-in));
+}
+
+.dialog-concentric-control-button {
+  flex-shrink: 0;
+  align-self: center;
+  width: calc(2.75rem - 0.25rem);
+  height: calc(2.75rem - 0.25rem);
+}
+
+.dialog-concentric-control-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  padding-block: 0;
+  padding-inline: 0.5rem;
+}
+
+.dialog-concentric-control-input-headline {
+  font-size: var(--type-control-size);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.dialog-select-trigger-shell {
+  min-height: 2.25rem;
+  padding-right: 2rem;
+  text-align: left;
+}
+
+.dialog-menu-item-button {
+  --dlg-ctl-rad: var(--rad-chat-std);
+  --dlg-ctl-in: 0.25rem;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-radius: calc(var(--dlg-ctl-rad) - var(--dlg-ctl-in));
+}
+
+.dialog-glass-pill-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+}
+
+.section-pill-label {
+  --section-pill-fg: rgb(var(--muted-fg));
+
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  width: fit-content;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  color: var(--section-pill-fg);
+}
+
+.button-pill,
+.pill-button,
+.blue-pill-button,
+.red-pill-button {
+  position: relative;
+  display: inline-flex;
+  gap: 0.375rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-decoration: none;
+  appearance: none;
+  cursor: pointer;
+  user-select: none;
+  background-clip: padding-box;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  isolation: isolate;
+  transition:
+    transform var(--press-dur) var(--ease-expr),
+    background-color 150ms var(--ease-std),
+    border-color 180ms var(--ease-std),
+    color 150ms var(--ease-std),
+    box-shadow 180ms var(--ease-std);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button-pill > svg,
+.pill-button > svg,
+.blue-pill-button > svg,
+.red-pill-button > svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.button-pill,
+.pill-button {
+  color: color-mix(in srgb, rgb(var(--foreground)) 82%, transparent);
+  background: var(--sheen);
+  border-color: var(--shlb);
+  box-shadow: var(--sf-shd-floa-isl);
+}
+
+.dark :where(.button-pill),
+.dark :where(.pill-button) {
+  color: rgb(var(--white) / 84%);
+  border-color: var(--shlb-d);
+}
+
+.button-pill:where(:hover:not(:disabled)),
+.button-pill:where(:focus-visible),
+.button-pill[data-active="true"],
+.pill-button:where(:hover:not(:disabled)),
+.pill-button:where(:focus-visible),
+.pill-button[data-active="true"] {
+  color: rgb(var(--foreground));
+  background: rgb(var(--white) / 24%);
+  border-color: var(--sf-child-stroke-hover);
+  box-shadow: var(--sf-shd-floa-isl), var(--sf-shd-in-subt);
+  transform: translateY(-1px);
+}
+
+.dark :where(.button-pill:hover:not(:disabled)),
+.dark :where(.button-pill:focus-visible),
+.dark .button-pill[data-active="true"],
+.dark :where(.pill-button:hover:not(:disabled)),
+.dark :where(.pill-button:focus-visible),
+.dark .pill-button[data-active="true"] {
+  color: rgb(var(--white));
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.8%), rgb(0 0 0 / 4%));
+
+  /* Edge/inset law: the hover state stacks `--sf-shd-floa-isl` (5% inset) and
+   * `--sf-shd-in-subt` (6% inset), which compound to ~10.7% white at the same
+   * 1px offset. A 10% rim sat under that. The overlay tier (14%) clears the
+   * stacked inset and matches the light hover, which already steps to the
+   * overlay tier via `--sf-child-stroke-hover` (72%). */
+  border-color: rgb(255 255 255 / 14%);
+}
+
+:root:not(.dark)
+  :where(.button-pill, .pill-button):is(
+    :hover:not(:disabled),
+    :focus-visible,
+    [data-active="true"]
+  ) {
+  background: rgb(var(--white) / 16%);
+  border-color: var(--sf-child-stroke-hover);
+  box-shadow: var(--sf-shd-floa-isl);
+}
+
+.button-pill:where(:active:not(:disabled)),
+.pill-button:where(:active:not(:disabled)) {
+  box-shadow: var(--sf-shd-floa-isl);
+  transform: scale(var(--press-scale));
+}
+
+.blue-pill-button {
+  padding-block: 0;
+  line-height: 1.25;
+  color: rgb(var(--white));
+  text-align: center;
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 26%);
+  box-shadow: var(--sf-shd-acc-btn);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms var(--ease-std),
+    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms var(--ease-std),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark :where(.blue-pill-button) {
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 16%);
+}
+
+.blue-pill-button:where(:hover:not(:disabled)),
+.blue-pill-button:where(:focus-visible),
+.blue-pill-button[data-active="true"] {
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 34%);
+  box-shadow: var(--sf-sab-rai);
+  transform: translate3d(0, -1px, 0);
+}
+
+.dark :where(.blue-pill-button:hover:not(:disabled)),
+.dark :where(.blue-pill-button:focus-visible),
+.dark .blue-pill-button[data-active="true"] {
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 22%);
+}
+
+.blue-pill-button:where(:active:not(:disabled)) {
+  box-shadow: var(--sf-sab-pre);
+  transform: scale(var(--press-scale));
+}
+
+@supports (-moz-appearance: none) {
+  :where(
+    .button-pill,
+    .pill-button,
+    .blue-pill-button,
+    .red-pill-button
+  ):active:not(:disabled) {
+    filter: none;
+    transform: translateY(1px);
+  }
+}
+
+.red-pill-button {
+  --red-pill-fill: color-mix(in srgb, rgb(var(--destructive)) 76%, rgb(96 0 0));
+
+  color: rgb(var(--destructive-fg));
+  background: var(--red-pill-fill);
+  border-color: color-mix(in srgb, var(--red-pill-fill) 84%, white);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    inset 0 -1px 0 rgb(0 0 0 / 10%),
+    0 8px 16px -12px rgb(var(--destructive) / 30%);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 180ms var(--ease-std),
+    border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 180ms var(--ease-std),
+    box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dark .red-pill-button {
+  border-color: color-mix(in srgb, var(--red-pill-fill) 88%, white);
+}
+
+.red-pill-button:where(:hover:not(:disabled)),
+.red-pill-button:where(:focus-visible),
+.red-pill-button[data-active="true"] {
+  background: color-mix(in srgb, var(--red-pill-fill) 96%, white);
+  border-color: color-mix(in srgb, var(--red-pill-fill) 78%, white);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 12%),
+    inset 0 -1px 0 rgb(0 0 0 / 10%),
+    0 10px 20px -12px rgb(var(--destructive) / 34%);
+  transform: translate3d(0, -1px, 0);
+}
+
+.red-pill-button:where(:active:not(:disabled)) {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 8%),
+    inset 0 1px 3px rgb(0 0 0 / 12%),
+    0 4px 10px -8px rgb(var(--destructive) / 24%);
+  transform: scale(var(--press-scale-sm));
+}
+
+.button-pill:disabled,
+.pill-button:disabled,
+.blue-pill-button:disabled,
+.red-pill-button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.message {
+  position: relative;
+  contain: paint;
+  background: var(--sfl);
+  border: 1px solid var(--sbd);
+  box-shadow: var(--shd-md);
+  isolation: isolate;
+}
+
+/* Preview cards still use the message surface, but their shadow must remain
+   visible outside the card edge. */
+.message.message-preview {
+  contain: layout;
+}
+
+.dark .message {
+  background: var(--sheen);
+  border-color: var(--sbd-d);
+}
+
+/* ---------- Layout and Scroll Policies – Organized by overflow type ---------- */
+
+/* Body and all child element scrollbars */
+body * {
+  scrollbar-color: var(--nest-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+body *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+body *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body *::-webkit-scrollbar-thumb {
+  background: var(--nest-thumb);
+  border: 1px solid var(--nest-bdr);
+  border-radius: 3px;
+}
+
+/* Panel overflow policy (y-axis) */
+.scroll-policy-panel,
+.scroll-policy-panel-chrome {
+  overflow: hidden auto;
+  scroll-behavior: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Inline overflow policy (x-axis) */
+.scroll-policy-inline,
+.scroll-policy-inline-hidden {
+  overflow: auto hidden;
+  scroll-behavior: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Hidden inline scrollbar */
+.scroll-policy-inline-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scroll-policy-inline-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Panels remain wheel/touch scrollable without exposing the browser gutter. */
+.scroll-policy-panel-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scroll-policy-panel-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Utility shadows */
+
+/* ---------- Scrollbar Styling – Organized by element specificity ---------- */
+
+/* Root (html) scrollbar */
+html {
+  scroll-behavior: auto;
+  scrollbar-color: var(--root-thumb) var(--scroll-track);
+  scrollbar-width: thin;
+}
+
+html::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+html::-webkit-scrollbar-track {
+  background: var(--scroll-track);
+}
+
+html::-webkit-scrollbar-thumb {
+  min-height: 56px;
+  background: var(--root-thumb);
+  background-clip: padding-box;
+  border: 2px solid var(--root-bdr);
+  border-radius: var(--radius-pill);
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  background: var(--root-thumb-h);
+  border-color: var(--root-bdr-h);
+}
+
+body *::-webkit-scrollbar-thumb:hover {
+  background: var(--nest-thumb-h);
+}
+
+/* Custom scrollbar and panel chrome */
+:is(.custom-scrollbar, .scroll-policy-panel-chrome) {
+  scrollbar-color: var(--scroll-thumb) transparent;
+  scrollbar-width: thin;
+}
+
+:is(.custom-scrollbar, .scroll-policy-panel-chrome)::-webkit-scrollbar {
+  width: 6px;
+}
+
+:is(.custom-scrollbar, .scroll-policy-panel-chrome)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+:is(.custom-scrollbar, .scroll-policy-panel-chrome)::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border: 1px solid var(--scroll-bdr);
+  border-radius: 3px;
+  backdrop-filter: blur(var(--blur-scroll)) saturate(var(--sat-none));
+}
+
+:is(
+  .custom-scrollbar,
+  .scroll-policy-panel-chrome
+)::-webkit-scrollbar-thumb:hover {
+  background: var(--scroll-thumb-h);
+  border-color: var(--scroll-bdr-h);
+}
+
+/* Toast regions sit outside product stacking contexts. */
+.app-toast-host {
+  display: contents;
+  pointer-events: none;
+}
+
+.app-toast-region {
+  position: fixed;
+  inset-inline-end: max(1rem, env(safe-area-inset-right, 0px));
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(26.5rem, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2rem);
+  pointer-events: none;
+}
+
+.app-toast-region[data-placement="top-right"] {
+  inset-block-start: max(1rem, env(safe-area-inset-top, 0px));
+}
+
+.app-toast-region[data-placement="bottom-right"] {
+  inset-block-end: max(1rem, env(safe-area-inset-bottom, 0px));
+  max-height: calc(100dvh - 2rem);
+}
+
+body:has([data-scroll-to-top][aria-hidden="false"])
+  .app-toast-region[data-placement="bottom-right"] {
+  --toast-right-clearance: calc(
+    max(env(safe-area-inset-right, 0px) + 1rem, 1.5rem) +
+    2.75rem +
+    0.75rem
+  );
+
+  inset-inline: auto var(--toast-right-clearance);
+  width: min(
+    26.5rem,
+    calc(
+      100vw -
+      var(--toast-right-clearance) -
+      max(1rem, env(safe-area-inset-left, 0px))
+    )
+  );
+}
+
+.app-toast {
+  --app-toast-accent: rgb(var(--accent));
+  --app-toast-radius: var(--rad-chat-shell);
+  --app-toast-control-radius: var(--radius-pill);
+
+  width: 100%;
+  overflow: visible;
+  color: rgb(var(--foreground));
+  pointer-events: auto;
+  touch-action: pan-y;
+  cursor: default;
+  user-select: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.app-toast[data-state="exiting"] {
+  pointer-events: none;
+}
+
+.app-toast:focus {
+  outline: none;
+}
+
+@keyframes app-toast-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0.75rem, 0, 0) scale(0.985);
+  }
+}
+
+@keyframes app-toast-exit {
+  to {
+    opacity: 0;
+    transform: translate3d(0.75rem, 0, 0) scale(0.985);
+  }
+}
+
+.app-toast__surface {
+  position: relative;
+  display: grid;
+  grid-template-areas:
+    "indicator content close"
+    ". actions actions";
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  row-gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  padding: 0.625rem;
+  overflow: hidden;
+  background: var(--sf-notification-smoked-fill);
+  background-clip: padding-box;
+  border: 1px solid var(--sf-edge-control);
+  border-radius: var(--app-toast-radius);
+  box-shadow:
+    0 12px 30px -24px rgb(0 0 0 / 24%),
+    inset 0 1px 0 rgb(var(--white) / 14%);
+  -webkit-backdrop-filter: blur(var(--blur-ctl));
+  backdrop-filter: blur(var(--blur-ctl));
+  transition:
+    opacity 180ms var(--ease-std),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: app-toast-enter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:where(.app-toast[data-state="exiting"]) .app-toast__surface {
+  animation: app-toast-exit 180ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-toast__surface {
+    transition-duration: 1ms;
+    animation-duration: 1ms;
+  }
+
+  :where(.app-toast[data-state="exiting"]) .app-toast__surface {
+    animation-duration: 1ms;
+  }
+}
+
+/* Keep the transform on the same element that owns backdrop-filter. */
+.app-toast__surface[data-dragging="true"] {
+  transition: none;
+  animation: none;
+}
+
+.app-toast__surface[data-dismissing="true"] {
+  pointer-events: none;
+  animation: none;
+}
+
+.app-toast__surface::before {
+  content: none;
+}
+
+.dark .app-toast__surface {
+  background: var(--sf-notification-smoked-fill);
+  border-color: var(--sf-edge-subtle);
+  box-shadow:
+    0 20px 46px -24px rgb(0 0 0 / 48%),
+    0 5px 16px -12px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(var(--white) / 6%);
+}
+
+.app-toast:focus-visible .app-toast__surface {
+  border-color: color-mix(in srgb, var(--app-toast-accent) 34%, transparent);
+  box-shadow:
+    0 12px 30px -24px rgb(0 0 0 / 24%),
+    inset 0 1px 0 rgb(var(--white) / 14%),
+    0 0 0 2px color-mix(in srgb, var(--app-toast-accent) 42%, transparent);
+}
+
+.dark .app-toast:focus-visible .app-toast__surface {
+  box-shadow:
+    0 20px 46px -24px rgb(0 0 0 / 48%),
+    0 5px 16px -12px rgb(0 0 0 / 32%),
+    inset 0 1px 0 rgb(var(--white) / 6%),
+    0 0 0 2px color-mix(in srgb, var(--app-toast-accent) 42%, transparent);
+}
+
+.app-toast[data-variant="success"] {
+  --app-toast-accent: var(--success-glass);
+}
+
+.app-toast[data-variant="warning"] {
+  --app-toast-accent: rgb(245 158 11);
+}
+
+.app-toast[data-variant="error"] {
+  --app-toast-accent: rgb(var(--destructive));
+}
+
+.app-toast__content {
+  display: grid;
+  grid-area: content;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.app-toast__indicator {
+  grid-area: indicator;
+  align-self: start;
+}
+
+.app-toast__title,
+.app-toast__description {
+  display: block;
+}
+
+.app-toast__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.app-toast__description {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  color: rgb(var(--muted-fg));
+}
+
+.app-toast__action,
+.app-toast__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2.125rem;
+  color: rgb(var(--muted-fg));
+  background: var(--sf-child-fill);
+  border: 1px solid var(--sf-edge-subtle);
+  border-radius: var(--app-toast-control-radius);
+  transition:
+    color 160ms var(--ease-std),
+    background-color 160ms var(--ease-std),
+    border-color 180ms var(--ease-std),
+    box-shadow 180ms var(--ease-std),
+    transform var(--press-dur) var(--ease-expr);
+}
+
+.app-toast__action {
+  grid-area: auto;
+  padding-inline: 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--foreground));
+}
+
+.app-toast__actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  grid-area: actions;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.app-toast__action:not([data-secondary-action="true"]) {
+  color: rgb(var(--white));
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 26%);
+  box-shadow: var(--sf-shd-acc-btn);
+}
+
+.app-toast__action[data-secondary-action="true"] {
+  color: rgb(var(--foreground));
+  background: var(--sf-child-fill);
+}
+
+.app-toast__close {
+  width: 2.125rem;
+  background: transparent;
+  border-color: transparent;
+  opacity: 0.72;
+}
+
+.app-toast__action:is(:hover, :focus-visible),
+.app-toast__close:is(:hover, :focus-visible) {
+  color: rgb(var(--foreground));
+  background: var(--sf-child-fill-hover);
+  border-color: var(--sf-child-stroke-hover);
+  transform: translateY(-1px);
+}
+
+.app-toast__action:not([data-secondary-action="true"]):is(
+  :hover,
+  :focus-visible
+) {
+  color: rgb(var(--white));
+  background: rgb(var(--accent));
+  border-color: rgb(255 255 255 / 34%);
+}
+
+.app-toast__action:focus-visible,
+.app-toast__close:focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--app-toast-accent) 72%, transparent);
+  outline-offset: 2px;
+}
+
+.app-toast__action:active,
+.app-toast__close:active {
+  transform: scale(var(--press-scale));
+}
+
+.app-toast__surface:active:not([data-dragging="true"]) {
+  transform: scale(0.992);
+}
+
+@media (width < 640px) {
+  .app-toast-region {
+    inset-inline: max(0.75rem, env(safe-area-inset-left, 0px));
+    gap: 0.5rem;
+    width: auto;
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .app-toast-region[data-placement="top-right"] {
+    inset-block-start: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+
+  .app-toast-region[data-placement="bottom-right"] {
+    inset-block-end: max(0.75rem, env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 1.5rem);
+  }
+
+  .app-toast__surface {
+    grid-template-areas:
+      "indicator content close"
+      ". actions actions";
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.625rem;
+    row-gap: 0.5rem;
+    padding: 0.625rem;
+  }
+
+  .app-toast__action,
+  .app-toast__close {
+    min-width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .app-toast__close {
+    width: 2.75rem;
+  }
+}
+
+[data-floating-island-surface] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  color: rgb(var(--muted-fg));
+  background: rgb(var(--white) / 6%);
+  background-clip: padding-box;
+  border: 1px solid var(--shlb);
+  border-radius: 9999px;
+  box-shadow: var(--sf-shd-floa-isl);
+  backdrop-filter: blur(var(--blur-card)) saturate(140%);
+  transition:
+    color 200ms ease-out,
+    background-color 150ms var(--ease-std),
+    border-color 150ms var(--ease-std),
+    box-shadow 150ms var(--ease-std),
+    filter 150ms,
+    transform var(--press-dur) var(--ease-expr);
+}
+
+.dark [data-floating-island-surface] {
+  color: color-mix(in srgb, var(--hdr-fg) 56%, transparent);
+  border-color: var(--shlb-d);
+}
+
+[data-floating-island-surface]:is(:hover, :focus-within),
+[data-floating-island-surface][data-active="true"] {
+  color: rgb(var(--foreground));
+  background: var(--bg5);
+  border-color: var(--bd5);
+  box-shadow: var(--sf-sfi-rai);
+}
+
+.dark :where([data-floating-island-surface]:is(:hover, :focus-within)),
+.dark [data-floating-island-surface][data-active="true"] {
+  color: rgb(var(--foreground));
+}
+
+/* --- Island Button --- */
+
+/* Animate the surface together with the inner button so press-scale
+   micro-interactions render as one cohesive squeeze. */
+[data-floating-island-surface]:has(
+  .island-button:where(:active:not(:disabled))
+) {
+  transform: scale(var(--press-scale-sm));
+}
+
+[data-floating-island-surface][data-disabled="true"] {
+  opacity: 0.55;
+}
+
+[data-floating-island-surface]:has(.island-button:focus-visible) {
+  box-shadow: var(--sf-sfi-foc);
+}
+
+.island-button {
+  position: relative;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  line-height: 0;
+  color: inherit;
+  appearance: none;
+  touch-action: manipulation;
+  cursor: pointer;
+  user-select: none;
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  transition:
+    color 150ms,
+    filter 150ms;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.island-button:where(:focus-visible) {
+  outline: none;
+}
+
+/* The press-scale is owned by the parent surface via :has() so the
+   backdrop-filter and border also squeeze together with the glyph. */
+.island-button:where(:active:not(:disabled)) {
+  filter: var(--ctl-press-fx);
+}
+
+.island-button > svg {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  color: currentcolor;
+  pointer-events: none;
+}
+
+/* ---------- Text Selection Colors ---------- */
+::selection {
+  color: rgb(var(--accent-fg));
+  background-color: rgb(var(--accent));
+}
+
+.chat-user-bubble-selection {
+  color: rgb(var(--accent-fg));
+  background-color: rgb(var(--accent));
+  background-image: none;
+}
+
+.chat-user-bubble-selection::selection,
+.chat-user-bubble-selection *::selection {
+  color: var(--sel-inverse-fg);
+  background-color: var(--sel-inve-fill);
+}
+
+/* Shared interaction reset for controls used beyond the Chat composer. */
+.chat-interactive-control {
+  appearance: none;
+  touch-action: manipulation;
+  user-select: none;
+  background-clip: padding-box;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.chat-interactive-control.blue-pill-button {
+  background-clip: border-box;
+}
+
+.chat-interactive-control-neutral:active:not(:disabled) {
+  filter: var(--ctl-press-fx);
+  transform: scale(var(--press-scale));
+}
+
+.anistratenco-toggle-thumb {
+  transform: translate3d(var(--toggle-knob-x), 0, 0);
+  transform-origin: 18px 18px;
+}
+
+@keyframes anistratenco-toggle-thumb-on {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  20% {
+    transform: translate3d(8px, 0, 0);
+  }
+
+  48% {
+    transform: translate3d(32.8px, 0, 0);
+  }
+
+  68% {
+    transform: translate3d(33.15px, 0, 0);
+  }
+
+  84% {
+    transform: translate3d(31.75px, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(32px, 0, 0);
+  }
+}
+
+@keyframes anistratenco-toggle-thumb-off {
+  0% {
+    transform: translate3d(32px, 0, 0);
+  }
+
+  20% {
+    transform: translate3d(24px, 0, 0);
+  }
+
+  48% {
+    transform: translate3d(-0.9px, 0, 0);
+  }
+
+  68% {
+    transform: translate3d(-1.15px, 0, 0);
+  }
+
+  84% {
+    transform: translate3d(0.3px, 0, 0);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.anistratenco-toggle-thumb-on,
+.anistratenco-toggle-thumb-off {
+  animation: 420ms cubic-bezier(0.22, 0.82, 0.22, 1) both;
+  will-change: transform;
+}
+
+.anistratenco-toggle-thumb-on {
+  animation-name: anistratenco-toggle-thumb-on;
+}
+
+.anistratenco-toggle-thumb-off {
+  animation-name: anistratenco-toggle-thumb-off;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anistratenco-toggle-switch
+    :where(.anistratenco-toggle-rail, svg, g, circle) {
+    transition: none;
+    animation: none;
+  }
+
+  .anistratenco-toggle-pulse {
+    display: none;
+  }
+}
+
+html[data-chat-reduced-motion="true"]
+  .anistratenco-toggle-switch
+  :where(.anistratenco-toggle-rail, svg, g, circle) {
+  transition: none;
+  animation: none;
+}
+
+html[data-chat-reduced-motion="true"] .anistratenco-toggle-pulse {
+  display: none;
+}

@@ -1,0 +1,145 @@
+/* Shared checkbox motion. Native input owns semantics and focus; its inert
+ * paint layer owns the inward radial fill and the continuous SVG stroke.
+ * The frame's inert overlay keeps the active inset above the animated fill. */
+.anistratenco-checkbox-frame {
+  --checkbox-fill: rgb(var(--accent));
+  --checkbox-ink: rgb(var(--accent-fg));
+
+  position: relative;
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+  border-radius: var(--radius-full);
+}
+
+.anistratenco-checkbox-frame > .anistratenco-checkbox-control {
+  transform: none;
+}
+
+.anistratenco-checkbox-frame
+  > .anistratenco-checkbox-control:is(:checked, :indeterminate) {
+  background: var(--slider-rail-fill);
+  box-shadow: none;
+}
+
+.anistratenco-checkbox-frame:has(> :is(:checked, :indeterminate))::after {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  box-sizing: border-box;
+  pointer-events: none;
+  content: "";
+  border: 1px solid transparent;
+  border-radius: inherit;
+  box-shadow: var(--sf-sab-rai);
+}
+
+.anistratenco-checkbox-paint {
+  position: absolute;
+  inset: 1px;
+  z-index: 20;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.anistratenco-checkbox-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  stroke: var(--checkbox-fill);
+  stroke-width: 0;
+  transition: stroke-width var(--dur-slow) var(--ease-std);
+}
+
+.anistratenco-checkbox-mark {
+  position: absolute;
+  inset: 15%;
+  width: 70%;
+  height: 70%;
+  overflow: visible;
+  stroke: var(--checkbox-ink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.anistratenco-checkbox-mark path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  transition: stroke-dashoffset var(--dur-slow) var(--ease-std);
+}
+
+.anistratenco-checkbox-control:is(:checked, :indeterminate)
+  + .anistratenco-checkbox-paint
+  .anistratenco-checkbox-fill {
+  /* The clipped perimeter stroke grows inward without rotating the fill. */
+  stroke-width: 24;
+}
+
+.anistratenco-checkbox-control:checked:not(:indeterminate)
+  + .anistratenco-checkbox-paint
+  .anistratenco-checkbox-tick,
+.anistratenco-checkbox-control:indeterminate
+  + .anistratenco-checkbox-paint
+  .anistratenco-checkbox-mixed {
+  stroke-dashoffset: 0;
+}
+
+.anistratenco-checkbox-frame:has(> :disabled) {
+  opacity: 0.48;
+}
+
+.anistratenco-checkbox-frame > .anistratenco-checkbox-control:disabled {
+  opacity: 1;
+}
+
+.anistratenco-checkbox-frame[data-activation="first"] {
+  animation: checkbox-rebound var(--dur-slow) var(--ease-std);
+}
+
+.anistratenco-checkbox-frame[data-activation="repeat"] {
+  animation: checkbox-rebound-repeat var(--dur-slow) var(--ease-std);
+}
+
+@keyframes checkbox-rebound {
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  38% {
+    scale: 1.16;
+  }
+
+  72% {
+    scale: 0.97;
+  }
+}
+
+@keyframes checkbox-rebound-repeat {
+  0%,
+  100% {
+    scale: 1;
+  }
+
+  38% {
+    scale: 1.16;
+  }
+
+  72% {
+    scale: 0.97;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anistratenco-checkbox-frame[data-activation] {
+    animation: none;
+  }
+
+  .anistratenco-checkbox-fill,
+  .anistratenco-checkbox-mark path {
+    transition: none;
+  }
+}

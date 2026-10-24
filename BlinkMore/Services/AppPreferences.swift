@@ -32,6 +32,18 @@ final class AppPreferences {
         get { defaults.object(forKey: "remindersEnabled") == nil || defaults.bool(forKey: "remindersEnabled") }
         set { defaults.set(newValue, forKey: "remindersEnabled"); onChange?() }
     }
+    var blinkGoal: Double {
+        get { bounded("dailyBlinkGoal", fallback: 300, range: 10...10000) }
+        set { defaults.set(newValue.clamped(to: 10...10000).rounded(), forKey: "dailyBlinkGoal"); onChange?() }
+    }
+    var minuteGoal: Double {
+        get { bounded("dailyMinuteGoal", fallback: 30, range: 1...720) }
+        set { defaults.set(newValue.clamped(to: 1...720).rounded(), forKey: "dailyMinuteGoal"); onChange?() }
+    }
+    var dayGoal: Double {
+        get { bounded("weeklyDayGoal", fallback: 3, range: 1...7) }
+        set { defaults.set(newValue.clamped(to: 1...7).rounded(), forKey: "weeklyDayGoal"); onChange?() }
+    }
     var theme: String {
         get { let value = defaults.string(forKey: "appearance") ?? "system"; return ["system", "light", "dark"].contains(value) ? value : "system" }
         set { guard ["system", "light", "dark"].contains(newValue) else { return }; defaults.set(newValue, forKey: "appearance"); onChange?() }
@@ -63,7 +75,8 @@ final class AppPreferences {
     func snapshot() -> [String: Any] {
         ["reminderSeconds": reminderSeconds, "fadeSeconds": fadeSeconds, "intensity": intensity,
          "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
-         "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0]
+         "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0,
+         "blinkGoal": blinkGoal, "minuteGoal": minuteGoal, "dayGoal": dayGoal]
     }
     private func bounded(_ key: String, fallback: Double, range: ClosedRange<Double>) -> Double {
         guard defaults.object(forKey: key) != nil else { return fallback }

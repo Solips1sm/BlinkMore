@@ -199,6 +199,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         var result: [String: Any] = ["phase": phase.rawValue, "title": phase.title, "detail": phase.detail]
         result["closedMask"] = frame.closedMask
         result["left"] = frame.left; result["right"] = frame.right
+        result["geometry"] = ["left": frame.leftContour.map { [$0.x, $0.y] },
+            "right": frame.rightContour.map { [$0.x, $0.y] },
+            "leftAperture": frame.leftAperture, "rightAperture": frame.rightAperture,
+            "width": frame.faceWidth, "height": frame.faceHeight, "confidence": frame.faceConfidence]
+        result["frameAgeMs"] = frame.timestamp > 0 ? max(0, EyeTrackingService.clock() - frame.timestamp) * 1000 : NSNull()
+        result["reducedMotion"] = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         result["calibration"] = frame.calibration; result["openSeconds"] = frame.openSeconds
         result["latencyMs"] = frame.latencyMs
         result["p95Ms"] = ordered.isEmpty ? 0 : ordered[min(ordered.count - 1, ordered.count * 95 / 100)]
@@ -240,12 +246,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
                 stopCamera(); preferences.cameraID = v.isEmpty ? nil : v
             }
-        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity":
+        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "blinkGoal", "minuteGoal", "dayGoal":
             guard let v = value as? NSNumber, CFGetTypeID(v) != CFBooleanGetTypeID(), v.doubleValue.isFinite else { return }
             switch key {
             case "reminderSeconds": preferences.reminderSeconds = v.doubleValue
             case "fadeSeconds": preferences.fadeSeconds = v.doubleValue
             case "intensity": preferences.intensity = v.doubleValue
+            case "blinkGoal": preferences.blinkGoal = v.doubleValue
+            case "minuteGoal": preferences.minuteGoal = v.doubleValue
+            case "dayGoal": preferences.dayGoal = v.doubleValue
             default: preferences.sensitivity = v.doubleValue
             }
         default: notify("That preference is not available.")

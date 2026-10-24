@@ -55,6 +55,9 @@ final class DailyStatistics {
     private var nextMidnight: Date
     private let formatter: DateFormatter
     private var recent: [(second: Int, tracked: Double, blinks: Int)] = []
+    private var lifetimeBlinks = 0
+    private var lifetimeSeconds: Double = 0
+    private var lifetimeDays = 0
 
     init(url: URL? = nil, now: Date = Date()) {
         formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -75,6 +78,9 @@ final class DailyStatistics {
                     throw CocoaError(.fileReadCorruptFile)
                 }
                 records = Dictionary(uniqueKeysWithValues: values.map { ($0.day, $0) })
+                lifetimeBlinks = values.reduce(0) { $0 + $1.blinks }
+                lifetimeSeconds = values.reduce(0) { $0 + $1.trackedSeconds }
+                lifetimeDays = values.filter { $0.trackedSeconds + 0.000001 >= 30 }.count
             } catch {
                 do {
                     let backup = self.url.deletingPathExtension().appendingPathExtension("recovery-\(Int(now.timeIntervalSince1970)).json")
@@ -93,7 +99,11 @@ final class DailyStatistics {
         lock.lock(); defer { lock.unlock() }
         rollDay(now)
         var value = records[day] ?? DailyRecord(day: day)
+        let wasTrackedDay = value.trackedSeconds + 0.000001 >= 30
         value.trackedSeconds += frame.trackedDelta
+        lifetimeSeconds += frame.trackedDelta
+        if !wasTrackedDay && value.trackedSeconds + 0.000001 >= 30 { lifetimeDays += 1 }
+        if frame.events & 4 != 0 { lifetimeBlinks += 1 }
         if frame.events & 4 != 0 { value.blinks += 1 }
         if frame.events & 8 != 0 { value.leftClosures += 1 }
         if frame.events & 16 != 0 { value.rightClosures += 1 }
@@ -144,7 +154,8 @@ final class DailyStatistics {
                 "baselineRate": baseline.map { $0 as Any } ?? NSNull(),
                 "relativePercent": relative.map { $0 as Any } ?? NSNull(),
                 "recentRate": seconds + 0.000001 >= 15 ? Double(blinks) * 60 / seconds : NSNull(),
-                "recentSeconds": seconds]
+                "recentSeconds": seconds,
+                "lifetime": ["blinks": lifetimeBlinks, "trackedSeconds": lifetimeSeconds, "days": lifetimeDays]]
     }
 
     func exportData() throws -> Data {
@@ -182,6 +193,7 @@ final class DailyStatistics {
                 try FileManager.default.removeItem(at: url)
             }
             records.removeAll(); recent.removeAll(); dirty = false; warning = nil; saveAllowed = true
+            lifetimeBlinks = 0; lifetimeSeconds = 0; lifetimeDays = 0
         }
     }
 

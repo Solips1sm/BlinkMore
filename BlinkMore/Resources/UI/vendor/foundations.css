@@ -1,0 +1,1088 @@
+/*
+ * File Charter
+ * Role: Canonical design-system foundations for theme, token, spacing, and typography.
+ * Workflow position: Loaded first from global styles so all downstream style layers can consume stable tokens.
+ * Primary exports: CSS custom properties and semantic type utility classes.
+ * Non-goals: Component-specific layout, motion choreography, or endpoint-specific viewer styles.
+ */
+
+input::placeholder,
+textarea::placeholder {
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+:where(
+  input:not(
+    [type="checkbox"],
+    [type="radio"],
+    [type="range"],
+    [type="file"],
+    [type="hidden"]
+  ),
+  textarea,
+  select,
+  [contenteditable="true"],
+  [contenteditable="plaintext-only"],
+  [contenteditable=""]
+) {
+  font-size: var(--type-control-size);
+}
+
+:root {
+  /* Core color roles */
+  --background: 225 227 229;
+  --foreground: 28 28 30;
+  --caret-color: rgb(var(--foreground));
+  --card: 255 255 255;
+  --card-opacity: 0.65;
+  --card-foreground: 28 28 30;
+  --popover: 255 255 255;
+  --popover-opacity: 0.8;
+  --popover-fg: 28 28 30;
+  --primary: 0 111 230;
+  --primary-fg: 255 255 255;
+  --secondary: 142 142 147;
+  --secondary-a: 0.08;
+  --secondary-fg: 58 58 60;
+  --muted: 142 142 147;
+  --muted-opacity: 0.1;
+  --muted-fg: 72 72 74;
+  --accent: 0 111 230;
+  --accent-fg: 255 255 255;
+  --destructive: 255 59 48;
+  --destructive-fg: 255 255 255;
+  --border: 255 255 255;
+  --border-opacity: 0.6;
+  --input: 142 142 147;
+  --input-opacity: 0.08;
+  --ring: 0 111 230;
+
+  /* Global primitives – Radius (rem) in ascending order */
+  --radius-sm: 0.75rem;
+  --radius-md: 1rem;
+  --radius: 1.25rem;
+  --radius-pill: 9999px;
+  --radius-full: 9999px;
+  --rad-chat-micro: 1.5px;
+  --rad-chat-comp: var(--rad-chat-std);
+  --rad-chat-tight: var(--rad-chat-std);
+  --rad-chat-std: 0.75rem;
+  --rad-chat-soft: 0.875rem;
+  --rad-chat-ctl: 1rem;
+  --rad-chat-card: 1.125rem;
+  --rad-chat-panel: 1.25rem;
+  --rad-chat-dock: 1.375rem;
+  --rad-chat-shell: 1.5rem;
+  --rad-chat-stage: 1.75rem;
+  --rad-chat-lg: 2rem;
+
+  /* Prose leading scale – single source of truth for chat/markdown body rhythm.
+     Kept in sync with the composer textarea (line-height 1.5) so written and
+     rendered text share one vertical cadence in every layout mode. */
+  --lead-chat-prose: 1.5;
+  --lead-chat-dense: 1.4;
+
+  /* Semantic typography roles. Sizes and line boxes resolve to whole or
+     half pixels at the default root size; routes may compose these roles but
+     must not redefine their metrics. */
+  --type-section-size: 32px;
+  --type-section-leading: 1.1;
+  --type-panel-title-size: 16px;
+  --type-panel-title-leading: 17.5px;
+  --type-card-title-size: 16px;
+  --type-card-title-leading: 22.5px;
+  --type-supporting-size: 14px;
+  --type-supporting-leading: 22.5px;
+  --type-control-size: 14px;
+  --type-control-leading: 20px;
+  --type-composer-input-size: 15px;
+  --type-composer-input-leading: 1.45;
+
+  /* Main sidebar text contract: keep every visible sidebar label at 15px.
+     This stays separate from generic controls so a control-scale change
+     cannot silently shrink History, Projects, Files, Settings, or Account. */
+  --type-sidebar-size: 15px;
+  --type-sidebar-leading: 20px;
+
+  /* Product UI copy floor: visible text starts at 14px. Keep smaller values
+     for geometry only, never for user-facing labels or supporting copy. */
+  --type-meta-size: 14px;
+  --type-meta-leading: 20px;
+  --type-micro-size: 14px;
+  --type-micro-leading: 20px;
+  --type-weight-regular: 400;
+  --type-weight-medium: 500;
+  --type-weight-semibold: 600;
+  --type-weight-bold: 700;
+
+  /* Semantic ink tiers. Demo depth may select a tier; local alpha ladders
+     should not create additional text contrast roles. */
+  --ink-primary: 96%;
+  --ink-secondary: 84%;
+  --ink-tertiary: 72%;
+  --ink-muted: 55%;
+  --ink-disabled: 38%;
+
+  /* Global primitives – Spacing (rem) in ascending order */
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+
+  /* Cross-surface stacking order. Local stacking contexts keep local values. */
+  --z-sticky: 20;
+  --z-nav: 30;
+  --z-dock: 35;
+  --z-header: 50;
+  --z-docked: 51;
+  --z-drop: 60;
+  --z-overlay: 80;
+  --z-tip: 500;
+  --z-drag: 9999;
+  --z-toast: 10000;
+
+  /* Global primitives – Duration (ms) in ascending order */
+  --dur-instant: 75ms;
+  --dur-fast: 120ms;
+
+  /* The sliding tempo. Paired with `--ease-slide`, it is the whole motion of
+     anything that slides a selection window from one resting place to another.
+     Both halves live here so a surface cannot adopt the curve and keep a tempo
+     of its own: that is how two sliding windows come to feel like two different
+     controls. `--ease-slide` is the shape, this is the clock. */
+  --dur-slide: 180ms;
+  --dur-base: 200ms;
+  --dur-slow: 300ms;
+  --dur-lazy: 500ms;
+  --dur-glacial: 700ms;
+
+  /* Global primitives – Easing functions */
+  --ease-press: cubic-bezier(0.32, 0, 0.2, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-expr: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-emph: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* The one curve for anything that SLIDES from one resting place to another: a
+     segmented-control thumb, a tab indicator, the tabbed-dialog pane. Every
+     sliding surface reads this token, so they all land the same way.
+
+     It is a light ease-out, not the heavier `--ease-emph`. `--ease-emph` is
+     easeOutQuint: it covers 40% of the distance in the first 10% of its time and
+     then spends more than half its duration creeping the last 5%, so the visible
+     slide is over at ~45% of the declared duration and the remainder is an
+     invisible crawl. Measured over 180ms, its final third carried 1% of its
+     first third's speed — a jump, then a stall. easeOutCubic keeps a graded
+     deceleration across the whole duration (velocity 0.90 → 0.80 → 0.63 → 0.48 →
+     0.36 → 0.25 → 0.16 → 0.09 → 0.04 → 0.01 of peak) and still reaches zero, so
+     the mark eases into its place instead of arriving early and hovering.
+
+     The shape is only half the motion — `--dur-slide` is the other half, and a
+     sliding surface takes both. */
+  --ease-slide: cubic-bezier(0.33, 1, 0.68, 1);
+
+  /* Transition presets – canonical duration + ease pairs */
+  --trans-surface: 200ms var(--ease-std);
+  --trans-chrome: 220ms var(--ease-emph);
+  --trans-ink: 150ms var(--ease-std);
+
+  /* Micro-interaction tokens — shared press-scale ownership.
+     Override --press-scale per-button-family for tighter/larger squeeze. */
+  --press-scale: 0.985;
+  --press-scale-sm: 0.96;
+  --press-dur: 120ms;
+
+  /* Surface brand roles – Hex colors */
+  --glass-light-bg: #fafafa;
+  --glass-lt-text: #222;
+  --gdb: #1f1f1f;
+  --glass-dark-text: #eee;
+  --accent-glass: #006fe6;
+  --success-glass: #10b981;
+
+  /* RGB channels */
+  --white: 255 255 255;
+  --black: 0 0 0;
+  --glass-gray-rgb: 28 28 30;
+  --glass-acc-rgb: 0 111 230;
+  --work-lt-rgb: 225 227 229;
+  --work-dk-rgb: 3 3 3;
+  --util-dk-rgb: 6 6 6;
+
+  /* Shared chrome primitives */
+  --viewport-fill: rgb(225 227 229);
+  --scroll-track: rgb(var(--background));
+  --scroll-thumb: rgb(246 247 248 / 56%);
+  --scroll-thumb-h: rgb(236 238 240 / 76%);
+  --scroll-bdr: rgb(74 77 82 / 16%);
+  --scroll-bdr-h: rgb(54 57 62 / 24%);
+  --root-thumb: rgb(226 228 231 / 86%);
+  --root-thumb-h: rgb(210 213 217 / 94%);
+  --root-bdr: rgb(73 77 84 / 20%);
+  --root-bdr-h: rgb(53 57 64 / 28%);
+  --nest-thumb: rgb(238 240 242 / 56%);
+  --nest-bdr: rgb(80 84 90 / 14%);
+  --nest-thumb-h: rgb(224 227 230 / 74%);
+  --side-ico-ink: rgb(var(--foreground) / 80%);
+  --thumb-lt: rgb(246 247 248 / 56%);
+  --thumb-dk: rgb(214 217 222 / 24%);
+  --thumb-lt-h: rgb(236 238 240 / 76%);
+  --thumb-dk-h: rgb(226 229 234 / 34%);
+  --thumb-bdr-lt: rgb(74 77 82 / 16%);
+  --thumb-bdr-dk: rgb(255 255 255 / 8%);
+  --thumb-bdr-lt-h: rgb(54 57 62 / 24%);
+  --thumb-bdr-dk-h: rgb(255 255 255 / 14%);
+  --hbdr: rgb(var(--white) / 18%);
+  --hbdr-d: rgb(var(--white) / 5%);
+  --hfill: rgb(var(--white) / 12%);
+  --hfill-d: rgb(var(--white) / 3.5%);
+  --bg2: rgb(var(--white) / 10%);
+  --bd2: rgb(var(--white) / 15%);
+  --bd3: rgb(var(--white) / 20%);
+  --bg4: rgb(var(--white) / 18%);
+  --bd4: rgb(var(--white) / 25%);
+  --bfr-isle: rgb(var(--white) / 3.5%);
+  --shd-md: 0 2px 8px rgb(0 0 0 / 3%);
+
+  /*
+   * Dialog/overlay elevation. `--shd-md` is the only other step in the scale,
+   * so a modal that asked for `--shd-lg` resolved to nothing and rendered with
+   * no shadow at all — invisible against the backdrop it sits on.
+   */
+  --shd-lg: 0 12px 32px -8px rgb(15 23 42 / 18%);
+  --ring-20: rgb(var(--white) / 20%);
+  --sel-inverse-fg: rgb(var(--white));
+  --sel-inve-fill: rgb(var(--white) / 32%);
+  --ctl-press-fx: brightness(0.96) saturate(0.96);
+  --ctl-press-lt: brightness(0.96) saturate(0.96);
+  --acc-press-fx: brightness(0.94) saturate(0.98);
+  --ctl-press-dk: brightness(1.16) saturate(1.02);
+  --acc-press-lt: brightness(0.94) saturate(0.98);
+  --acc-press-dk: brightness(0.9) saturate(1.04);
+
+  /* Backdrop profiles – Blur (px) in ascending order */
+  --blur-scroll: 4px;
+  --blur-dialog: 6px;
+  --glass-backdrop-blur: 12px;
+  --blur-glass-lt: var(--glass-backdrop-blur);
+  --blur-min: 12px;
+  --blur-matte: 12px;
+  --blur-fine: var(--glass-backdrop-blur);
+  --blur-icon: var(--glass-backdrop-blur);
+  --blur-subtle: var(--glass-backdrop-blur);
+  --glass-blur-md: var(--glass-backdrop-blur);
+  --blur-left: var(--glass-backdrop-blur);
+  --blur-liquid: var(--glass-backdrop-blur);
+  --blur-ctl: var(--glass-backdrop-blur);
+  --blur-card: var(--glass-backdrop-blur);
+  --blur-frost: var(--glass-backdrop-blur);
+  --blur-interact: var(--glass-backdrop-blur);
+  --blur-crystal: var(--glass-backdrop-blur);
+  --glass-blur-lg: var(--glass-backdrop-blur);
+  --blur-panel: var(--glass-backdrop-blur);
+
+  /* Blur primitives – canonical blur scale (px) */
+  --blur-micro: 1px;
+  --blur-tiny: 2px;
+  --blur-light: 8px;
+  --blur-base: 12px;
+  --blur-medium: 20px;
+  --blur-strong: 24px;
+  --blur-heavy: 26px;
+
+  /* Backdrop profiles – Saturate (%) in ascending order */
+  --sat-none: 100%;
+  --sat-subtle: 105%;
+  --sat-min: 110%;
+  --sat-matte: 110%;
+  --sat-muted: 112%;
+  --sat-base: 120%;
+  --sat-frost: 125%;
+  --sat-liquid: 130%;
+  --sat-left: 140%;
+  --sat-strong: 140%;
+  --sat-interact: 140%;
+  --sat-ctl: 145%;
+  --sat-crystal: 150%;
+  --sat-bright: 160%;
+  --sat-raised: 180%;
+  --sat-nav: 190%;
+
+  /* Semantic fills, borders, and sheens – organized by surface tier and opacity (%) */
+
+  /* Runtime semantic tokens come first; paired light/dark tokens keep both themes explicit. */
+
+  /* Accent */
+  --glass-acc-base: rgb(var(--glass-acc-rgb));
+
+  /* Base surface (opacity 0.06–0.6) */
+  --glas-base-shee: rgb(var(--white) / 7%);
+  --glass-base-fill: rgb(var(--white) / 15%);
+  --glass-base-bdr: rgb(var(--white) / 60%);
+  --glass-base-shd: var(--glass-shadow);
+
+  /* Left surface (opacity 0.07–0.8) */
+  --glas-left-shee: rgb(var(--white) / 11%);
+  --glass-left-fill: rgb(var(--white) / 25%);
+  --glass-left-bdr: rgb(var(--white) / 80%);
+  --glass-left-shd: var(--glass-shd-left);
+
+  /* Strong surface (opacity 0.07–0.8) */
+  --glas-stro-shee: rgb(var(--white) / 10%);
+  --glas-stro-fill: rgb(var(--white) / 15%);
+  --gla-str-top-rad: radial-gradient(
+    87% 50% at 50% -38%,
+    rgb(var(--white) / 90%) 0%,
+    rgb(var(--white) / 60%) 30%,
+    rgb(var(--white) / 20%) 60%,
+    transparent 100%
+  );
+
+  /* Subtle surface (opacity 0.05–0.4) */
+  --glas-subt-bdr: rgb(var(--white) / 16%);
+  --glas-subt-fill: rgb(var(--white) / 10%);
+
+  /* Minimal surface (opacity 0.02–0.15) */
+  --glas-mini-shee: rgb(var(--white) / 3.5%);
+  --glas-mini-fill: rgb(var(--white) / 8%);
+
+  /* The minimal tier's edge, and the reason the price cards read as edgeless:
+     a 15% white stroke over the light page color resolves to `rgb(229 231 233)`
+     against a fill of `rgb(228 230 231)` — one level, measured. The same 5% in
+     dark lifts its dark page by twelve levels, so light was the outlier, not the
+     rule. 40% lifts the light edge by twelve as well, which makes the stroke read
+     as light on the card rather than as a drawn boundary. */
+  --glas-mini-bdr: rgb(var(--white) / 40%);
+
+  /* Liquid surface (opacity 0.1–0.2) */
+  --glas-liqu-fill: rgb(var(--white) / 10%);
+  --glas-liqu-bdr: rgb(var(--white) / 20%);
+
+  /* Matte surface (opacity 0.06–0.1) */
+  --glas-matt-fill: rgb(var(--white) / 6%);
+  --glass-matte-bdr: rgb(var(--white) / 10%);
+
+  /* Crystal surface (opacity 0.15–0.25) */
+  --glas-crys-shee: rgb(var(--white) / 8%);
+  --glas-crys-fill: rgb(var(--white) / 15%);
+  --glas-crys-bdr: rgb(var(--white) / 25%);
+
+  /* Frosted surface (opacity 0.1–0.18) */
+  --glas-fros-fill: rgb(var(--white) / 12%);
+  --glas-fros-bdr: rgb(var(--white) / 18%);
+
+  /* Intensity layer fills */
+  --gla-int-lt-fil: rgb(var(--white) / 6%);
+  --gla-int-med-fil: rgb(var(--white) / 12%);
+  --gla-int-hea-fil: rgb(var(--white) / 18%);
+
+  /* Shell surface (opacity 0.02–0.3) */
+  --shlf: rgb(var(--white) / 16%);
+  --shlf-d: rgb(var(--black) / 30%);
+  --shlb: rgb(var(--white) / 26%);
+  --shlb-d: rgb(var(--white) / 5%);
+
+  /* Surface fill and border (opacity 0.02–0.3) */
+  --sheen: rgb(var(--white) / 3.5%);
+  --sheen-d: rgb(var(--white) / 2%);
+  --sfl: rgb(var(--white) / 18%);
+  --sfl-d: rgb(var(--black) / 30%);
+  --sbd: rgb(var(--white) / 26%);
+  --sbd-d: rgb(var(--white) / 5%);
+
+  /* Control surface (opacity 0.06–0.18) */
+  --ctlf: rgb(var(--white) / 18%);
+  --ctlf-d: rgb(12 12 12);
+  --ctlb: rgb(var(--white) / 28%);
+  --ctlb-d: rgb(var(--white) / 6%);
+
+  /* Inline surfaces and the full-screen Chat workspace canvas.
+     Files, Apps, and future canvas-replacing workspaces consume --ws-bg so
+     the base stays exactly 225 227 229 in light mode and 3 3 3 in dark mode. */
+  --gla-inl-qui-fil: rgb(var(--white) / 4%);
+  --gla-inl-acc-bdr: rgb(var(--glass-acc-rgb) / 25%);
+  --ws-bg: rgb(var(--work-lt-rgb));
+  --ws-bg-d: rgb(var(--work-dk-rgb));
+  --u-bg-d: rgb(var(--util-dk-rgb));
+
+  /* Utility menu frame shadow */
+  --gla-umf-shd:
+    inset 0 1px 0 rgb(255 255 255 / 14%), 0 18px 48px -24px rgb(15 23 42 / 24%);
+
+  /* Navigation (opacity 0.035–0.3) */
+  --glass-nav-ovr: rgb(var(--white) / 6%);
+  --gla-nav-hov-fil: rgb(var(--white) / 18%);
+  --gla-nav-hov-bdr: rgb(var(--white) / 72%);
+  --gla-nav-hov-shd:
+    0 0 0 1px rgb(255 255 255 / 15%), 0 12px 32px -8px rgb(0 0 0 / 20%),
+    0 4px 16px -4px rgb(0 0 0 / 10%), inset 0 1px 0 rgb(255 255 255 / 30%);
+  --gla-nav-act-fil: rgb(var(--white) / 20%);
+  --gla-nav-act-bdr: rgb(var(--white));
+  --gla-nav-act-shd: var(--gla-nav-hov-shd);
+  --gla-nav-act-ovr: rgb(var(--white) / 9%);
+
+  /* Button (opacity 0.12–0.2) */
+  --glass-btn-fill: rgb(var(--white) / 12%);
+  --glass-btn-bdr: rgb(var(--white) / 18%);
+  --gla-btn-hov-fil: rgb(var(--white) / 20%);
+  --gla-btn-hov-shd: 0 10px 25px -5px rgb(var(--black) / 10%);
+
+  /* Icon (opacity 0.1–0.3) */
+  --gla-ico-hov-fil: rgb(var(--white) / 20%);
+  --gla-ico-hov-bdr: rgb(var(--white) / 30%);
+  --gla-ico-hov-ovr: rgb(var(--white) / 7%);
+
+  /* Logo (opacity 0.06–0.3) */
+  --gla-log-hov-fil: rgb(var(--white) / 12%);
+  --gla-log-hov-bdr: rgb(var(--white) / 15%);
+  --gla-log-hov-shd:
+    0 0 0 1px rgb(var(--white) / 10%), 0 8px 24px -6px rgb(var(--black) / 15%),
+    inset 0 1px 0 rgb(var(--white) / 20%);
+  --gla-log-hov-ovr: transparent;
+
+  /* Glass tier fills (opacity 0.06–0.6) */
+
+  /* Shadows */
+  --glass-shadow:
+    0 0 0 1px rgb(var(--white) / 60%), 0 8px 32px rgb(var(--black) / 4%);
+  --glass-shd-left:
+    0 0 0 1px rgb(var(--white) / 85%), 0 4px 16px rgb(var(--white) / 15%),
+    0 2px 8px rgb(var(--white) / 12%);
+  --glass-shd-right:
+    0 0 0 1px rgb(var(--white) / 55%), 0 12px 48px rgb(var(--black) / 12%);
+  --glas-shd-mini: 0 2px 8px rgb(var(--black) / 3%);
+  --glas-shd-subt:
+    0 0 0 1px rgb(var(--white) / 40%), 0 4px 8px rgb(var(--black) / 2%);
+  --glas-shd-liqu: 0 8px 32px rgb(var(--black) / 8%);
+  --glass-shd-matte: 0 4px 16px rgb(var(--black) / 4%);
+  --glas-shd-crys: 0 11px 33px rgb(var(--black) / 1%);
+  --glas-shd-fros: 0 8px 32px rgb(var(--black) / 6%);
+  --glas-shd-stro:
+    0 25px 80px rgb(var(--black) / 8%), inset 0 1px 0 rgb(var(--white) / 30%);
+  --gla-ico-hov-shd:
+    0 0 0 1px rgb(var(--white) / 18%),
+    0 12px 32px -8px rgb(var(--black) / 25%),
+    0 4px 16px -4px rgb(var(--black) / 15%),
+    inset 0 1px 0 rgb(var(--white) / 35%);
+
+  /* Layout control tokens – Layout dimensions and estimates (px) */
+  --navbar-offset: var(--space-2);
+  --navbar-off-lg: var(--space-4);
+  --list-navb-h-est: 60px;
+  --list-pill-in: 10px;
+  --lis-pag-min-pad: 56px;
+  --list-visi-gap: clamp(14px, calc(14px + ((100vw - 390px) * 0.0022)), 16px);
+  --lis-pag-top-pad: max(
+    var(--lis-pag-min-pad),
+    calc(var(--list-navb-h-est) + var(--list-visi-gap) - var(--list-pill-in))
+  );
+
+  /* Carousel tokens – Arrow styling (border, fill, shadow) */
+  --lis-car-arr-bdr: rgb(var(--white) / 30%);
+  --lis-cab-hov: rgb(var(--white) / 20%);
+  --lis-car-arr-fil: rgb(var(--white) / 20%);
+  --lis-caf-hov: rgb(var(--white) / 30%);
+  --lis-car-arr-blu: var(--blur-glass-lt);
+  --lis-car-arr-sat: var(--sat-subtle);
+  --lis-car-arr-shd:
+    0 4px 12px rgb(var(--white) / 15%), 0 2px 6px rgb(var(--white) / 10%);
+  --lis-cas-hov:
+    0 6px 20px rgb(var(--white) / 25%), 0 4px 12px rgb(var(--white) / 15%);
+  --lis-cas-act:
+    0 2px 8px rgb(var(--white) / 30%), 0 1px 4px rgb(var(--white) / 20%);
+  --lis-cpf-act: rgb(var(--white) / 5%);
+  --lis-cpb-act: rgb(var(--white) / 30%);
+  --lis-cpb-idl: rgb(var(--white) / 0%);
+  --lis-cpb-hov: rgb(var(--white) / 20%);
+  --lis-cps-act: var(--glas-shd-crys), inset 0 1px 0 rgb(var(--white) / 30%);
+
+  /* Carousel tokens – Dot styling */
+  --lis-car-dot-bdr: rgb(var(--white) / 20%);
+  --lis-cdf-idl: rgb(var(--white) / 30%);
+  --lis-cdfi-hov: rgb(var(--white) / 50%);
+  --lis-cdf-act: rgb(var(--white) / 60%);
+  --lis-cdsi-sma: 0 0 3px rgb(var(--white) / 20%);
+  --lis-cdsi-bas: 0 0 4px rgb(var(--white) / 20%);
+  --lis-cdsa-sma: 0 0 6px rgb(var(--white) / 30%);
+  --lis-cdsa-bas: 0 0 8px rgb(var(--white) / 40%);
+  --sho-pch-bdr: rgb(var(--white) / 30%);
+  --sho-pch-fil: rgb(var(--white) / 20%);
+  --sho-pchf-hov: rgb(var(--white) / 30%);
+  --sho-pci-bdr: rgb(var(--white) / 15%);
+  --sho-pci-fil: rgb(var(--white) / 8%);
+
+  /* Gallery section tokens — Apple-style horizontal scroll gallery */
+  --gal-side-pad: calc(50% - 544px);
+  --gal-card-w: 644px;
+  --gal-card-gap: 20px;
+  --gal-hea-gra-fro: rgb(var(--accent));
+  --gal-hea-gra-to: rgb(var(--foreground));
+
+  /*
+   * Categorical series palette for generative-UI charts and visualizations.
+   *
+   * Six ordered hues, deliberately independent of --accent: a categorical
+   * palette must keep a series' identity stable when the user changes their
+   * accent colour.
+   *
+   * The visualization bridge allowlist already read --color-series-2..6, and
+   * the sandboxed runtime already carried these exact hues as light-dark()
+   * fallbacks, but no design-system token existed to supply them and
+   * --color-series-1 was absent entirely. Chart series therefore had no token
+   * to read. These values mirror the shipped fallbacks so the tokens become
+   * real and themeable without changing how anything currently renders.
+   */
+  --series-1: 0 111 230;
+  --series-2: 243 136 59;
+  --series-3: 93 201 119;
+  --series-4: 235 119 177;
+  --series-5: 155 121 236;
+  --series-6: 58 185 177;
+
+  /*
+   * Semantic tone roles for generated UI chrome — badges, icon tones and status
+   * chips. Space-separated RGB triplets, matching --accent and --destructive,
+   * so callers compose them with rgb().
+   *
+   * The widget contract admits six tone names but only accent and destructive
+   * existed as tokens, so a "warning" or "discovery" badge had nothing to read.
+   */
+  --tone-secondary: 142 142 147;
+  --tone-success: 16 185 129;
+  --tone-warning: 245 158 11;
+  --tone-danger: 255 59 48;
+  --tone-info: 0 111 230;
+  --tone-discovery: 139 92 246;
+
+  /*
+   * The accent→lighter ramp, in the host document.
+   *
+   * These are the same token names the visualization bridge forwards into the
+   * sandboxed runtime, so host icons, charts and iframe content all read one
+   * gradient vocabulary. The 88%/white mix must stay in step with
+   * GEN_UI_GRADIENT_SEED_PERCENT in `src/assistant/conversation/generative-ui/gradient.ts`;
+   * `src/tests/suites/assistant/generative-ui/widget-icon-registry.test.ts` parses this file
+   * and fails if they diverge.
+   */
+  --viz-gradient-start: rgb(var(--accent));
+  --viz-gradient-end: color-mix(in oklab, rgb(var(--accent)) 88%, white 12%);
+}
+
+:root[data-accent="auto"] {
+  --accent: 0 0 0;
+  --accent-fg: 255 255 255;
+  --primary: 0 0 0;
+  --primary-fg: 255 255 255;
+  --ring: 0 0 0;
+  --glass-acc-rgb: 0 0 0;
+}
+
+:root.dark[data-accent="auto"] {
+  --accent: 255 255 255;
+  --accent-fg: 0 0 0;
+  --primary: 255 255 255;
+  --primary-fg: 0 0 0;
+  --ring: 255 255 255;
+  --glass-acc-rgb: 255 255 255;
+}
+
+/* ----------------------------------------------------------------------------
+   Gradient text heading — accent → foreground in light mode,
+   accent → white in dark mode. Mirrors Apple's gradient-text-blue pattern.
+   ------------------------------------------------------------------------- */
+
+.gradient-text-heading {
+  width: fit-content;
+  background-image: linear-gradient(
+    90deg,
+    var(--gal-hea-gra-fro),
+    var(--gal-hea-gra-to)
+  );
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .gradient-text-heading {
+  --gal-hea-gra-to: rgb(var(--white));
+}
+
+/* ----------------------------------------------------------------------------
+   Apple-style section heading — large semibold text matching
+   Apple's typography-gallery-section-header pattern.
+   ------------------------------------------------------------------------- */
+
+.site-section-heading,
+.type-section-heading {
+  padding-bottom: 5px;
+  margin-bottom: -5px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: var(--type-section-size);
+  font-weight: var(--type-weight-semibold);
+  line-height: var(--type-section-leading);
+  letter-spacing: 0;
+}
+
+@media (width >= 640px) {
+  :root {
+    --type-section-size: 40px;
+  }
+}
+
+@media (width >= 1024px) {
+  :root {
+    --type-section-size: 48px;
+  }
+}
+
+.dark {
+  --caret-color: rgb(var(--foreground));
+  --background: 16 16 18;
+  --foreground: 242 242 247;
+  --card: 28 28 30;
+  --card-opacity: 0.4;
+  --card-foreground: 242 242 247;
+  --popover: 28 28 30;
+  --popover-opacity: 0.6;
+  --popover-fg: 242 242 247;
+  --primary: 0 111 230;
+  --primary-fg: 255 255 255;
+  --secondary: 28 28 30;
+  --secondary-a: 0.12;
+  --secondary-fg: 174 174 178;
+  --muted: 28 28 30;
+  --muted-opacity: 0.12;
+  --muted-fg: 142 142 147;
+  --accent: 0 111 230;
+  --accent-fg: 255 255 255;
+  --destructive: 255 69 58;
+  --destructive-fg: 255 255 255;
+  --border: 28 28 30;
+  --border-opacity: 0.4;
+  --input: 28 28 30;
+  --input-opacity: 0.4;
+  --ring: 0 111 230;
+  --glass-acc-rgb: 0 111 230;
+  --viewport-fill: rgb(16 16 18);
+  --scroll-thumb: rgb(214 217 222 / 24%);
+  --scroll-thumb-h: rgb(226 229 234 / 34%);
+  --scroll-bdr: rgb(255 255 255 / 8%);
+  --scroll-bdr-h: rgb(255 255 255 / 14%);
+  --root-thumb: rgb(205 208 214 / 28%);
+  --root-thumb-h: rgb(222 225 230 / 38%);
+  --root-bdr: rgb(255 255 255 / 10%);
+  --root-bdr-h: rgb(255 255 255 / 18%);
+  --nest-thumb: rgb(214 217 222 / 18%);
+  --nest-bdr: rgb(255 255 255 / 7%);
+  --nest-thumb-h: rgb(226 229 234 / 30%);
+  --side-ico-ink: rgb(255 255 255 / 80%);
+
+  /* Surface fills — white overlays for glass lift in dark mode */
+  --bg4: rgb(var(--black) / 30%);
+  --bd3: rgb(var(--white) / 6%);
+  --bfr-isle: rgb(var(--white) / 1.2%);
+  --shd-md: 0 2px 8px rgb(0 0 0 / 20%);
+
+  /* Dialog/overlay elevation, dark theme. Deeper and cooler than light so the
+   * panel separates from an already-dark backdrop. */
+  --shd-lg: 0 16px 40px -10px rgb(0 0 0 / 55%);
+  --ring-20: rgb(var(--white) / 10%);
+  --shlb: var(--shlb-d);
+  --sbd: var(--sbd-d);
+  --ctlb: var(--ctlb-d);
+  --sfl: var(--sfl-d);
+  --shlf: var(--shlf-d);
+  --ctlf: var(--ctlf-d);
+  --sheen: var(--sheen-d);
+  --hbdr: var(--hbdr-d);
+  --hfill: var(--hfill-d);
+  --ws-bg: var(--ws-bg-d);
+  --ctl-press-fx: brightness(1.16) saturate(1.02);
+  --acc-press-fx: brightness(0.9) saturate(1.04);
+  --glass-shadow:
+    0 0 0 1px rgb(var(--white) / 8%), 0 25px 50px rgb(0 0 0 / 50%);
+  --glass-shd-left:
+    0 0 0 1px rgb(var(--white) / 8%), 0 8px 32px rgb(0 0 0 / 30%);
+  --glass-shd-right:
+    0 0 0 1px rgb(var(--white) / 9%), 0 12px 32px rgb(0 0 0 / 60%);
+  --glas-base-shee: rgb(var(--glass-gray-rgb) / 7%);
+  --glass-base-fill: rgb(var(--glass-gray-rgb) / 60%);
+  --glass-base-bdr: rgb(var(--white) / 8%);
+  --glass-base-shd: var(--glass-shadow);
+  --glas-left-shee: rgb(var(--glass-gray-rgb) / 7%);
+  --glass-left-fill: rgb(var(--glass-gray-rgb) / 30%);
+  --glass-left-bdr: rgb(var(--white) / 8%);
+  --glass-left-shd: var(--glass-shd-left);
+  --glas-stro-shee: rgb(var(--glass-gray-rgb) / 7%);
+  --glas-stro-fill: rgb(var(--glass-gray-rgb) / 80%);
+  --gla-str-top-rad: radial-gradient(
+    87% 50% at 50% -38%,
+    rgb(180 180 180 / 40%) 0%,
+    rgb(140 140 140 / 25%) 30%,
+    rgb(100 100 100 / 10%) 60%,
+    transparent 100%
+  );
+  --glas-subt-bdr: rgb(var(--white) / 5%);
+  --glas-subt-fill: rgb(var(--glass-gray-rgb) / 40%);
+  --glas-mini-shee: rgb(var(--white) / 2%);
+  --glas-mini-fill: rgb(var(--white) / 4%);
+  --glas-mini-bdr: rgb(var(--white) / 5%);
+  --glas-liqu-fill: rgb(var(--glass-gray-rgb) / 45%);
+  --glas-liqu-bdr: rgb(var(--white) / 12%);
+  --glas-matt-fill: rgb(var(--glass-gray-rgb) / 25%);
+  --glass-matte-bdr: rgb(var(--white) / 6%);
+  --glas-crys-shee: rgb(var(--white) / 4%);
+  --glas-crys-fill: rgb(var(--glass-gray-rgb) / 60%);
+  --glas-crys-bdr: rgb(var(--white) / 15%);
+  --glas-fros-fill: rgb(var(--glass-gray-rgb) / 40%);
+  --glas-fros-bdr: rgb(var(--white) / 10%);
+  --gla-int-lt-fil: rgb(var(--glass-gray-rgb) / 30%);
+  --gla-int-med-fil: rgb(var(--glass-gray-rgb) / 50%);
+  --gla-int-hea-fil: rgb(var(--glass-gray-rgb) / 70%);
+  --glass-nav-ovr: rgb(var(--white) / 3.5%);
+  --gla-nav-hov-fil: rgb(var(--glass-gray-rgb) / 70%);
+
+  /* Edge/inset law: navigation chrome is the control tier in dark, so its rim
+   * is `--sf-edge-control` (10%) and the shared `--gla-nav-hov-shd` inset is
+   * authored at that same 10%. A hand-written 8% rim sat under the inset and
+   * let the highlight out-shine the boundary that contains it. */
+  --gla-nav-hov-bdr: var(--sf-edge-control);
+  --gla-nav-hov-shd:
+    0 0 0 1px rgb(255 255 255 / 6%), 0 12px 32px -8px rgb(0 0 0 / 50%),
+    0 4px 16px -4px rgb(0 0 0 / 30%), inset 0 1px 0 var(--sf-edge-control);
+  --gla-nav-act-fil: rgb(var(--glass-gray-rgb) / 70%);
+  --gla-nav-act-bdr: var(--sf-edge-control);
+  --gla-nav-act-shd: var(--gla-nav-hov-shd);
+  --gla-nav-act-ovr: rgb(var(--white) / 3.5%);
+  --glass-btn-fill: rgb(var(--glass-gray-rgb) / 70%);
+  --glass-btn-bdr: rgb(var(--white) / 7.5%);
+  --gla-btn-hov-fil: rgb(var(--glass-gray-rgb) / 80%);
+  --gla-btn-hov-shd: 0 10px 25px -5px rgb(var(--black) / 30%);
+  --gla-ico-hov-fil: rgb(var(--glass-gray-rgb) / 75%);
+  --gla-ico-hov-bdr: rgb(var(--white) / 10%);
+  --gla-ico-hov-ovr: rgb(var(--white) / 6%);
+  --gla-log-hov-fil: rgb(var(--glass-gray-rgb) / 60%);
+  --gla-log-hov-bdr: rgb(var(--white) / 6%);
+  --gla-log-hov-shd:
+    0 0 0 1px rgb(var(--white) / 4%), 0 8px 24px -6px rgb(var(--black) / 30%),
+    inset 0 1px 0 rgb(var(--white) / 8%);
+  --gla-log-hov-ovr: linear-gradient(
+    135deg,
+    rgb(var(--accent) / 10%) 0%,
+    rgb(var(--accent) / 5%) 50%,
+    transparent 100%
+  );
+  --gla-umf-shd:
+    inset 0 1px 0 rgb(255 255 255 / 6%), 0 24px 54px -24px rgb(0 0 0 / 55%);
+  --glas-shd-mini: 0 2px 8px rgb(var(--black) / 20%);
+  --glas-shd-subt: 0 10px 25px -5px rgb(var(--black) / 30%);
+  --glas-shd-liqu: 0 8px 32px rgb(var(--black) / 25%);
+  --glass-shd-matte: 0 4px 16px rgb(var(--black) / 15%);
+  --glas-shd-crys: 0 11px 33px rgb(var(--black) / 20%);
+  --glas-shd-fros: 0 8px 32px rgb(var(--black) / 20%);
+  --glas-shd-stro:
+    0 0 0 1px rgb(var(--white) / 10%), 0 25px 80px rgb(var(--black) / 15%),
+    inset 0 1px 0 rgb(var(--white) / 10%);
+  --gla-ico-hov-shd:
+    0 0 0 1px rgb(var(--white) / 8%),
+    0 12px 32px -8px rgb(var(--black) / 60%),
+    0 4px 16px -4px rgb(var(--black) / 30%),
+    inset 0 1px 0 rgb(var(--white) / 12%);
+  --lis-car-arr-bdr: rgb(var(--white) / 10%);
+  --lis-cab-hov: rgb(var(--white) / 20%);
+  --lis-car-arr-fil: rgb(var(--black) / 20%);
+  --lis-caf-hov: rgb(var(--black) / 30%);
+  --lis-car-arr-shd: 0 0 0 rgb(var(--white) / 2%), 0 0 0 rgb(var(--white) / 5%);
+  --lis-cas-hov:
+    0 6px 20px rgb(var(--white) / 6%), 0 4px 12px rgb(var(--white) / 4%);
+  --lis-cas-act:
+    0 2px 8px rgb(var(--white) / 15%), 0 1px 4px rgb(var(--white) / 10%);
+  --lis-cpf-act: rgb(var(--glass-gray-rgb) / 60%);
+  --lis-cpb-act: rgb(var(--white) / 15%);
+  --lis-cpb-idl: rgb(var(--white) / 12%);
+  --lis-cpb-hov: rgb(var(--white) / 12%);
+  --lis-cps-act: var(--glas-shd-crys), inset 0 1px 0 rgb(var(--white) / 10%);
+  --lis-car-dot-bdr: rgb(var(--white) / 10%);
+  --lis-cdf-idl: rgb(var(--white) / 14%);
+  --lis-cdfi-hov: rgb(var(--white) / 20%);
+  --lis-cdf-act: rgb(var(--white) / 30%);
+  --lis-cdsi-sma: 0 0 3px rgb(var(--white) / 10%);
+  --lis-cdsi-bas: 0 0 4px rgb(var(--white) / 10%);
+  --lis-cdsa-sma: 0 0 6px rgb(var(--white) / 14%);
+  --lis-cdsa-bas: 0 0 8px rgb(var(--white) / 20%);
+  --sho-pch-bdr: rgb(var(--white) / 20%);
+  --sho-pch-fil: rgb(var(--white) / 10%);
+  --sho-pchf-hov: rgb(var(--white) / 20%);
+  --sho-pci-bdr: rgb(var(--white) / 8%);
+  --sho-pci-fil: rgb(var(--white) / 4%);
+
+  /*
+   * Categorical series palette, dark theme. Same six hues as light, lifted in
+   * lightness so every series keeps readable contrast against the dark surface
+   * without changing which hue it is.
+   */
+  --series-1: 0 111 230;
+  --series-2: 245 154 86;
+  --series-3: 116 213 139;
+  --series-4: 240 143 192;
+  --series-5: 170 145 239;
+  --series-6: 90 203 194;
+
+  /* Semantic tone roles, dark theme. Lifted for contrast on the dark surface. */
+  --tone-secondary: 168 168 176;
+  --tone-success: 52 211 153;
+  --tone-warning: 251 191 36;
+  --tone-danger: 255 105 97;
+  --tone-info: 96 165 250;
+  --tone-discovery: 167 139 250;
+}
+
+:root,
+[data-text-size="Large"] {
+  --type-user-scale: 1;
+}
+
+[data-text-size="xSmall"] {
+  --type-user-scale: 0.92;
+}
+
+[data-text-size="Small"] {
+  --type-user-scale: 0.96;
+}
+
+[data-text-size="Medium"] {
+  --type-user-scale: 0.99;
+}
+
+[data-text-size="xLarge"] {
+  --type-user-scale: 1.07;
+}
+
+[data-text-size="xxLarge"] {
+  --type-user-scale: 1.14;
+}
+
+[data-text-size="xxxLarge"] {
+  --type-user-scale: 1.22;
+}
+
+/* Semantic typography utilities */
+
+.text-hig-title-2 {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: calc(
+    clamp(1.2rem, 1.13rem + 0.36vw, 1.5rem) *
+    var(--type-user-scale, 1)
+  );
+  font-weight: 400;
+  line-height: 1.22;
+  letter-spacing: 0;
+}
+
+.text-hig-title-3 {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: calc(
+    clamp(1.08rem, 1.03rem + 0.28vw, 1.3rem) *
+    var(--type-user-scale, 1)
+  );
+  font-weight: 400;
+  line-height: 1.26;
+  letter-spacing: 0;
+}
+
+.text-hig-headline,
+.text-hig-body,
+.text-hig-callout,
+.text-hig-footnote,
+.text-hig-caption-1,
+.text-hig-caption-2,
+.text-ui-control {
+  font-family: var(--font-inter), system-ui, sans-serif;
+}
+
+.text-hig-headline,
+.text-hig-body {
+  font-size: calc(
+    clamp(0.95rem, 0.91rem + 0.2vw, 1.125rem) *
+    var(--type-user-scale, 1)
+  );
+}
+
+.text-hig-headline {
+  font-weight: 600;
+  line-height: 1.33;
+  letter-spacing: 0;
+}
+
+.text-hig-body {
+  font-weight: 400;
+  line-height: var(--lead-chat-prose);
+  letter-spacing: 0;
+}
+
+.text-hig-callout {
+  font-size: calc(
+    clamp(0.875rem, 0.845rem + 0.15vw, 1rem) *
+    var(--type-user-scale, 1)
+  );
+  font-weight: 400;
+  line-height: 1.42;
+  letter-spacing: 0;
+}
+
+.text-hig-footnote {
+  font-size: calc(
+    clamp(0.875rem, 0.86rem + 0.08vw, 0.9375rem) *
+    var(--type-user-scale, 1)
+  );
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+.text-hig-caption-1,
+.text-hig-caption-2 {
+  font-size: calc(
+    clamp(0.875rem, 0.86rem + 0.06vw, 0.9375rem) *
+    var(--type-user-scale, 1)
+  );
+}
+
+.text-hig-caption-1 {
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0.006em;
+}
+
+.text-hig-caption-2 {
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: 0.006em;
+}
+
+.text-ui-control {
+  font-size: calc(
+    clamp(0.875rem, 0.86rem + 0.1vw, 0.9375rem) *
+    var(--type-user-scale, 1)
+  );
+  font-weight: 400;
+  line-height: 1.24;
+  letter-spacing: 0.012em;
+}
+
+.type-panel-title {
+  font-size: var(--type-panel-title-size);
+  font-weight: var(--type-weight-semibold);
+  line-height: var(--type-panel-title-leading);
+}
+
+.type-card-title {
+  font-size: var(--type-card-title-size);
+  font-weight: var(--type-weight-medium);
+  line-height: var(--type-card-title-leading);
+  letter-spacing: 0.01em;
+}
+
+.type-supporting {
+  font-size: var(--type-supporting-size);
+  font-weight: var(--type-weight-regular);
+  line-height: var(--type-supporting-leading);
+}
+
+.type-control {
+  font-size: var(--type-control-size);
+  font-weight: var(--type-weight-medium);
+  line-height: var(--type-control-leading);
+}
+
+.type-meta {
+  font-size: var(--type-meta-size);
+  font-weight: var(--type-weight-regular);
+  line-height: var(--type-meta-leading);
+}
+
+.type-micro {
+  font-size: var(--type-micro-size);
+  font-weight: var(--type-weight-medium);
+  line-height: var(--type-micro-leading);
+}
+
+.ink-primary {
+  color: rgb(var(--foreground) / var(--ink-primary));
+}
+
+.ink-secondary {
+  color: rgb(var(--foreground) / var(--ink-secondary));
+}
+
+.ink-tertiary {
+  color: rgb(var(--foreground) / var(--ink-tertiary));
+}
+
+.ink-muted {
+  color: rgb(var(--foreground) / var(--ink-muted));
+}
+
+.ink-disabled {
+  color: rgb(var(--foreground) / var(--ink-disabled));
+}
+
+.ink-on-dark-primary {
+  color: rgb(255 255 255 / var(--ink-primary));
+}
+
+.ink-on-dark-secondary {
+  color: rgb(255 255 255 / var(--ink-secondary));
+}
+
+.ink-on-dark-tertiary {
+  color: rgb(255 255 255 / var(--ink-tertiary));
+}
+
+.ink-on-dark-muted {
+  color: rgb(255 255 255 / var(--ink-muted));
+}
+
+.ink-on-dark-disabled {
+  color: rgb(255 255 255 / var(--ink-disabled));
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+@media (width >= 640px) {
+  :root {
+    --list-pill-in: 12px;
+  }
+}
+
+@media (width >= 768px) {
+  :root {
+    --list-navb-h-est: 72px;
+  }
+}
+
+@media (width >= 1024px) {
+  :root {
+    --list-navb-h-est: 92px;
+  }
+}
+
+@media (width >= 1028px) {
+  :root {
+    --list-pill-in: clamp(12px, calc(12px + ((100vw - 1028px) * 0.0079)), 14px);
+  }
+}
+
+@media (orientation: landscape) and (height <= 430px) {
+  :root {
+    --list-visi-gap: 6px;
+    --list-pill-in: 8px;
+    --lis-pag-min-pad: 48px;
+  }
+}

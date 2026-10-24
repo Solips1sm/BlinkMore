@@ -4,6 +4,9 @@ cd "$(dirname "$0")/.."
 cargo fmt --manifest-path core/Cargo.toml -- --check
 cargo test --manifest-path core/Cargo.toml --locked
 cargo clippy --manifest-path core/Cargo.toml --all-targets -- -D warnings
+node --check BlinkMore/Resources/UI/dashboard.js
+node --check BlinkMore/Resources/UI/metrics.js
+node Tests/WebModelTests.js
 if [[ $(uname -s) == Darwin ]]; then
   mkdir -p test-results
   swiftc -O -parse-as-library Tests/StateTests.swift BlinkMore/Core/TrackingState.swift BlinkMore/Services/AppPreferences.swift BlinkMore/Services/DailyStatistics.swift -o test-results/state-tests

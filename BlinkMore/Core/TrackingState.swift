@@ -55,4 +55,11 @@ struct TrackingFrame {
     var fps: Double = 0
     var dropped = 0
     var qualityNote = ""
+    var leftContour: [CGPoint] = []
+    var rightContour: [CGPoint] = []
+    var leftAperture: Double = 0
+    var rightAperture: Double = 0
+    var faceWidth: Double = 0
+    var faceHeight: Double = 0
+    var faceConfidence: Double = 0
 }

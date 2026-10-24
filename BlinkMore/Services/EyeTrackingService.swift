@@ -231,6 +231,12 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 default: frame.phase = .lowQuality
                 }
                 frame.timestamp = timestamp; frame.left = result.left_openness; frame.right = result.right_openness
+                frame.leftContour = lp.map { CGPoint(x: $0.x, y: $0.y) }
+                frame.rightContour = rp.map { CGPoint(x: $0.x, y: $0.y) }
+                frame.leftAperture = result.left_ratio; frame.rightAperture = result.right_ratio
+                frame.faceWidth = box.width * Double(CVPixelBufferGetWidth(image))
+                frame.faceHeight = box.height * Double(CVPixelBufferGetHeight(image))
+                frame.faceConfidence = Double(measured.confidence)
                 frame.calibration = result.calibration; frame.openSeconds = result.open_seconds
                 frame.trackedDelta = result.tracked_delta; frame.asymmetry = result.asymmetry
                 frame.closedMask = result.closed_mask; frame.events = result.flags; frame.calibrated = result.flags & 2 != 0
