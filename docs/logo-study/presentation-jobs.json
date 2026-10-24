@@ -1,0 +1,4 @@
+[
+ {"file":"recommendation.html","output":"renders/recommendation.png","width":1120,"height":640,"cards":0},
+ {"file":"index.html","output":"renders/gallery.png","width":1120,"height":1000,"cards":46,"allowVerticalScroll":true,"galleryCheck":true}
+]

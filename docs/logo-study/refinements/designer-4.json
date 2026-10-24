@@ -1,0 +1,34 @@
+[
+  {
+    "id": "10a",
+    "parent": "10",
+    "name": "Seed sweep",
+    "file": "refinements/10a.svg",
+    "rationale": "The asymmetric seed becomes two rounded lid strokes, with a heavier upper sweep and the eight circle iris held at center.",
+    "tradeoff": "Open terminals feel light and comfortable, though the isolated arcs rely on their separation to read as an eye at menu size."
+  },
+  {
+    "id": "10b",
+    "parent": "10",
+    "name": "Seed cutout",
+    "file": "refinements/10b.svg",
+    "rationale": "A solid asymmetric seed uses an eye shaped negative space for its aperture, giving the organic concept a compact filled silhouette.",
+    "tradeoff": "The stronger body holds up when small, though it has more visual weight beside Comfortaa."
+  },
+  {
+    "id": "11a",
+    "parent": "11",
+    "name": "Aperture disc",
+    "file": "refinements/11a.svg",
+    "rationale": "The circular frame becomes a filled disc with an eye shaped opening, leaving the eight circle iris floating cleanly in the aperture.",
+    "tradeoff": "The simple outer silhouette suits an app mark, though the negative opening needs contrast from its background."
+  },
+  {
+    "id": "11b",
+    "parent": "11",
+    "name": "Orbit iris",
+    "file": "refinements/11b.svg",
+    "rationale": "Eight circles move from the iris to a rounded perimeter dial while a simple stroked eye keeps the gaze explicit.",
+    "tradeoff": "The perimeter carries the company motif clearly, though its dotted circle feels more like a focus dial than a continuous frame."
+  }
+]

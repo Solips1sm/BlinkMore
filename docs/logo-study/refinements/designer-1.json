@@ -1,0 +1,50 @@
+[
+  {
+    "id": "01a",
+    "parent": "01",
+    "name": "Quiet almond",
+    "file": "refinements/01a.svg",
+    "rationale": "A flatter upper and lower curve gives the eight circle iris more room while keeping the original almond calm.",
+    "tradeoff": "The low profile feels relaxed, though the outline takes less height in a menu bar."
+  },
+  {
+    "id": "01b",
+    "parent": "01",
+    "name": "Full aperture",
+    "file": "refinements/01b.svg",
+    "rationale": "A fuller almond and larger iris use more of the canvas and keep the eight circles distinct at small sizes.",
+    "tradeoff": "The taller gaze feels more alert and may carry less of the original mark’s quiet mood."
+  },
+  {
+    "id": "02a",
+    "parent": "02",
+    "name": "Bold capsule",
+    "file": "refinements/02a.svg",
+    "rationale": "A thicker capsule outline and a wider iris make the button pill read as an eye at menu size.",
+    "tradeoff": "The stronger border can still suggest a control when shown without the wordmark."
+  },
+  {
+    "id": "02b",
+    "parent": "02",
+    "name": "Aperture capsule",
+    "file": "refinements/02b.svg",
+    "rationale": "A transparent almond cut through a solid capsule turns the pill into a lens while retaining the circle motif.",
+    "tradeoff": "The dense silhouette depends on the background showing clearly through the aperture."
+  },
+  {
+    "id": "03a",
+    "parent": "03",
+    "name": "Lidded frame",
+    "file": "refinements/03a.svg",
+    "rationale": "Shallow inward bends along the frame’s top and bottom edges give the rounded rectangle a softer eye shape.",
+    "tradeoff": "The bent edges make the frame less literal as a device window."
+  },
+  {
+    "id": "03b",
+    "parent": "03",
+    "name": "Bold frame",
+    "file": "refinements/03b.svg",
+    "rationale": "A heavier soft rectangle and larger radial iris keep the eight circle motif centered and defined at small sizes.",
+    "tradeoff": "The horizontal sides can still read as a screen around the eye."
+  }
+]

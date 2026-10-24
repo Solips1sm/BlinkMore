@@ -1,0 +1,50 @@
+[
+  {
+    "file": "concepts-light.html",
+    "output": "renders/concepts-light.png",
+    "width": 1320,
+    "height": 1000
+  },
+  {
+    "file": "families-1-light.html",
+    "output": "renders/families-1-light.png",
+    "width": 1320,
+    "height": 1100
+  },
+  {
+    "file": "families-2-light.html",
+    "output": "renders/families-2-light.png",
+    "width": 1320,
+    "height": 1100
+  },
+  {
+    "file": "families-3-light.html",
+    "output": "renders/families-3-light.png",
+    "width": 1320,
+    "height": 1100
+  },
+  {
+    "file": "concepts-dark.html",
+    "output": "renders/concepts-dark.png",
+    "width": 1320,
+    "height": 1000
+  },
+  {
+    "file": "families-1-dark.html",
+    "output": "renders/families-1-dark.png",
+    "width": 1320,
+    "height": 1100
+  },
+  {
+    "file": "families-2-dark.html",
+    "output": "renders/families-2-dark.png",
+    "width": 1320,
+    "height": 1100
+  },
+  {
+    "file": "families-3-dark.html",
+    "output": "renders/families-3-dark.png",
+    "width": 1320,
+    "height": 1100
+  }
+]

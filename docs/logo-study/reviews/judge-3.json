@@ -1,0 +1,98 @@
+{
+  "judge": "Judge 3, type and expression",
+  "model": "gpt-6-luna",
+  "reasoningEffort": "max",
+  "inspectedImages": [
+    "families-1-light.png",
+    "families-2-light.png",
+    "families-3-light.png",
+    "families-1-dark.png",
+    "families-2-dark.png",
+    "families-3-dark.png"
+  ],
+  "ranking": [
+    "01",
+    "01b",
+    "01a",
+    "04a",
+    "05a",
+    "13",
+    "12b",
+    "14a",
+    "04",
+    "10a",
+    "12a",
+    "06",
+    "05",
+    "13a",
+    "13b",
+    "08b",
+    "10",
+    "06b",
+    "08",
+    "14",
+    "06a",
+    "05b",
+    "04b",
+    "12",
+    "07a",
+    "02b",
+    "11a",
+    "03a",
+    "09a",
+    "10b",
+    "03",
+    "07",
+    "09",
+    "09b",
+    "02a",
+    "02",
+    "03b",
+    "07b",
+    "11",
+    "11b",
+    "14b",
+    "08a",
+    "15b",
+    "15a",
+    "15"
+  ],
+  "winner": "01",
+  "summary": "This is a subjective visual ranking. 01 wins because its continuous almond silhouette most closely follows the supplied reference, keeps the eight circle iris legible at 16 pixels, and sits naturally beside the Comfortaa wordmark. The sheets show static 24, 20, and 16 CSS pixel samples in light and dark layouts; they do not show the marks in an actual menu bar, on device pixel grids, or at real viewing distances.",
+  "topFive": [
+    {
+      "id": "01",
+      "reason": "The rounded almond gives the calmest complete eye and the eight circle iris remains distinct in the small monochrome samples."
+    },
+    {
+      "id": "01b",
+      "reason": "Its fuller aperture and larger iris hold up especially well at small sizes while preserving the reference silhouette."
+    },
+    {
+      "id": "01a",
+      "reason": "The flattened curves feel relaxed and keep a clean wordmark balance, with a slightly compressed gaze."
+    },
+    {
+      "id": "04a",
+      "reason": "The separated curved lids feel expressive and gentle, while the centered motif still reads as an eye."
+    },
+    {
+      "id": "05a",
+      "reason": "The tapered upper lid adds character and visual weight without overwhelming the iris or wordmark."
+    }
+  ],
+  "rejectionNotes": [
+    {
+      "id": "15",
+      "reason": "The dotted contour loses the eye silhouette in the small monochrome samples and reads as a generic dotted symbol."
+    },
+    {
+      "id": "15a",
+      "reason": "The evenly spaced boundary dots feel detached at 16 pixels, so the eye reading depends too much on the center pupil."
+    },
+    {
+      "id": "15b",
+      "reason": "The varied dot sizes make the outline decorative and uneven, while the small monochrome sample remains less immediately eye-like."
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "12a",
+    "parent": "12",
+    "name": "Capsule bloom",
+    "file": "refinements/12a.svg",
+    "rationale": "Eight short rounded capsules turn the radial strokes into soft petals while keeping the pupil and almond immediately legible.",
+    "tradeoff": "The repeated petals may feel more floral or animated than a quiet iris."
+  },
+  {
+    "id": "12b",
+    "parent": "12",
+    "name": "Eight circle iris",
+    "file": "refinements/12b.svg",
+    "rationale": "Eight separate circles make the company motif explicit and keep the iris construction simple at small sizes.",
+    "tradeoff": "The dot ring is less distinctive than radial petals and can read as an aperture."
+  },
+  {
+    "id": "13a",
+    "parent": "13",
+    "name": "Soft directional almond",
+    "file": "refinements/13a.svg",
+    "rationale": "A rounder right lid gives the almond a gentle forward lean, with the eight circle iris shifted just enough to suggest attention moving outward.",
+    "tradeoff": "The softened right corner reduces the crispness of the eye silhouette."
+  },
+  {
+    "id": "13b",
+    "parent": "13",
+    "name": "Cutout gaze",
+    "file": "refinements/13b.svg",
+    "rationale": "A solid almond rim carved around a clear aperture makes a bolder app mark while the offset eight circle iris preserves the forward gaze.",
+    "tradeoff": "The heavier rim can dominate the small iris beside Comfortaa."
+  }
+]
