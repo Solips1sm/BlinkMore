@@ -13,6 +13,7 @@ const BlinkMetrics = (() => {
     const days = week.filter(d => finite(d.trackedSeconds) && d.trackedSeconds + 1e-6 >= 30).length;
     return {
       gauges: [ring(value(today.trackedSeconds) / 60, goals.minuteGoal), ring(days, goals.dayGoal), ring(value(today.resets), goals.resetGoal ?? 1)],
+      practiceGoals: [ring(value(today.resetSeconds), goals.practiceGoal ?? 60), ring(week.filter(d => finite(d.resets) && d.resets > 0).length, goals.practiceDayGoal ?? 3)],
       achievements: [
         { name: "First moment", detail: "Finish one guided reset", current: value(lifetime.resets), target: 1, unit: "resets", glyph: "moment" },
         { name: "Ten moments", detail: "Finish ten guided resets", current: value(lifetime.resets), target: 10, unit: "resets", glyph: "petals" },
@@ -24,6 +25,22 @@ const BlinkMetrics = (() => {
         { name: "Two weeks", detail: "Fourteen days with thirty seconds observed", current: value(lifetime.days), target: 14, unit: "days", glyph: "calendar" }
       ].map(a => ({ ...a, earned: a.current + 1e-6 >= a.target, progress: Math.min(1, a.current / a.target) }))
     };
+  }
+  function recent(bins = []) {
+    const seconds = Array.from({ length: 60 }, (_, i) => {
+      const bin = bins[i] ?? {}, tracked = Math.min(1, value(bin.tracked)), blinks = Math.floor(value(bin.blinks));
+      return { tracked, blinks: tracked > 0 ? blinks : 0 };
+    });
+    const exposure = seconds.reduce((sum, b) => sum + b.tracked, 0), blinks = seconds.reduce((sum, b) => sum + b.blinks, 0);
+    return { seconds, exposure, blinks, coverage: exposure / 60, rate: exposure >= 15 ? blinks * 60 / exposure : null };
+  }
+  function aggregate(week = []) {
+    let seconds = 0, blinks = 0, days = 0;
+    for (const day of week.slice(-7)) {
+      if (!finite(day.trackedSeconds) || day.trackedSeconds <= 0 || !finite(day.blinks) || day.blinks < 0) continue;
+      seconds += day.trackedSeconds; blinks += Math.floor(day.blinks); days += 1;
+    }
+    return { seconds, blinks, days, rate: seconds >= 30 ? blinks * 60 / seconds : null };
   }
   function aperture(opening, cx, cy, width) {
     if (![opening, cx, cy, width].every(finite) || width <= 0) return null;
@@ -90,10 +107,10 @@ const BlinkMetrics = (() => {
       {name:"Camera stream",ok:camera,detail:camera ? "Receiving frames" : state.phase === "cameraDenied" ? "Allow camera access" : state.phase === "paused" ? "Resume monitoring" : "Waiting for the camera"},
       {name:"One person",ok:one,detail:one ? "Single measurable face" : scene.count > 1 ? "One person at a time" : "Move into view"},
       {name:"Both eyelids",ok:lids,detail:lids ? "Both contours measured" : "Face the camera with both eyes visible"},
-      {name:"Fresh samples",ok:freshMeasurement,detail:freshMeasurement ? `${Math.round(state.frameAgeMs)}ms sample age` : "Waiting for recent measurements"},
+      {name:"Fresh samples",ok:freshMeasurement,detail:freshMeasurement ? "Frames arrive on time" : "Waiting for recent measurements"},
       {name:"Eye reference",ok:reference,detail:reference ? "Independent reference for each eye" : "Blink normally while calibration finishes"}
     ];
-    return {checks,ready:checks.every(c=>c.ok),visible};
+    return {checks,ready:checks.every(c=>c.ok),next:checks.find(c=>!c.ok)?.detail ?? "Ready",visible};
   }
   function replay(clip) {
     const result = {left:"",right:"",duration:0};
@@ -110,6 +127,6 @@ const BlinkMetrics = (() => {
     }
     return {left:paths[0].join(""),right:paths[1].join(""),duration:end-start};
   }
-  return { activity, ring, contour, aperture, motion, setup, replay, freshEyes };
+  return { activity, ring, recent, aggregate, contour, aperture, motion, setup, replay, freshEyes };
 })();
 if (typeof module !== "undefined") module.exports = BlinkMetrics;

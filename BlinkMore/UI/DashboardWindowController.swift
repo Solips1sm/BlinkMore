@@ -66,8 +66,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
         pauseControl.bezelStyle = .rounded; reloadButton.bezelStyle = .rounded
         #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
-            pauseControl.bezelStyle = .glass
-            reloadButton.bezelStyle = .glass
+            pauseControl.isBordered = false
         }
         #endif
         let toolbar = NSToolbar(identifier: "Eyesight.Navigation")
@@ -109,12 +108,15 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
             item.label = "Pause monitoring"; item.view = pauseControl
         } else if identifier.rawValue == "Eyesight.Pages" {
             item.label = "Eyesight pages"
-            pageControl.segmentStyle = .automatic
+            pageControl.segmentStyle = .rounded
             #if compiler(>=6.2)
             if #available(macOS 26.0, *) { pageControl.borderShape = .capsule }
             #endif
             item.view = pageControl
         } else { return nil }
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) { item.isBordered = false }
+        #endif
         return item
     }
     @objc private func changePage() {
@@ -224,8 +226,8 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { if navigation === pendingNavigation { showLoadError() } }
     private func showLoadError() {
         ready = false; updating = false; loadTimeout?.cancel(); spinner.stopAnimation(nil)
-        loadingTitle.stringValue = "The interface needs a reload"
-        loadingDetail.stringValue = "Your camera and reminders run separately. Reload this window to restore its controls."
+        loadingTitle.stringValue = "Reopen the controls"
+        loadingDetail.stringValue = "Tracking continues while the controls reload."
         fallback.isHidden = false; webView.isHidden = true; reloadButton.isHidden = false
     }
 

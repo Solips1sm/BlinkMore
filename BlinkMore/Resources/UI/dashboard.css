@@ -6,8 +6,11 @@
   --rhythm-ink: color-mix(in srgb, rgb(var(--series-6)) 65%, rgb(var(--foreground)) 35%);
   --link-ink: color-mix(in srgb, rgb(var(--accent)) 80%, rgb(var(--foreground)) 20%);
   --edge: var(--sf-edge-subtle);
-  --field: var(--sf-child-fill);
-  --surface-wash: linear-gradient(150deg, rgb(var(--white) / 6%), transparent 65%);
+  --field: color-mix(in srgb, rgb(var(--background)) 50%, rgb(var(--white)) 50%);
+  --surface-radius: 24px;
+  --surface-inset: 8px;
+  --inner-radius: calc(var(--surface-radius) - var(--surface-inset));
+  --surface-wash: linear-gradient(150deg, rgb(var(--white) / 3%), transparent 65%);
 }
 :root.dark { color-scheme: dark; --optical-ink: rgb(var(--series-5)); --rhythm-ink: rgb(var(--series-6)); --link-ink: rgb(var(--tone-info)); }
 * { box-sizing: border-box; }
@@ -83,7 +86,7 @@ body[data-page="1"]:is([data-exercise="running"],[data-exercise="paused"],[data-
 .check-row,.color-row,.select-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0; }.anistratenco-checkbox-frame { width: 24px; height: 24px; }.anistratenco-checkbox-frame>input { appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }.select-row select { max-width: 60%; min-height: 30px; padding: 3px 6px; background: rgb(var(--background)); color: rgb(var(--foreground)); border: 1px solid var(--edge); border-radius: var(--radius-sm); }input[type="color"] { padding: 0; width: 44px; height: 28px; background: none; border: 1px solid var(--edge); border-radius: var(--radius-sm); }
 .goal-note { border-top: 1px solid var(--edge); padding-top: 12px; margin-top: 14px; color: rgb(var(--muted-fg)); }.goal-note svg,.section-icon { display: none; }
 details { margin-top: 14px; }summary { cursor: pointer; color: var(--link-ink); font-size: 14px; }details p { margin-top: 10px; color: rgb(var(--muted-fg)); line-height: 1.5; }.inspector { border-top: 1px solid var(--edge); padding-top: 14px; margin-top: 20px; }.inspector>summary { margin-bottom: 14px; }.scan-grid,.evidence-grid { margin-top: 14px; }.scan-canvas { margin: 10px 0; position: relative; border-radius: var(--radius-sm); background: rgb(var(--foreground) / 3%); }.scan-canvas>svg { width: 100%; height: 130px; overflow: hidden; }.scan-cross { fill: none; stroke: var(--edge); stroke-width: .5; stroke-dasharray: 2 3; }.eye-outline { fill: rgb(var(--series-5)/8%); stroke: var(--optical-ink); stroke-width: 1.4; }.landmark-points { fill: var(--rhythm-ink); }.principal-axes { fill: none; stroke: var(--rhythm-ink); stroke-width: .7; stroke-dasharray: 3 2; }.scan-wait { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: rgb(var(--muted-fg)); background: rgb(var(--background)/60%); }.scan-values,.data-rows { margin: 0; }.scan-values { display: flex; justify-content: space-between; gap: 8px; }.scan-values dd { margin: 3px 0 0; font-size: 17px; }.data-rows>div,.equation { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; }.data-rows dd { margin: 0; text-align: right; }.model-text { color: var(--optical-ink); }.equation span { color: rgb(var(--muted-fg)); }.equation code { font: 14px ui-monospace,SFMono-Regular,Menlo,monospace; text-align: right; }.processing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }.processing-grid span,.processing-grid strong { display: block; }.processing-grid span { color: rgb(var(--muted-fg)); }.palette { display: flex; gap: 7px; margin: 12px 0; }.swatch { width: 32px; height: 16px; border-radius: var(--radius-pill); background: var(--rhythm-ink); }.blink-tone,.model-tone { background: var(--optical-ink); }.color-panel p+p { margin-top: 8px; }
-footer { gap: 8px; margin-top: 6px; height: 20px; flex: none; color: rgb(var(--muted-fg)); font-size: 14px; }#footer-notice { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.footer-end { margin-left: auto; white-space: nowrap; }
+.inline-notice { flex: none; padding: 6px 10px; margin-bottom: 8px; border-radius: var(--rad-chat-control); background: var(--field); color: rgb(var(--foreground)); }
 @media(max-width:720px) { body { padding-left: 16px; padding-right: 16px; } nav { gap: 4px; }.optical { gap: 16px; }.readout { width: 140px; }.instrument { padding-left: 12px; padding-right: 12px; }.gauge-card { gap: 8px; padding: 12px 8px; }.arc-gauge { width: 80px; height: 78px; }.gauge-number { font-size: 19px; }.achievement-grid { gap: 10px; }.equation { flex-wrap: wrap; gap: 4px; }.session-invitation { gap: 8px; }.invitation-actions { gap: 10px; } }
 @media(max-height:550px) { body { padding-top: 27px; } header { height: 28px; margin-bottom: 8px; }.status-bar { margin-bottom: 6px; }.optical { height: 112px; }.eye-pair { height: 104px; }#rhythm-chart { height: 40px; }.rhythm { padding-top: 5px; }.session-invitation { padding-top: 10px; }.today-footer { margin-top: 8px; }#exercise-art { height: 84px; }.practice-intro { margin: 5px 0 12px; }.practice-option { padding: 10px 6px; }.practice-option svg { height: 76px; }.practice-note { margin-top: 12px; } }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { animation: none!important; transition: none!important; } }
@@ -166,3 +169,39 @@ svg[tabindex]:focus-visible { outline: 2px solid rgb(var(--accent)); outline-off
 .gauge-value,.intention-value { transition: stroke-dashoffset var(--dur-base) var(--ease-std), opacity var(--dur-base) var(--ease-std); }
 @media(prefers-contrast:more) { .gauge-rim { stroke: rgb(var(--muted-fg)); }.panel,.gauge-card,.instrument { border-color: rgb(var(--muted-fg)); } }
 @media(prefers-reduced-transparency:reduce) { .panel,.gauge-card,.instrument,.practice-option { background: rgb(var(--background)); } }
+
+:root.dark { --field: color-mix(in srgb, rgb(var(--background)) 94%, rgb(var(--white)) 6%); }
+.instrument,.panel,.gauge-card,.practice-option { border-radius: var(--surface-radius); box-shadow: var(--sf-shd-inner); border-color: color-mix(in srgb, rgb(var(--foreground)) 14%, rgb(var(--background))); }
+.inset,.scan-canvas,.mirror-panel,.setup-frame { border-radius: var(--inner-radius); }
+.practice-goals { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 8px 0 14px; }
+.practice-goal h3 { font-size: 14px; font-weight: 400; }.practice-goal p { margin-top: 6px; }.practice-goal .section-title { margin-bottom: 6px; }
+.gauge-light { stop-color: color-mix(in oklab, currentColor 92%, rgb(var(--white)) 8%); }
+:root.dark .gauge-light { stop-color: color-mix(in oklab, currentColor 76%, rgb(var(--white)) 24%); }
+
+#rhythm-chart path { vector-effect: non-scaling-stroke; }
+.rhythm-presence { stroke: var(--rhythm-ink); stroke-width: 3; stroke-linecap: round; }
+.rhythm-event { stroke: var(--optical-ink); stroke-width: 3; }.rhythm-overflow { fill: none; stroke: var(--optical-ink); stroke-width: 1; }
+.chart-scale { fill: rgb(var(--muted-fg)); font: 14px -apple-system, sans-serif; }.week-summary { margin: 5px 0; }
+
+/* Enlarged text keeps one vertical reading order without clipped controls. */
+button,summary { min-height: 28px; min-width: 24px; }
+input[type="range"] { min-height: 28px; }
+.select-row select { height: 32px; }
+button,input,select,summary,[tabindex] { scroll-margin: 8px; }
+@media(max-width:560px) {
+ body { padding: 12px; }
+ .settings-grid,.practice-options,.gauge-row,.practice-goals,.scan-grid,.evidence-grid,.anatomy-layout,#examine .scan-grid { grid-template-columns: minmax(0,1fr); }
+ .achievement-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .daily-intentions { grid-template-columns: minmax(0,1fr); }
+ .optical { height: auto; flex-wrap: wrap; justify-content: center; }
+ .readout { width: auto; }
+ .status-bar,.session-invitation,.studio-toolbar,.geometry-toolbar,.trace-summary { flex-wrap: wrap; }
+ #tracking-detail { white-space: normal; flex-basis: 100%; }
+ .live-summary { grid-template-columns: minmax(0,1fr); }
+ .live-summary span { white-space: normal; }
+ .invitation-actions { flex-wrap: wrap; }
+ .data-rows>div,.equation,.range-control label { flex-wrap: wrap; }
+ .geometry-table>div { grid-template-columns: 1.2fr 1fr 1fr; gap: 4px; }
+ .practice-option svg { height: 60px; }
+ .practice-live { flex-wrap: wrap; gap: 10px; }
+}

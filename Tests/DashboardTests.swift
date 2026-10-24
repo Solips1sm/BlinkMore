@@ -26,12 +26,12 @@ import ScreenCaptureKit
         let bins: [[String: Any]] = (0..<60).map { i in ["tracked": (18...25).contains(i) ? 0.0 : 1.0, "blinks": [2,7,11,16,29,34,38,43,48,52,57].contains(i) ? 1 : 0] }
         let today: [String: Any] = ["blinks": 240, "trackedSeconds": 1200.0, "blinkRate": 12.0, "asymmetry": 3.7, "leftClosures": 2, "rightClosures": 1, "longClosures": 3, "closedPercent": 1.4, "reminders": 8, "resets": 2]
         var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Both eyes visible.", "left": 1.0, "right": 0.93, "calibration": 1.0, "sampleTime": 100.0, "openSeconds": 2.4,
-            "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0, "notice": "Synthetic QA data. No camera is used.", "actualTheme": "light",
+            "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0, "notice": "", "actualTheme": "light",
             "exercise": ["phase": "idle", "step": "blink", "remaining": 10.0, "progress": 0.0, "due": false],
             "geometry": ["left": points, "right": points.map { [$0[0] + 0.35, $0[1]] }, "width": 210.0, "height": 310.0, "box": [0.3,0.2,0.328125,0.645833], "confidence": 0.98, "leftAperture": 0.258, "rightAperture": 0.248],
             "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "resetGoal": 2.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
             "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 12.7, "recentSeconds": 52.0, "recentBins": bins, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5, "resets": 6]],
-            "cameras": [["id": "test-camera", "name": "QA camera"]]]
+            "cameras": [["id": "test-camera", "name": "Built in camera"]]]
         state["scene"] = ["count":1,"ageMs":300.0]
         state["motion"] = (0..<451).map { i -> [String:Any] in
             let close = i % 69 == 0
@@ -88,6 +88,7 @@ import ScreenCaptureKit
             }
         }
         try await refresh()
+        try await expect("return !document.querySelector('.footer-end') && document.getElementById('footer-notice').hidden", true)
         precondition(controller.window?.toolbar != nil && controller.pageControl.segmentCount == 5)
         try await expect("return document.documentElement.classList.contains('native-controls') && getComputedStyle(document.querySelector('nav')).display === 'none'", true)
         controller.pageControl.selectedSegment = 1
@@ -122,8 +123,8 @@ import ScreenCaptureKit
                 precondition(minText >= 14)
                 try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
                 if tab == 0 {
-                    let contrast = try await js("const c=document.createElement('canvas'),ctx=c.getContext('2d'); c.width=1;c.height=1; const px=()=>[...ctx.getImageData(0,0,1,1).data].slice(0,3);const lum=a=>{const v=a.map(n=>{n/=255;return n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4});return .2126*v[0]+.7152*v[1]+.0722*v[2]};return Math.min(...['#pause-button span','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s),chain=[];for(let n=e;n;n=n.parentElement)chain.unshift(n);ctx.clearRect(0,0,1,1);ctx.fillStyle=getComputedStyle(document.body).backgroundColor;ctx.fillRect(0,0,1,1);chain.forEach(n=>{ctx.fillStyle=getComputedStyle(n).backgroundColor;ctx.fillRect(0,0,1,1)});const bg=lum(px());ctx.fillStyle=getComputedStyle(e).color;ctx.fillRect(0,0,1,1);const fg=lum(px());return (Math.max(bg,fg)+.05)/(Math.min(bg,fg)+.05)}))") as! Double
-                    let colors = try await js("return ['#pause-button span','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s);return [s,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]})")
+                    let contrast = try await js("const c=document.createElement('canvas'),ctx=c.getContext('2d'); c.width=1;c.height=1; const px=()=>[...ctx.getImageData(0,0,1,1).data].slice(0,3);const lum=a=>{const v=a.map(n=>{n/=255;return n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4});return .2126*v[0]+.7152*v[1]+.0722*v[2]};return Math.min(...['#tracking-title','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s),chain=[];for(let n=e;n;n=n.parentElement)chain.unshift(n);ctx.clearRect(0,0,1,1);ctx.fillStyle=getComputedStyle(document.body).backgroundColor;ctx.fillRect(0,0,1,1);chain.forEach(n=>{ctx.fillStyle=getComputedStyle(n).backgroundColor;ctx.fillRect(0,0,1,1)});const bg=lum(px());ctx.fillStyle=getComputedStyle(e).color;ctx.fillRect(0,0,1,1);const fg=lum(px());return (Math.max(bg,fg)+.05)/(Math.min(bg,fg)+.05)}))") as! Double
+                    let colors = try await js("return ['#tracking-title','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s);return [s,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]})")
                     precondition(contrast >= 4.5, "Text contrast: \(contrast), \(String(describing: colors))")
                 }
                 if tab < 2 {
@@ -148,6 +149,7 @@ import ScreenCaptureKit
         }
         controller.selectTab(0); try await refresh()
         try await expect("return document.getElementById('recent-rate').textContent", "12.7")
+        try await expect("return document.getElementById('rhythm-chart').getAttribute('preserveAspectRatio')", "none")
         try await expect("return document.querySelectorAll('#rhythm-chart .rhythm-event').length", 11)
         try await expect("return document.querySelectorAll('#rhythm-chart .rhythm-gap').length", 8)
         try await expect("return document.querySelector('header').textContent.includes('AC only')", false)
@@ -166,7 +168,7 @@ import ScreenCaptureKit
         try await expect("return !document.getElementById('coverage-empty').hidden&&document.getElementById('coverage-summary').textContent==='Waiting for observations'",true)
         state["coverage"] = coverageFixture; try await refresh()
         let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
-        precondition(abs(offset - 100.0 / 3) < 0.01)
+        precondition(abs(offset - 33.3) < 0.01)
         try await expect("return document.getElementById('gauge-resets').closest('.gauge-card').dataset.complete", "true")
         try await expect("return document.getElementById('reset-goal-note').textContent", "Goal reached")
         try await expect("const references=[...document.querySelectorAll('.gauge-value,.intention-value,.gauge-rim')];return references.every(e=>{const s=getComputedStyle(e).stroke,id=s.match(/#[a-z-]+/);return id&&document.getElementById(id[0].slice(1))!==null})", true)
@@ -261,7 +263,7 @@ import ScreenCaptureKit
         revisedStats["lifetime"] = revisedLifetime; state["statistics"] = revisedStats; try await refresh()
         try await expect("return document.getElementById('exercise-art').dataset.blink", "first")
         state["phase"] = "cameraDenied"; try await refresh()
-        try await expect("return document.getElementById('exercise-feedback').textContent.includes('Camera feedback off')", true)
+        try await expect("return document.getElementById('exercise-feedback').textContent.includes('Camera feedback is unavailable')", true)
         _ = try await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
         try await Task.sleep(for: .milliseconds(100))
         precondition(commands.contains { $0["action"] as? String == "exercise" && $0["command"] as? String == "pause" })
@@ -278,7 +280,7 @@ import ScreenCaptureKit
         controller.showSetup(); try await refresh()
         try await expect("return document.getElementById('setup-workspace').hidden",false)
         try await expect("return document.querySelectorAll('.setup-check[data-ready=true]').length",5)
-        try await expect("return document.getElementById('setup-summary').textContent","Ready for observation")
+        try await expect("return document.getElementById('setup-summary').textContent","Ready")
         for theme in ["light","dark"] {
             state["actualTheme"] = theme; try await refresh()
             try await expect("const action=document.getElementById('setup-calibrate').getBoundingClientRect(),main=document.querySelector('main').getBoundingClientRect();return action.bottom<=main.bottom+1",true)
@@ -291,7 +293,7 @@ import ScreenCaptureKit
         try await expect("return document.getElementById('setup-calibrate').disabled",true)
         state["phase"] = "noFace"; state["frameAgeMs"] = 76.0; state["scene"] = ["count":0,"ageMs":300.0]
         try await refresh()
-        try await expect("return document.getElementById('setup-summary').textContent==='Adjust the conditions below'&&document.getElementById('setup-face').hasAttribute('hidden')&&document.getElementById('setup-calibrate').disabled",true)
+        try await expect("return document.getElementById('setup-summary').textContent==='Move into view'&&document.getElementById('setup-face').hasAttribute('hidden')&&document.getElementById('setup-calibrate').disabled",true)
         state["phase"] = "cameraMissing"; state["scene"] = ["count":1,"ageMs":300.0]
         try await refresh()
         try await expect("return !document.getElementById('setup-retry').hidden&&document.getElementById('setup-allow').hidden&&document.getElementById('setup-calibrate').disabled",true)
@@ -360,6 +362,17 @@ import ScreenCaptureKit
         state["exercise"] = ["phase": "idle"]; try await refresh()
         _ = try await js("document.querySelector('[data-tab=\"1\"]').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))")
         try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "3")
+        controller.webView.pageZoom = 2
+        for theme in ["light", "dark"] {
+            state["actualTheme"] = theme
+            for tab in 0..<5 {
+                controller.selectTab(tab); try await refresh()
+                try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
+                try await expect("return [...document.querySelectorAll('main button,main select,main input,main summary')].filter(e=>e.getClientRects().length).every(e=>{const r=e.getBoundingClientRect();return r.width>=24&&r.height>=24})", true)
+            }
+        }
+        try await screenshot("dashboard-enlarged")
+        controller.webView.pageZoom = 1
         let menu = MenuBarController(); menu.snapshot = { state }; var opened: [Int] = []
         menu.onOpen = { opened.append($0) }; menu.onCommand = { commands.append($0) }
         menu.update(.tracking); let open = menu.item.button!.image!

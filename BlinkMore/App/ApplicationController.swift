@@ -397,7 +397,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
                 stopCamera(); preferences.cameraID = v.isEmpty ? nil : v
             }
-        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "exerciseMinutes", "minuteGoal", "dayGoal", "resetGoal":
+        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "exerciseMinutes", "minuteGoal", "dayGoal", "resetGoal", "practiceGoal", "practiceDayGoal":
             guard let v = value as? NSNumber, CFGetTypeID(v) != CFBooleanGetTypeID(), v.doubleValue.isFinite else { return }
             switch key {
             case "reminderSeconds": preferences.reminderSeconds = v.doubleValue
@@ -407,6 +407,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             case "minuteGoal": preferences.minuteGoal = v.doubleValue
             case "dayGoal": preferences.dayGoal = v.doubleValue
             case "resetGoal": preferences.resetGoal = v.doubleValue
+            case "practiceGoal": preferences.practiceGoal = v.doubleValue
+            case "practiceDayGoal": preferences.practiceDayGoal = v.doubleValue
             default: statistics.cancelCheck(now: EyeTrackingService.clock()); observation.updateMirror(phase: "cancelled"); preferences.sensitivity = v.doubleValue
             }
         default: notify("That preference is not available.")

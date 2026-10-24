@@ -89,3 +89,20 @@ const playback=replay([{t:0,left:1,right:1},{t:.1,left:.1,right:.1},{t:.2,left:1
 assert.equal(playback.duration,.2);assert(playback.left.includes("L160.00"));
 assert.equal(replay([]).left,"");assert.equal(replay([{t:0,left:1,right:1},{t:3,left:1,right:1}]).left,"");
 assert.equal((replay([{t:0,left:1,right:1},{t:.1,left:null,right:null},{t:.2,left:1,right:1}]).left.match(/M/g)||[]).length,2);
+
+const practice = activity({resetSeconds:50},[{resets:1},{resets:0},{resets:2}],{},{practiceGoal:60,practiceDayGoal:3}).practiceGoals;
+assert.deepEqual(practice.map(g=>g.current),[50,2]);
+assert.equal(practice[0].complete,false);
+assert.equal(activity({resetSeconds:60},[],{},{practiceGoal:60}).practiceGoals[0].complete,true);
+
+const {recent,aggregate}=require("../BlinkMore/Resources/UI/metrics.js");
+assert.equal(recent([{tracked:1,blinks:0}]).rate,null);
+assert.equal(recent(Array.from({length:60},()=>({tracked:1,blinks:0}))).rate,0);
+assert.equal(recent([{tracked:0,blinks:2},{tracked:NaN,blinks:5}]).blinks,0);
+const weighted=aggregate([{trackedSeconds:30,blinks:10},{trackedSeconds:1200,blinks:180}]);
+assert(Math.abs(weighted.rate-190*60/1230)<1e-10);
+assert.equal(aggregate([{trackedSeconds:0,blinks:20}]).rate,null);
+assert.equal(aggregate([{trackedSeconds:60,blinks:0}]).rate,0);
+
+assert.equal(setup(prepared).next,"Ready");
+assert.equal(setup({...prepared,phase:"cameraDenied"}).next,"Allow camera access");

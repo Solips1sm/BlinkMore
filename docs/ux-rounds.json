@@ -1,0 +1,105 @@
+{
+  "version": "2.10",
+  "scope": "Six sequential implementation and review passes. Evidence is retained externally to the app interface. Fixtures remain synthetic in tests and are never installed as user data.",
+  "sources": [
+    "https://www.w3.org/TR/WCAG22/",
+    "https://developer.apple.com/design/human-interface-guidelines/materials"
+  ],
+  "rounds": [
+    {
+      "round": 1,
+      "focus": "Copy and material ownership",
+      "changes": [
+        "Removed the visible version/footer and test notice. Real error/status notices remain available only when nonempty.",
+        "Removed explicit glass buttons and automatic toolbar glass backing while retaining AppKit controls.",
+        "Shortened interface recovery text."
+      ],
+      "checks": [
+        "node syntax and web model tests",
+        "No .glass or NSGlassEffectView in app UI source; no visible version in HTML."
+      ],
+      "status": "implemented"
+    },
+    {
+      "round": 2,
+      "focus": "Concentric goals and measured practice",
+      "changes": [
+        "Added daily practice seconds and weekly practice days from existing completed sessions, with persisted bounded preferences.",
+        "Replaced horseshoe dials with concentric circles, quantized arc updates and a matte surface hierarchy.",
+        "Kept the primary goal row compact; additional practice goals use two small rails."
+      ],
+      "checks": [
+        "Web models cover practice duration, distinct practice days and completion.",
+        "State tests cover preference bounds, rounding and persistence."
+      ],
+      "status": "implemented"
+    },
+    {
+      "round": 3,
+      "focus": "Live aggregation and stable scales",
+      "changes": [
+        "Separated the last minute histogram from its recorded-time strip, using fixed count scale and explicit overflow.",
+        "Added an exposure-weighted weekly summary; missing time is not represented as zero blink rate.",
+        "Weekly chart scale advances in fixed five-unit steps rather than moving on every sample."
+      ],
+      "checks": [
+        "Model tests distinguish zero rate from unavailable rate, reject unobserved counts and verify weighted aggregation against unequal session lengths."
+      ],
+      "status": "implemented"
+    },
+    {
+      "round": 4,
+      "focus": "Practice and camera setup state review",
+      "changes": [
+        "Setup presents the first unmet condition and hides repeated success descriptions. Stable checklist rows are retained between live updates.",
+        "Practice completion distinguishes a captured blink from a timer completion without camera data.",
+        "Focus moves to the new setup/practice heading and returns to the initiating practice after completion."
+      ],
+      "checks": [
+        "Setup model tests verify ready and camera permission guidance.",
+        "Full GUI phase, mirror, setup and focus checks are scheduled in the next round."
+      ],
+      "status": "implemented"
+    },
+    {
+      "round": 5,
+      "focus": "Accessibility, focus and enlarged layouts",
+      "changes": [
+        "Kept 28 pixel minimum control heights and 24 pixel minimum widths, including native web sliders.",
+        "Added a one column enlarged layout while preserving vertical scrolling and focus margins.",
+        "Reviewed visible text contrast, reduced motion, setup and practice focus, chart descriptions and missing data states in both themes."
+      ],
+      "checks": [
+        "Native dashboard tests exercise all five views at normal and double page zoom.",
+        "Contrast sampling applies to visible text; hidden duplicate web Pause is excluded because AppKit owns that control."
+      ],
+      "status": "implemented"
+    },
+    {
+      "round": 6,
+      "focus": "Bounded performance review and regression budgets",
+      "changes": [
+        "Added a reproducible Rust matrix at 4, 8, 16 and 32 landmarks per eye, seven web model workloads and native statistics snapshots.",
+        "Recorded raw measurements and explicit scope, with review budgets of 5 microseconds per core update, 1 millisecond per statistics snapshot and 16 milliseconds per model operation at p95.",
+        "Retained camera model, cadence, calibration and thresholds. Current local costs do not justify another geometry rewrite or a date cache. Setup row reuse avoids repeated DOM replacement."
+      ],
+      "checks": [
+        "Scripts/benchmark.sh completes with output assertions and no user data.",
+        "Scripts/test.sh passes Rust, web, state, lifecycle, persistence, ABI and Vision checks."
+      ],
+      "status": "implemented"
+    }
+  ],
+  "limits": [
+    "This is an implementation and measured review sequence, not a recursive learning system or WCAG certification.",
+    "Manual VoiceOver, physical lifecycle and prolonged camera performance remain separate acceptance checks.",
+    "Explicit glass materials and toolbar glass wrappers are disabled. macOS may still style its native menu and system chrome."
+  ],
+  "review": {
+    "dashboard": "Passed all five views, both themes, minimum layout and double zoom, mirror, setup, coverage and state transitions.",
+    "overlay": "Passed geometry, fade reversal, immediate hiding and display rebuild.",
+    "signedBundle": "Pre-minimize controls and recovery pass. Existing native minimize assertion fails on this desktop.",
+    "visual": "Inspected current-process composited light and dark windows, enlarged layout and circular goals. Fixed timeline scaling, popup hit area and duplicate reset summary during review.",
+    "provenance": "All published screenshots are synthetic test fixtures. The installed app has no fixture seeding or QA labels; personal history was preserved."
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "version": "2.9",
+  "version": "2.10",
   "date": "2026-10-24",
   "fixture": "Synthetic UI data only. No camera frames, personal observations or identity templates.",
   "checks": {
@@ -11,24 +11,26 @@
     "acStopPolicy": "passed reconnect cancellation, duplicate request and terminated-process cases",
     "blankFrameVision": "passed bounded 96-buffer release, stop drain and the bounded contour bridge including oversized input and resume without phantom events",
     "nativeOverlay": "passed screen geometry, all Spaces, immediate hiding, interrupted animation and screen rebuild",
-    "nativeWKWebView": "passed all five pages in both themes, native toolbar routing and pause commands, minimum content bounds below toolbar, complete/zero goal logic, mirror replay, setup, coverage, SVG references and privacy artwork",
-    "signedBundleSmoke": "Passed bundled resources, native controls, setup routing, hidden/closed reopening, indicator states and WebKit recovery before the strict minimize assertion fails.",
+    "nativeWKWebView": "Passed all five pages in both themes at standard and double page zoom, no horizontal overflow, 24 pixel minimum control bounds, sampled visible text contrast, minimum layouts, native navigation and pause, mirror replay, setup, coverage and SVG references.",
+    "signedBundleSmoke": "Passed bounded new goal commands, boolean rejection, bundled resources, controls, setup routing, hidden/closed reopening, indicator states and WebKit recovery before the existing strict minimize assertion fails.",
     "consolidatedNativeHarness": "Strict programmatic minimize still fails on this Mac. The prior stock NSWindow reproduction remains in docs/native-minimize-host.txt. Full suite acceptance remains open.",
-    "hardware": "2.9 installed; user camera, native toolbar and live mirror confirmation pending. Physical fading, AC reconnect, lock/sleep/wake and a prolonged 2.9 camera run remain unverified.",
-    "nativeMaterialCapture": "Composited light and dark images captured only from the synthetic test app using SCShareableContent.currentProcess, without general screen capture permission. Native toolbar labels and material inspected."
+    "hardware": "2.10 installed and launched on AC. Human camera and fading confirmation pending. Physical AC reconnect, lock/sleep/wake and prolonged camera use remain unverified.",
+    "nativeMaterialCapture": "Inspected composited light and dark synthetic test windows captured with current-process ScreenCaptureKit. Explicit glass styles and toolbar wrappers are disabled; native system chrome remains OS controlled.",
+    "benchmarks": "Scripts/benchmark.sh passed: four calibrated Rust contour sizes, seven web models and isolated native statistics snapshots. All sampled p95 values are below the documented local review budgets.",
+    "installation": "Verified strict signing, exact build binary and UI match, preserved every existing numeric history aggregate and unchanged separate prototype. Backup 20261024-233952-2700."
   },
   "render": {
     "light": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 7.733333333333333,
-      "p95Ms": 9,
+      "meanMs": 6.766666666666667,
+      "p95Ms": 8,
       "samples": 30,
       "theme": "light"
     },
     "dark": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 8.433333333333364,
-      "p95Ms": 11,
+      "meanMs": 5.466666666666667,
+      "p95Ms": 7,
       "samples": 30,
       "theme": "dark"
     }
@@ -38,7 +40,8 @@
     "Initial lock state uses an undocumented macOS session key plus lifecycle notifications and requires physical checks per release.",
     "The live memory improvement requires a longer controlled camera run; short samples cannot prove leak elimination.",
     "The outgoing network client entitlement is required for WebKit helper startup; CSP blocks network connections and navigation accepts only the bundled main file.",
-    "Programmatic window minimization is unresolved on this desktop session. A stock window reproduced the symptom; this does not establish that physical user minimization works."
+    "Programmatic window minimization is unresolved on this desktop session. A stock window reproduced the symptom; this does not establish that physical user minimization works.",
+    "Sampled text contrast, target bounds, focus and reflow tests do not establish full WCAG compliance; manual VoiceOver and enlarged text review remain open."
   ],
   "performance": {
     "referenceCases": 928,
@@ -48,6 +51,8 @@
     },
     "reductionPercent": 14.671612170143057,
     "comparison": "Six alternating pairs; raw commands and results in docs/core-benchmark.json. Core only, excluding camera, Vision, bridge and display.",
-    "bridge": "Bounded temporary BMPoint buffer; Vision contour arrays reused for UI. No sampling, model, thresholds or calibration change."
-  }
+    "bridge": "Bounded temporary BMPoint buffer; Vision contour arrays reused for UI. No sampling, model, thresholds or calibration change.",
+    "currentMatrix": "docs/performance-benchmarks.json"
+  },
+  "uxRounds": "docs/ux-rounds.json"
 }

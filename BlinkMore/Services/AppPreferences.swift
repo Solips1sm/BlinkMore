@@ -64,6 +64,14 @@ final class AppPreferences {
         get { bounded("weeklyDayGoal", fallback: 3, range: 1...7) }
         set { defaults.set(newValue.clamped(to: 1...7).rounded(), forKey: "weeklyDayGoal"); onChange?() }
     }
+    var practiceGoal: Double {
+        get { bounded("dailyPracticeSecondsGoal", fallback: 60, range: 30...600) }
+        set { defaults.set((newValue.clamped(to: 30...600) / 10).rounded() * 10, forKey: "dailyPracticeSecondsGoal"); onChange?() }
+    }
+    var practiceDayGoal: Double {
+        get { bounded("weeklyPracticeDayGoal", fallback: 3, range: 1...7) }
+        set { defaults.set(newValue.clamped(to: 1...7).rounded(), forKey: "weeklyPracticeDayGoal"); onChange?() }
+    }
     var theme: String {
         get { let value = defaults.string(forKey: "appearance") ?? "system"; return ["system", "light", "dark"].contains(value) ? value : "system" }
         set { guard ["system", "light", "dark"].contains(newValue) else { return }; defaults.set(newValue, forKey: "appearance"); onChange?() }
@@ -96,7 +104,8 @@ final class AppPreferences {
         ["reminderSeconds": reminderSeconds, "fadeSeconds": fadeSeconds, "intensity": intensity,
          "detectionAlerts": detectionAlerts, "soundEnabled": soundEnabled, "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
          "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0,
-         "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "resetGoal": resetGoal, "dayGoal": dayGoal]
+         "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "resetGoal": resetGoal, "dayGoal": dayGoal,
+         "practiceGoal": practiceGoal, "practiceDayGoal": practiceDayGoal]
     }
     private func bounded(_ key: String, fallback: Double, range: ClosedRange<Double>) -> Double {
         guard defaults.object(forKey: key) != nil else { return fallback }

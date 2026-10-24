@@ -7,7 +7,7 @@
   const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
   const pages = ["activity", "practice", "history", "settings-page", "examine"], tabOrder = [0, 4, 1, 2, 3];
   let motionSpan = 30, studio = "motion", practiceBlinks = 0, replayFrame = null, replayClip = null;
-  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", lastCheck = "idle", historySelection = null;
+  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", setupKey = "", lastBlinks = null, lastExercise = "idle", lastCheck = "idle", historySelection = null;
   function svg(name, attributes = {}) {
     const node = document.createElementNS(svgNS, name);
     Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value))); return node;
@@ -84,7 +84,7 @@
     }
   }
   document.querySelectorAll("button[data-studio]").forEach(button => button.addEventListener("click", () => selectStudio(button.dataset.studio)));
-  function showSetup() { selectTab(4); selectStudio("setup"); document.querySelector("main").scrollTop = 0; }
+  function showSetup() { selectTab(4); selectStudio("setup"); document.querySelector("main").scrollTop = 0; $("setup-heading").focus(); }
   document.querySelectorAll("[data-setup]").forEach(button => button.addEventListener("click", showSetup));
   $("setup-settings").addEventListener("click",()=>selectTab(3));
   function stopReplay() { if (replayFrame !== null) cancelAnimationFrame(replayFrame); replayFrame = null; replayClip = null; }
@@ -152,16 +152,19 @@
   }
   function rhythm(bins = []) {
     const key = JSON.stringify(bins); if (key === rhythmKey) return; rhythmKey = key;
-    const fragment = document.createDocumentFragment(); let observed = 0, blinks = 0;
-    Array.from({ length: 60 }, (_, i) => bins[i] ?? {}).forEach((bin, i) => {
-      const tracked = finite(bin.tracked) && bin.tracked > 0, count = finite(bin.blinks) ? Math.max(0, Math.floor(bin.blinks)) : 0;
-      const height = !tracked ? 18 : count > 0 ? 10 + 7 * Math.min(count, 3) : 2;
-      fragment.append(svg("path", { d: `M${12 + i * 10.4} ${32 - height / 2}v${height}`, class: !tracked ? "rhythm-gap" : count > 0 ? "rhythm-event" : "rhythm-coverage" }));
-      if (tracked) { observed += bin.tracked; blinks += count; }
+    const model = BlinkMetrics.recent(bins), fragment = document.createDocumentFragment();
+    model.seconds.forEach((bin, i) => {
+      const x = 12 + i * 10.4;
+      fragment.append(svg("path", { d: `M${x} 50h8`, class: bin.tracked > 0 ? "rhythm-presence" : "rhythm-gap", "stroke-opacity": bin.tracked > 0 ? Math.max(.5, bin.tracked) : 1 }));
+      if (bin.blinks > 0) {
+        const mark = svg("path", { d: `M${x + 4} 36V${36 - Math.min(4, bin.blinks) * 6}`, class: "rhythm-event" });
+        const title = svg("title"); title.textContent = `${60-i}s ago: ${bin.blinks} blinks, ${fmt(bin.tracked,1)}s recorded`; mark.append(title); fragment.append(mark);
+        if (bin.blinks > 4) fragment.append(svg("path", {d:`M${x+2} 8l2-3 2 3`,class:"rhythm-overflow"}));
+      }
     });
-    if (observed === 0) fragment.replaceChildren(svg("path", { d: "M12 32H628", class: "rhythm-gap" }));
     $("rhythm-chart").replaceChildren(fragment);
-    $("rhythm-chart").setAttribute("aria-label", `${fmt(blinks)} detected blinks in ${fmt(observed)} tracked seconds. Dashed intervals have no observations. Mark height caps at three events per second.`);
+    $("rhythm-chart").setAttribute("aria-label", `${fmt(model.blinks)} blinks in ${fmt(model.exposure,1)} recorded seconds over the last minute. Each column counts blinks in one second; the scale is fixed at zero to four, with an overflow mark above four. The lower line shows recorded time and gaps.`);
+    text("recent-rate-detail", model.exposure > 0 ? `${fmt(model.blinks)} blinks in ${fmt(model.exposure)}s` : "Waiting for eye data");
   }
   const orbitDots = radius => Array.from({ length: 8 }, (_, i) => {
     const angle = i * Math.PI / 4, x = (24 + radius * Math.cos(angle)).toFixed(2), y = (24 + radius * Math.sin(angle)).toFixed(2);
@@ -182,7 +185,7 @@
     model.gauges.forEach((g, i) => {
       const name = ["minutes", "days", "resets"][i], unit = ["min", "days", "resets"][i];
       for (const id of ["gauge-" + name, "today-goal-" + name]) {
-        const arc = $(id), offset = String(100 * (1 - g.progress));
+        const arc = $(id), offset = (100 * (1 - Math.round(g.progress * 1000) / 1000)).toFixed(1);
         if (arc.style.strokeDashoffset !== offset) arc.style.strokeDashoffset = offset;
         const opacity = g.progress > 0 ? "1" : "0";
         if (arc.style.opacity !== opacity) arc.style.opacity = opacity;
@@ -194,11 +197,19 @@
       text("today-value-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} / ${fmt(g.goal)} ${unit}`);
       $(name + "-gauge").setAttribute("aria-label", `${fmt(g.current, i === 0 ? 1 : 0)} of ${fmt(g.goal)} ${unit}, personal observation goal`);
     });
+    model.practiceGoals.forEach((goal, i) => {
+      const name = ["practice", "practice-days"][i], unit = ["s", "days"][i], rail = $(name + "-progress");
+      text("goal-" + name, `${fmt(goal.current)} / ${fmt(goal.goal)} ${unit}`);
+      text("note-" + name, goal.complete ? "Goal reached" : i === 0 ? "Today" : "This week");
+      const amount = Math.round(goal.progress * 1000) / 1000;
+      $("fill-" + name).style.transform = `scaleX(${amount})`;
+      rail.setAttribute("aria-valuenow", String(Math.round(amount * 100)));
+      rail.setAttribute("aria-valuetext", `${fmt(goal.current)} of ${fmt(goal.goal)} ${unit}`);
+    });
     const earned = model.achievements.filter(a => a.earned).length;
     const next = model.achievements.filter(a => !a.earned).sort((a, b) => b.progress - a.progress)[0];
     text("next-milestone", next ? `${next.name}: ${fmt(Math.floor(next.progress * 100), 0, "% recorded")}` : "All milestones earned");
     text("earned-count", `${earned} of ${model.achievements.length} earned`);
-    text("goals-summary", `${fmt(stats.today?.resets ?? 0)} resets today`);
     text("today-achievement", earned ? `${earned} milestones earned` : "View progress");
     const key = model.achievements.map(a => `${a.earned}-${Math.floor(a.progress * 100)}`).join("/");
     if (key === achievementKey) return; achievementKey = key;
@@ -216,8 +227,12 @@
   }
   function history(week = [], baseline) {
     const key = JSON.stringify([week, baseline]); if (key === historyKey) return; historyKey = key;
-    const maximum = Math.max(1, finite(baseline) ? baseline : 0, ...week.map(d => finite(d.blinkRate) ? d.blinkRate : 0)) * 1.1;
+    const total = BlinkMetrics.aggregate(week);
+    text("week-summary", total.seconds > 0 ? `${fmt(total.seconds / 60)} min recorded, ${fmt(total.rate,1)} blinks/min` : "No recorded time this week");
+    const maximum = Math.max(10, Math.ceil(Math.max(finite(baseline) ? baseline : 0, ...week.map(d => finite(d.blinkRate) ? d.blinkRate : 0)) / 5) * 5);
     const fragment = document.createDocumentFragment(), descriptions = [];
+    fragment.append(svg("text", {x:2,y:16,class:"chart-scale"}), svg("text", {x:2,y:104,class:"chart-scale"}));
+    fragment.children[0].textContent = fmt(maximum); fragment.children[1].textContent = "0";
     if ($("week-days").childElementCount !== Math.min(7, week.length)) $("week-days").replaceChildren();
     if (finite(baseline)) fragment.append(svg("path", { d: `M24 ${102 - baseline / maximum * 88}H616`, class: "week-baseline" }));
     let previousPoint = null;
@@ -258,10 +273,10 @@
     $("practice-ready").hidden = phase !== "idle"; $("practice-session").hidden = phase === "idle";
     const running = phase === "running", paused = phase === "paused", done = phase === "completed", look = e.step === "look";
     $("blink-scene").toggleAttribute("hidden", look); $("look-scene").toggleAttribute("hidden", !look);
-    text("exercise-kind", e.routine === "blink" ? "Blink mirror" : e.routine === "look" ? "Look away" : "Full reset");
-    text("exercise-state", paused ? "Paused" : done ? "Complete" : look ? "Look away" : "Blink play");
-    text("exercise-heading", done ? e.routine === "blink" ? "Your blink, reflected" : "A moment taken" : paused ? "Reset paused" : look ? "Look beyond the screen" : "Blink naturally");
-    text("exercise-instruction", done ? e.routine === "blink" ? "Captured locally, ready to replay." : "Return at your own pace." : paused ? "Resume when you are ready." : look ? "Choose a distant real object." : "Let the drawing follow your blinks.");
+    text("exercise-kind", e.routine === "blink" ? "Blink mirror" : e.routine === "look" ? "Look away" : "Guided break");
+    text("exercise-state", paused ? "Paused" : done ? "Complete" : look ? "Look away" : "Blink practice");
+    text("exercise-heading", done ? "Practice complete" : paused ? "Reset paused" : look ? "Look beyond the screen" : "Blink naturally");
+    text("exercise-instruction", done ? e.routine === "blink" ? (state.mirror?.blinks > 0 ? "Your latest blink is ready to replay." : "No blink captured. You can try again.") : "Recorded today." : paused ? "Resume when you are ready." : look ? "Choose a distant real object." : "Blink gently at your own pace.");
     text("exercise-remaining", done ? "Done" : fmt(Math.ceil(finite(e.remaining) ? e.remaining : 0)));
     document.querySelector(".exercise-clock .muted").hidden = done;
     const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
@@ -270,13 +285,14 @@
     if (running && lastExercise !== "running" && lastExercise !== "paused") practiceBlinks = state.statistics.lifetime?.blinks ?? 0;
     text("practice-blinks", feedback ? fmt(Math.max(0, (state.statistics.lifetime?.blinks ?? 0) - practiceBlinks)) : "Unavailable");
     ["left", "right"].forEach(side => text("practice-" + side, feedback ? fmt(state[side] * 100, 0, "% ref") : "Unavailable"));
-    text("exercise-feedback", done ? "Saved to today’s activity." : look ? "Timer guidance. You can look away." : feedback ? "Live eyelid feedback" : "Camera feedback off. The guide still works.");
+    text("exercise-feedback", done ? "Saved to today’s activity." : look ? "Timer guidance. You can look away." : feedback ? "Live eyelid feedback" : "Timer only. Camera feedback is unavailable.");
     if (running && !look) $("practice-lid").setAttribute("d", BlinkMetrics.aperture(feedback ? (state.left + state.right) / 2 : 1, 300, 85, 230) ?? "");
     $("exercise-pause").hidden = !running; $("exercise-resume").hidden = !paused;
     $("exercise-end").textContent = done ? "Back to practice" : "End reset";
     if (e.routine === "blink") mirrorView(state);
     if (phase !== lastExercise) {
-      if (phase === "running" && lastExercise !== "paused") selectTab(1);
+      if (phase === "running" && lastExercise !== "paused") { selectTab(1); $("exercise-heading").focus(); }
+      if (phase === "idle" && lastExercise !== "idle" && selected === 1) document.querySelector(`[data-routine="${e.routine ?? "reset"}"]`)?.focus();
       if (paused) $("exercise-resume").focus();
       if (done) $("exercise-end").focus();
       lastExercise = phase;
@@ -303,17 +319,21 @@
   function setupView(state) {
     if (studio !== "setup") return;
     const model = BlinkMetrics.setup(state), g = state.geometry ?? {}, box = g.box;
-    text("setup-summary",model.ready ? "Ready for observation" : "Adjust the conditions below");
-    const fragment = document.createDocumentFragment();
-    for (const check of model.checks) {
-      const row = document.createElement("div"); row.className = "setup-check"; row.dataset.ready = String(check.ok);
-      const mark = svg("svg",{viewBox:"0 0 24 24","aria-hidden":"true"});
-      mark.append(svg("circle",{cx:12,cy:12,r:9}));
-      mark.append(svg("path",{d:check.ok ? "m7.5 12 3 3 6-6" : "M9 12h6"}));
-      const copy = document.createElement("div"), name = document.createElement("span"), detail = document.createElement("p");
-      name.textContent = check.name; detail.textContent = check.detail; copy.append(name,detail); row.append(mark,copy); fragment.append(row);
+    text("setup-summary", model.next);
+    const key = JSON.stringify(model.checks);
+    if (key !== setupKey) {
+      setupKey = key;
+      const fragment = document.createDocumentFragment();
+      for (const check of model.checks) {
+        const row = document.createElement("div"); row.className = "setup-check"; row.dataset.ready = String(check.ok);
+        const mark = svg("svg",{viewBox:"0 0 24 24","aria-hidden":"true"});
+        mark.append(svg("circle",{cx:12,cy:12,r:9}));
+        mark.append(svg("path",{d:check.ok ? "m7.5 12 3 3 6-6" : "M9 12h6"}));
+        const copy = document.createElement("div"), name = document.createElement("span"), detail = document.createElement("p");
+        name.textContent = check.name; detail.textContent = check.detail; detail.hidden = check.ok; copy.append(name,detail); row.append(mark,copy); fragment.append(row);
+      }
+      $("setup-checks").replaceChildren(fragment);
     }
-    $("setup-checks").replaceChildren(fragment);
     const framed = model.visible && Array.isArray(box) && box.length===4 && box.every(finite) && box[2]>0 && box[3]>0 && box.every(v=>v>=0 && v<=1);
     $("setup-face").toggleAttribute("hidden",!framed);
     if (framed) {
@@ -326,6 +346,7 @@
     }
     text("setup-sample",model.visible ? `${fmt(g.width)} × ${fmt(g.height)} px face crop` : state.detail ?? "Waiting for a camera sample");
     $("setup-calibrate").disabled = !model.visible;
+    text("setup-calibrate", model.ready ? "Refresh reference" : "Calibrate eyes");
     $("setup-allow").hidden = state.phase !== "cameraDenied";
     $("setup-retry").hidden = !["cameraMissing","cameraError","delayed"].includes(state.phase);
   }
@@ -476,7 +497,6 @@
     $("start-reset").disabled = state.phase === "paused";
     document.querySelectorAll("button[data-routine]").forEach(button => button.disabled = state.phase === "paused");
     text("recent-rate", fmt(stats.recentRate, 1)); $("recent-rate").classList.toggle("empty", !finite(stats.recentRate));
-    text("recent-rate-detail", `${fmt(stats.recentSeconds ?? 0)}s observed`);
     text("relative-rate-detail", finite(stats.baselineRate) ? `Usual ${fmt(stats.baselineRate, 1)} / min` : "Building your baseline");
     text("activity-exposure", `${fmt((today.trackedSeconds ?? 0) / 60, 1)} min observed today`);
     text("daily-rate", fmt(today.blinkRate, 1, " / min"));
@@ -500,7 +520,8 @@
       else if (document.activeElement !== input) input.value = value ?? "";
       if (input.type === "range" && document.activeElement !== input) text(`label-${key}`, preferenceLabel(key, Number(input.value)));
     });
-    text("footer-notice", state.notice || stats.warning || "");
+    const notice = state.notice || stats.warning || "";
+    text("footer-notice", notice); $("footer-notice").hidden = !notice;
     if (selected === 4) {
       if (studio === "setup") setupView(state);
       else { geometry(state); liveView(state); }

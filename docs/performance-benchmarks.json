@@ -1,0 +1,133 @@
+{
+  "date": "2026-10-24T20:33:15.045881+00:00",
+  "host": "macOS-26.5.1-x86_64-i386-64bit-Mach-O",
+  "command": "Scripts/benchmark.sh",
+  "limits": "Synthetic microbenchmarks. No camera, Vision, CPU contention, energy or long run memory measurement. No end to end latency claim.",
+  "models": {
+    "runtime": "v24.18.1",
+    "unit": "microseconds",
+    "fixture": "Synthetic bounded models; excludes DOM, camera and Vision",
+    "results": [
+      {
+        "name": "goals",
+        "samples": 500,
+        "medianUs": 2.252,
+        "p95Us": 5.871
+      },
+      {
+        "name": "recent",
+        "samples": 500,
+        "medianUs": 7.518,
+        "p95Us": 10.281
+      },
+      {
+        "name": "weightedWeek",
+        "samples": 500,
+        "medianUs": 1.011,
+        "p95Us": 1.624
+      },
+      {
+        "name": "contour8",
+        "samples": 500,
+        "medianUs": 6.821,
+        "p95Us": 10.463
+      },
+      {
+        "name": "contour32",
+        "samples": 500,
+        "medianUs": 15.677,
+        "p95Us": 44.883
+      },
+      {
+        "name": "motion1000",
+        "samples": 500,
+        "medianUs": 842.102,
+        "p95Us": 1115.288
+      },
+      {
+        "name": "setup",
+        "samples": 500,
+        "medianUs": 0.599,
+        "p95Us": 0.643
+      }
+    ]
+  },
+  "statistics": {
+    "fixture": "Isolated empty statistics store; excludes camera and Vision",
+    "results": [
+      {
+        "medianUs": 59.138,
+        "name": "statisticsSnapshot",
+        "p95Us": 65.499,
+        "samples": 1000
+      }
+    ],
+    "unit": "microseconds"
+  },
+  "rust": [
+    {
+      "architecture": "x86_64",
+      "workload": "calibrated_tracking",
+      "frame_rate_hz": 15,
+      "updates": 1000000,
+      "calibration_updates": 30,
+      "warmup_updates": 3000,
+      "landmarks_per_eye": 4,
+      "sample_every_updates": 97,
+      "samples": 10310,
+      "elapsed_seconds": 0.163568102,
+      "mean_ns_per_update": 163.568102,
+      "median_ns": 207,
+      "p95_ns": 231,
+      "blink_events": 16717
+    },
+    {
+      "architecture": "x86_64",
+      "workload": "calibrated_tracking",
+      "frame_rate_hz": 15,
+      "updates": 1000000,
+      "calibration_updates": 30,
+      "warmup_updates": 3000,
+      "landmarks_per_eye": 8,
+      "sample_every_updates": 97,
+      "samples": 10310,
+      "elapsed_seconds": 0.215506722,
+      "mean_ns_per_update": 215.506722,
+      "median_ns": 261,
+      "p95_ns": 289,
+      "blink_events": 16717
+    },
+    {
+      "architecture": "x86_64",
+      "workload": "calibrated_tracking",
+      "frame_rate_hz": 15,
+      "updates": 1000000,
+      "calibration_updates": 30,
+      "warmup_updates": 3000,
+      "landmarks_per_eye": 16,
+      "sample_every_updates": 97,
+      "samples": 10310,
+      "elapsed_seconds": 0.305271976,
+      "mean_ns_per_update": 305.271976,
+      "median_ns": 356,
+      "p95_ns": 376,
+      "blink_events": 16717
+    },
+    {
+      "architecture": "x86_64",
+      "workload": "calibrated_tracking",
+      "frame_rate_hz": 15,
+      "updates": 1000000,
+      "calibration_updates": 30,
+      "warmup_updates": 3000,
+      "landmarks_per_eye": 32,
+      "sample_every_updates": 97,
+      "samples": 10310,
+      "elapsed_seconds": 0.505588906,
+      "mean_ns_per_update": 505.58890599999995,
+      "median_ns": 556,
+      "p95_ns": 593,
+      "blink_events": 16717
+    }
+  ]
+}

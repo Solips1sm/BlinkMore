@@ -11,23 +11,25 @@ const CALIBRATION_UPDATES: usize = 30;
 const WARMUP_UPDATES: usize = 3_000;
 
 struct Frame {
-    left: [BMPoint; 8],
-    right: [BMPoint; 8],
+    left: Vec<BMPoint>,
+    right: Vec<BMPoint>,
 }
 
-fn eye(ratio: f64, center_x: f64, angle: f64) -> [BMPoint; 8] {
+fn eye(ratio: f64, center_x: f64, angle: f64, count: usize) -> Vec<BMPoint> {
     let (s, c) = angle.sin_cos();
-    std::array::from_fn(|i| {
-        let a = i as f64 * std::f64::consts::TAU / 8.0;
-        let (x, y) = (20.0 * a.cos(), 20.0 * ratio * a.sin());
-        BMPoint {
-            x: center_x + (x * c - y * s) / FACE_WIDTH,
-            y: 0.5 + (x * s + y * c) / FACE_HEIGHT,
-        }
-    })
+    (0..count)
+        .map(|i| {
+            let a = i as f64 * std::f64::consts::TAU / count as f64;
+            let (x, y) = (20.0 * a.cos(), 20.0 * ratio * a.sin());
+            BMPoint {
+                x: center_x + (x * c - y * s) / FACE_WIDTH,
+                y: 0.5 + (x * s + y * c) / FACE_HEIGHT,
+            }
+        })
+        .collect()
 }
 
-fn frame(i: usize) -> Frame {
+fn frame(i: usize, count: usize) -> Frame {
     let phase = i % 60;
     let blink = (34..=35).contains(&phase);
     let t = i as f64;
@@ -43,8 +45,8 @@ fn frame(i: usize) -> Frame {
     };
     let angle = 0.04 * (t * 0.11).sin();
     Frame {
-        left: eye(left_ratio, 0.34, angle),
-        right: eye(right_ratio, 0.66, -angle),
+        left: eye(left_ratio, 0.34, angle, count),
+        right: eye(right_ratio, 0.66, -angle, count),
     }
 }
 
@@ -67,7 +69,12 @@ fn process(tracker: &mut Tracker, input: BMInput) -> BMOutput {
 }
 
 fn main() {
-    let frames: Vec<_> = (0..60).map(frame).collect();
+    let count = std::env::args()
+        .nth(1)
+        .map(|v| v.parse::<usize>().expect("point count"))
+        .unwrap_or(8);
+    assert!((4..=32).contains(&count));
+    let frames: Vec<_> = (0..60).map(|i| frame(i, count)).collect();
     let mut tracker = Tracker::new();
     let mut timestamp = 0.0;
 
@@ -111,7 +118,7 @@ fn main() {
     let elapsed = start.elapsed().as_secs_f64();
     samples.sort_unstable();
     println!(
-        "{{\"architecture\":\"{}\",\"workload\":\"calibrated_tracking\",\"frame_rate_hz\":{FRAME_RATE},\"updates\":{UPDATES},\"calibration_updates\":{CALIBRATION_UPDATES},\"warmup_updates\":{WARMUP_UPDATES},\"landmarks_per_eye\":8,\"sample_every_updates\":{SAMPLE_EVERY},\"samples\":{},\"elapsed_seconds\":{elapsed},\"mean_ns_per_update\":{},\"median_ns\":{},\"p95_ns\":{},\"blink_events\":{blink_events}}}",
+        "{{\"architecture\":\"{}\",\"workload\":\"calibrated_tracking\",\"frame_rate_hz\":{FRAME_RATE},\"updates\":{UPDATES},\"calibration_updates\":{CALIBRATION_UPDATES},\"warmup_updates\":{WARMUP_UPDATES},\"landmarks_per_eye\":{count},\"sample_every_updates\":{SAMPLE_EVERY},\"samples\":{},\"elapsed_seconds\":{elapsed},\"mean_ns_per_update\":{},\"median_ns\":{},\"p95_ns\":{},\"blink_events\":{blink_events}}}",
         std::env::consts::ARCH,
         samples.len(),
         elapsed * 1e9 / UPDATES as f64,

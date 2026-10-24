@@ -76,6 +76,11 @@ import AppKit
         precondition(preferences.reminderSeconds == 3 && preferences.fadeSeconds == 1)
         preferences.reminderSeconds = 100; preferences.sensitivity = -1
         precondition(preferences.reminderSeconds == 30 && preferences.sensitivity == 0)
+        precondition(preferences.practiceGoal == 60 && preferences.practiceDayGoal == 3)
+        preferences.practiceGoal = 43; precondition(preferences.practiceGoal == 40)
+        preferences.practiceGoal = 999; preferences.practiceDayGoal = 0
+        precondition(preferences.practiceGoal == 600 && preferences.practiceDayGoal == 1)
+        precondition(AppPreferences(defaults: defaults).practiceGoal == 600)
         precondition(preferences.resetGoal == 1)
         preferences.resetGoal = 100; precondition(preferences.resetGoal == 10)
         preferences.theme = "dark"; preferences.theme = "invalid"

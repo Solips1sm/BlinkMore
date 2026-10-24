@@ -18,6 +18,13 @@ import WebKit
         defer { defaults.removePersistentDomain(forName:suite); try? FileManager.default.removeItem(at:temp) }
         let resources = Bundle.main.resourceURL?.appendingPathComponent("UI") ?? root.appendingPathComponent("BlinkMore/Resources/UI")
         let owner = ApplicationController(preferences:AppPreferences(defaults:defaults), statistics:DailyStatistics(url:temp.appendingPathComponent("stats.json")), resources:resources)
+        owner.command(["action":"set", "key":"practiceGoal", "value":43.0])
+        owner.command(["action":"set", "key":"practiceDayGoal", "value":4.0])
+        var goals = owner.snapshot()["preferences"] as! [String:Any]
+        precondition(goals["practiceGoal"] as? Double == 40 && goals["practiceDayGoal"] as? Double == 4)
+        owner.command(["action":"set", "key":"practiceGoal", "value":true])
+        goals = owner.snapshot()["preferences"] as! [String:Any]
+        precondition(goals["practiceGoal"] as? Double == 40)
         owner.installMenu()
         func ready(_ window: DashboardWindowController) async throws {
             for _ in 0..<100 {
