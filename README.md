@@ -8,7 +8,7 @@ This is a fork of [oxremy/BlinkMore](https://github.com/oxremy/BlinkMore), maint
 
 ![Light dashboard with synthetic QA data](docs/dashboard-light.png)
 
-The screenshots use explicit QA fixtures. They contain no real camera images or personal tracking data.
+The [Live studio](docs/dashboard-live.png) and [geometry view](docs/dashboard-geometry.png) show the measured contours and native motion history. The screenshots use explicit QA fixtures. They contain no real camera images or personal tracking data.
 
 ## Build and install
 

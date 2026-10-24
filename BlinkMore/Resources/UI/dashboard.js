@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id), svgNS = "http://www.w3.org/2000/svg";
   const finite = n => typeof n === "number" && Number.isFinite(n);
-  const fmt = (n, digits = 0, suffix = "") => finite(n) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n) + suffix : "Collecting";
+  const fmt = (n, digits = 0, suffix = "") => finite(n) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(Math.abs(n) < 0.5 * 10 ** -digits ? 0 : n) + suffix : "Collecting";
   const text = (id, value) => { const el = $(id); if (el && el.textContent !== String(value)) el.textContent = String(value); };
   const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
   const pages = ["activity", "practice", "history", "settings-page", "examine"], tabOrder = [0, 4, 1, 2, 3];

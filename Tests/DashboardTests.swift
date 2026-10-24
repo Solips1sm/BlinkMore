@@ -66,6 +66,7 @@ import WebKit
             try png.write(to: output.appendingPathComponent(name + ".png"))
         }
         try await refresh()
+        try await expect("const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return new Set(ids).size===ids.length",true)
         try await expect("await document.fonts.load('500 21px Comfortaa'); return [...document.fonts].some(f=>f.family==='Comfortaa' && f.status==='loaded')", true)
         try await expect("return document.querySelector('.identity h1').textContent", "eyesight")
         try await expect("const image=document.querySelector('.logo'); await image.decode(); return image.complete && image.naturalWidth > 0", true)
@@ -164,6 +165,9 @@ import WebKit
         _ = try await js("document.querySelector('[data-studio=\"geometry\"]').click()")
         try await expect("return document.getElementById('geometry-workspace').hidden", false)
         try await expect("return document.getElementById('left-span').textContent.includes('px')", true)
+        try await expect("return document.getElementById('left-area').textContent.includes('px²') && document.getElementById('right-area').textContent.includes('px²')",true)
+        try await expect("return document.querySelectorAll('#motion-left-fill stop').length",2)
+        try await expect("return document.getElementById('left-tilt').textContent", "0°")
         _ = try await js("document.getElementById('overlay-points').click()")
         try await expect("return getComputedStyle(document.getElementById('left-points')).display", "none")
         _ = try await js("document.getElementById('overlay-points').click();document.querySelector('.anatomy').open=true")

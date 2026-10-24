@@ -8,20 +8,20 @@
     "webModels": "passed",
     "swiftStatePoliciesABI": "passed",
     "blankFrameVision": "passed",
-    "nativeWKWebView": "passed for five pages, two themes, small window fit, geometry overlays, studio windows, native menu and blink icon",
+    "nativeWKWebView": "passed for five pages, two themes, small window fit, geometry overlays, studio windows, native menu and blink icon; unique SVG/DOM IDs, visible contour area and gradient integrity",
     "hardware": "Pending new executable camera consent and human observation"
   },
   "render": {
     "light": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 8.533333333333319,
-      "p95Ms": 9.999999999999545,
+      "meanMs": 6.8,
+      "p95Ms": 9,
       "samples": 30,
       "theme": "light"
     },
     "dark": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 6.366666666666697,
+      "meanMs": 6.566666666666666,
       "p95Ms": 8,
       "samples": 30,
       "theme": "dark"
