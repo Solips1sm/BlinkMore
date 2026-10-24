@@ -27,7 +27,7 @@ import WebKit
             preconditionFailure("Native window did not load its local interface")
         }
         func waitFor(_ condition: () -> Bool) async throws {
-            for _ in 0..<40 {
+            for _ in 0..<200 {
                 if condition() { return }
                 try await Task.sleep(for:.milliseconds(50))
             }
@@ -60,8 +60,28 @@ import WebKit
         }
         precondition(assets as? Bool == true, "Bundled SVG, stylesheet and controls must load")
         precondition(first.window!.collectionBehavior.contains(.moveToActiveSpace))
+
+        // Leaving setup must clear its native route before a reload.
+        let enterLive: Any = try await withCheckedThrowingContinuation { continuation in
+            first.webView.callAsyncJavaScript("document.getElementById('tab-live').click();return document.getElementById('examine').dataset.studio",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
+        }
+        precondition(enterLive as? String == "motion")
+        try await waitForStudio(first,"motion")
+        let enterSetup: Any = try await withCheckedThrowingContinuation { continuation in
+            first.webView.callAsyncJavaScript("document.querySelector('[data-setup]').click();return document.getElementById('examine').dataset.studio",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
+        }
+        precondition(enterSetup as? String == "setup")
+        try await waitForStudio(first,"setup")
+        let returnToLive: Any = try await withCheckedThrowingContinuation { continuation in
+            first.webView.callAsyncJavaScript("document.querySelector('#setup-workspace [data-studio=\"motion\"]').click();return document.getElementById('examine').dataset.studio",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
+        }
+        precondition(returnToLive as? String == "motion")
+        try await waitForStudio(first,"motion")
+        first.reloadInterface(); try await ready(first); try await waitForStudio(first,"motion")
+
         first.window!.orderOut(nil); owner.menu.item.button!.performClick(nil)
-        precondition(first.window!.isVisible)
+        precondition(first.window!.isVisible, "Clicking the status item must reopen a hidden dashboard")
+
         first.window!.close(); precondition(owner.dashboard == nil)
         owner.menu.item.button!.performClick(nil)
         let second = owner.dashboard!
@@ -99,18 +119,21 @@ import WebKit
         precondition(!reload.isHidden)
         reload.performClick(nil); try await ready(second)
         let manuallyReloadedStudio = try await studio(second); precondition(manuallyReloadedStudio == "setup")
-        second.present()
-        try await Task.sleep(for:.milliseconds(150))
+
+        fputs("Native controls, setup routing and WebKit recovery passed; checking strict native minimize behavior\n", stderr)
         let restoredWindow = second.window!
         guard let miniButton = restoredWindow.standardWindowButton(.miniaturizeButton) else {
             preconditionFailure("Dashboard miniaturize button was unavailable")
         }
         precondition(miniButton.isEnabled, "Dashboard miniaturize button should be enabled")
         miniButton.performClick(nil)
-        try await waitFor { second.window!.isMiniaturized }
-        precondition(second.window!.isMiniaturized)
+        try await waitFor { restoredWindow.isMiniaturized }
+        precondition(restoredWindow.isMiniaturized, "Clicking the enabled native miniaturize button must minimize the dashboard")
         owner.menu.item.button!.performClick(nil)
-        precondition(second.window!.isVisible && !second.window!.isMiniaturized)
+        try await waitFor { restoredWindow.isVisible && !restoredWindow.isMiniaturized }
+        precondition(restoredWindow.isVisible && !restoredWindow.isMiniaturized, "Clicking the status item must restore a minimized dashboard")
+        restoredWindow.orderOut(nil); owner.menu.item.button!.performClick(nil)
+        precondition(restoredWindow.isVisible, "Clicking the status item must reopen a hidden dashboard")
         second.window!.close()
         precondition(owner.applicationShouldTerminate(NSApp) == .terminateNow)
         owner.command(["action":"preview"])

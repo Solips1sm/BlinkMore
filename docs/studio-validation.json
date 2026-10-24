@@ -12,8 +12,8 @@
     "blankFrameVision": "passed including bounded 96-buffer release and stop drain",
     "nativeOverlay": "passed screen geometry, all Spaces, immediate hiding, interrupted animation and screen rebuild",
     "nativeWKWebView": "passed all five pages, themes, minimum size, mirror replay, setup recovery, coverage clipping/empty state, SVG references and privacy artwork",
-    "signedBundleSmoke": "passed in isolated signed sandbox app with production entitlements, bundled CSS/SVG/JS, navigation, reload, minimize and reopen, camera inactive",
-    "consolidatedNativeHarness": "pending investigation of programmatic minimize behavior after merging signed fixture coverage; prior independent signed smoke passed",
+    "signedBundleSmoke": "Resource, stylesheet, SVG, bridge and navigation checks pass in an isolated signed sandbox fixture with production entitlements and no camera. One initial independent minimize/reopen pass was not reproducible in later runs.",
+    "consolidatedNativeHarness": "Controls, hidden/closed window reopening, indicator states, setup routing and WebKit recovery pass before the strict minimize assertion fails. A separate stock NSWindow probe also failed to minimize. Full suite acceptance remains open; raw evidence: docs/native-minimize-host.txt.",
     "hardware": "Camera allowed on 2.8 and current 2.8.1 reports calibrated native tracking. Final user window/mirror confirmation and physical fade, AC, lock/sleep/wake checks pending."
   },
   "render": {
@@ -36,6 +36,7 @@
     "Rust microbenchmark excludes capture, Vision and display. No accuracy or arbitrary-load deadline claim.",
     "Initial lock state uses an undocumented macOS session key plus lifecycle notifications and requires physical checks per release.",
     "The live memory improvement requires a longer controlled camera run; short samples cannot prove leak elimination.",
-    "The outgoing network client entitlement is required for WebKit helper startup; CSP blocks network connections and navigation accepts only the bundled main file."
+    "The outgoing network client entitlement is required for WebKit helper startup; CSP blocks network connections and navigation accepts only the bundled main file.",
+    "Programmatic window minimization is unresolved on this desktop session. A stock window reproduced the symptom; this does not establish that physical user minimization works."
   ]
 }

@@ -1,0 +1,73 @@
+Native minimize host probe
+Captured 2026-10-24 21:15:28 EEST
+Host: macOS 26.5.1 (25F80), x86_64
+Probe: a separately signed, camera-free stock AppKit bundle launched through /usr/bin/open -W -n. Window style was exactly [.titled, .miniaturizable, .closable]. Before each action the app was active, the window was key and visible, isMiniaturized was false, and the miniaturize standard button was enabled. Observers watched willMiniaturizeNotification and didMiniaturizeNotification. Each test waited 1.5 seconds after the action. Exit status from `open` was 0 for all runs. The app bundle had no LSUIElement key. Activation policy raw value 0 is .regular; raw value 1 is .accessory.
+
+Commands used:
+`/usr/bin/open -W -n --stdout <log> --stderr <log> /tmp/eyesight-stock-minimize/StockMiniProbe.app --args <policy> <operation>`
+Operations: `button` calls `standardWindowButton(.miniaturizeButton)?.performClick(nil)`; `direct` calls `window.miniaturize(nil)`; `perform` calls `window.performMiniaturize(nil)`.
+
+Accessory policy (raw value 1):
+policy-set=true
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=accessory operation=button minimized=false notified=false
+
+policy-set=true
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=accessory operation=direct minimized=false notified=false
+
+policy-set=true
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=accessory operation=perform minimized=false notified=false
+
+Regular policy (raw value 0; default bundle policy):
+policy-set=false
+activation-policy-raw=0
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=regular operation=button minimized=false notified=false
+
+policy-set=false
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=regular operation=direct minimized=false notified=false
+
+policy-set=false
+before-active=true
+before-key=true
+before-visible=true
+before-mini=false
+button-enabled=true
+after-click-active=true
+after-click-mini=false
+RESULT policy=regular operation=perform minimized=false notified=false
+
+Conclusion: on this host, stock AppKit's enabled miniaturize button and both documented/programmatic entry points all failed to miniaturize in both .accessory and .regular activation policies; no will/did notifications were delivered. The isolated BlinkMore signed-bundle test also remains failing its strict miniaturized-state assertion. This supports a host/AppKit limitation for this test session, not a successful minimize result. The known earlier bundled smoke pass is not reproducible with the current minimized-only stock control or current production bundle.
