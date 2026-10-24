@@ -27,9 +27,13 @@ import Foundation
         precondition(step(2.20, closed: false).flags & 4 == 0)
         precondition(bm_tracker_invalidate(tracker).calibration == 1)
         precondition(step(2.24, closed: false).open_seconds == 0)
+        for i in 1...45 { _ = step(2.24 + Double(i) / 30, closed: true) }
+        let long = step(3.8, closed: false)
+        precondition(long.flags & 32 != 0 && long.flags & 4 == 0)
+        precondition(step(3.84, closed: false).flags & 32 == 0)
         precondition(step(2.19, closed: false).phase == 5)
         bm_tracker_reset(tracker)
         precondition(step(3, closed: false).phase == 1)
-        print("Swift to Rust ABI tests passed: layout, borrowed buffers, calibration, blink, stale input, reset")
+        print("Swift to Rust ABI tests passed: layout, borrowed buffers, calibration, blink, long closure, stale input, reset")
     }
 }

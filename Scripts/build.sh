@@ -20,8 +20,8 @@ swiftc -O -parse-as-library Scripts/MakeIcon.swift BlinkMore/UI/MenuBarControlle
 dist/make-icon dist/iconset.iconset
 iconutil -c icns dist/iconset.iconset -o "$app/Contents/Resources/AppIcon.icns"
 cp BlinkMore/Info.plist "$app/Contents/Info.plist"
-rm -rf "$app/Contents/Resources/UI"
-cp -R BlinkMore/Resources/UI "$app/Contents/Resources/UI"
+rm -rf "$app/Contents/Resources/UI" "$app/Contents/Resources/Icons"
+cp -R BlinkMore/Resources/Icons "$app/Contents/Resources/Icons"
 cp LICENSE.md "$app/Contents/Resources/LICENSE.md"
 cp LICENSE-RUST-STD "$app/Contents/Resources/LICENSE-RUST-STD"
 codesign --force --sign "${BLINKMORE_SIGN_IDENTITY:--}" --entitlements BlinkMore/BlinkMore.entitlements "$app"

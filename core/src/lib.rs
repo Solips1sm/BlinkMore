@@ -6,6 +6,7 @@ pub const CALIBRATED: u32 = 2;
 pub const BLINK: u32 = 4;
 pub const LEFT_ONLY: u32 = 8;
 pub const RIGHT_ONLY: u32 = 16;
+pub const LONG_CLOSURE: u32 = 32;
 const MAX_POINTS: usize = 32;
 const MAX_GAP: f64 = 0.25;
 
@@ -305,6 +306,8 @@ impl Tracker {
                             flags |= RIGHT_ONLY;
                         }
                     }
+                } else if t - start > 1.2 && self.episode_overlap {
+                    flags |= LONG_CLOSURE;
                 }
                 self.episode_start = None;
                 self.episode_mask = 0;
@@ -487,7 +490,10 @@ mod tests {
         for i in 1..=45 {
             step(&mut tracker, 2.0 + i as f64 / 30.0, 0.02, 0.02);
         }
-        assert_eq!(step(&mut tracker, 3.54, 0.30, 0.22).flags & BLINK, 0);
+        let opened = step(&mut tracker, 3.54, 0.30, 0.22);
+        assert_eq!(opened.flags & BLINK, 0);
+        assert_ne!(opened.flags & LONG_CLOSURE, 0);
+        assert_eq!(step(&mut tracker, 3.58, 0.30, 0.22).flags & LONG_CLOSURE, 0);
     }
 
     #[test]

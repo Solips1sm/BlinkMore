@@ -27,9 +27,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         menu = MenuBarController()
-        menu.onOpen = { [weak self] in self?.openDashboard() }
-        menu.onPause = { [weak self] in self?.togglePause() }
-        menu.onCalibrate = { [weak self] in self?.tracker?.recalibrate() }
+        menu.onOpen = { [weak self] tab in self?.openDashboard(tab: tab) }
+        menu.onCommand = { [weak self] message in self?.command(message) }
+        menu.snapshot = { [weak self] in self?.snapshot() ?? [:] }
+        let mainMenu = NSMenu()
+        let appMenu = NSMenu()
+        let appItem = NSMenuItem(); appItem.submenu = appMenu; mainMenu.addItem(appItem)
+        let settings = NSMenuItem(title: "Settings…", action: #selector(openSettings), keyEquivalent: ",")
+        settings.target = self; appMenu.addItem(settings)
+        let close = NSMenuItem(title: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        appMenu.addItem(close); NSApp.mainMenu = mainMenu
         preferences.onChange = { [weak self] in
             guard let self = self else { return }
             self.applyTheme(); self.tracker?.setSensitivity(self.preferences.sensitivity)
@@ -42,6 +49,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         powerTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.reconcile(); self?.writeDiagnostics() }
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.updateFade() }
         saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.statistics.flush() }
+        // Power checks and fade safety must continue while a native menu is tracking.
+        for timer in [powerTimer, fadeTimer, saveTimer].compactMap({ $0 }) { RunLoop.main.add(timer, forMode: .common) }
         if !UserDefaults.standard.bool(forKey: "dashboardIntroducedV2") {
             UserDefaults.standard.set(true, forKey: "dashboardIntroducedV2")
             openDashboard()
@@ -116,7 +125,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                 self.latency.append(value.latencyMs)
                 if self.latency.count > 120 { self.latency.removeFirst(self.latency.count - 120) }
             }
-            self.menu.update(value.phase); self.updateFade()
+            self.menu.update(value.phase)
+            if value.events & 4 != 0 { self.menu.blink() }
+            self.updateFade()
         }
         tracker = service; service.start()
     }
@@ -165,11 +176,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         }
     }
 
-    func openDashboard() {
+    @objc private func openSettings() { openDashboard(tab: 2) }
+
+    func openDashboard(tab: Int? = nil) {
         if dashboard == nil {
             dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot() ?? [:] }, command: { [weak self] in self?.command($0) })
             dashboard?.onClose = { [weak self] in self?.dashboard = nil }
         }
+        if let tab = tab { dashboard?.selectTab(tab) }
         dashboard?.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

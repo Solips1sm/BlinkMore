@@ -66,6 +66,50 @@ import AppKit
         precondition(preferences.theme == "dark")
         precondition(!preferences.setColor(hex: "<script>"))
         precondition(preferences.setColor(hex: "#123abc") && preferences.colorHex == "#123abc")
-        print("State tests passed: persistence, reset ordering, recovery, DST rollover, validation, preferences")
+        let legacyData = Data("""
+        [{"day":"2026-10-24","trackedSeconds":60,"blinks":12,"leftClosures":1,"rightClosures":2,"reminders":0,"asymmetryWeighted":0,"asymmetrySeconds":0}]
+        """.utf8)
+        let legacyURL = root.appendingPathComponent("legacy.json")
+        try legacyData.write(to: legacyURL)
+        let legacy = DailyStatistics(url: legacyURL, now: date)
+        let old = legacy.snapshot(now: date)["today"] as! [String: Any]
+        precondition(old["blinks"] as? Int == 12 && old["longClosures"] is NSNull)
+        precondition((legacy.snapshot(now: date)["warning"] as! String).isEmpty)
+        let metrics = DailyStatistics(url: root.appendingPathComponent("metrics.json"), now: date)
+        let priorDay = date.addingTimeInterval(-86400)
+        var measured = TrackingFrame(phase: .tracking)
+        measured.trackedDelta = 0.1; measured.calibrated = true
+        for i in 0..<3000 {
+            measured.events = i % 50 == 0 ? 7 : 3
+            metrics.record(measured, now: priorDay)
+        }
+        for i in 0..<600 {
+            measured.events = i % 100 < 3 ? 7 : 3
+            metrics.record(measured, now: date)
+        }
+        let comparison = metrics.snapshot(now: date)
+        precondition(abs((comparison["baselineRate"] as! Double) - 12) < 0.001)
+        precondition(abs((comparison["relativePercent"] as! Double) - 50) < 0.001)
+        precondition(abs((comparison["recentRate"] as! Double) - 18) < 0.001)
+        precondition(metrics.snapshot(now: date.addingTimeInterval(60))["recentRate"] is NSNull)
+        measured.phase = .eyesClosed; measured.closedMask = 3; measured.events = 3
+        for _ in 0..<100 { metrics.record(measured, now: date) }
+        measured.phase = .tracking; measured.closedMask = 0; measured.events = 35
+        metrics.record(measured, now: date)
+        let closure = metrics.snapshot(now: date)["today"] as! [String: Any]
+        precondition(closure["longClosures"] as? Int == 1)
+        precondition(abs((closure["closedPercent"] as! Double) - 10 / 70.1 * 100) < 0.001)
+        precondition(closure["blinks"] as? Int == 18)
+        precondition(!DailyRecord(day: "2026-10-24", bothClosedSeconds: 2, calibratedSeconds: 1).valid)
+        precondition(!DailyRecord(day: "2026-10-24", calibratedSeconds: .nan).valid)
+        let collecting = DailyStatistics(url: root.appendingPathComponent("collecting.json"), now: date)
+        measured.events = 3
+        for _ in 0..<149 { collecting.record(measured, now: date) }
+        precondition(collecting.snapshot(now: date)["recentRate"] is NSNull)
+        collecting.record(measured, now: date)
+        precondition(collecting.snapshot(now: date)["recentRate"] as? Double == 0)
+        try metrics.reset()
+        precondition(metrics.snapshot(now: date)["recentRate"] is NSNull)
+        print("State tests passed: persistence, legacy history, rate windows, personal baseline, closure types, reset, recovery, DST, validation, preferences")
     }
 }

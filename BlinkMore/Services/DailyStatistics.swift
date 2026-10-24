@@ -9,13 +9,19 @@ struct DailyRecord: Codable {
     var reminders = 0
     var asymmetryWeighted: Double = 0
     var asymmetrySeconds: Double = 0
+    // Optional fields keep history from earlier builds readable without inventing measurements.
+    var longClosures: Int?
+    var bothClosedSeconds: Double?
+    var calibratedSeconds: Double?
 
     var valid: Bool {
         Self.validDay(day) &&
         trackedSeconds.isFinite && (0...90001).contains(trackedSeconds) &&
         asymmetryWeighted.isFinite && asymmetryWeighted >= 0 && asymmetryWeighted <= asymmetrySeconds + 0.000001 &&
         asymmetrySeconds.isFinite && (0...90001).contains(asymmetrySeconds) &&
-        [blinks, leftClosures, rightClosures, reminders].allSatisfy { (0...1_000_000).contains($0) }
+        [blinks, leftClosures, rightClosures, reminders, longClosures ?? 0].allSatisfy { (0...1_000_000).contains($0) } &&
+        (calibratedSeconds ?? 0).isFinite && (0...90001).contains(calibratedSeconds ?? 0) &&
+        (bothClosedSeconds ?? 0).isFinite && (0...(calibratedSeconds ?? 0) + 0.000001).contains(bothClosedSeconds ?? 0)
     }
     private static func validDay(_ day: String) -> Bool {
         let parts = day.split(separator: "-", omittingEmptySubsequences: false)
@@ -28,8 +34,11 @@ struct DailyRecord: Codable {
     var json: [String: Any] {
         ["day": day, "trackedSeconds": trackedSeconds, "blinks": blinks,
          "leftClosures": leftClosures, "rightClosures": rightClosures, "reminders": reminders,
-         "blinkRate": trackedSeconds >= 30 ? Double(blinks) * 60 / trackedSeconds : NSNull(),
-         "asymmetry": asymmetrySeconds >= 5 ? asymmetryWeighted / asymmetrySeconds * 100 : NSNull()]
+         "longClosures": longClosures.map { $0 as Any } ?? NSNull(),
+         "bothClosedSeconds": bothClosedSeconds.map { $0 as Any } ?? NSNull(),
+         "closedPercent": (calibratedSeconds ?? 0) + 0.000001 >= 30 ? (bothClosedSeconds ?? 0) / calibratedSeconds! * 100 : NSNull(),
+         "blinkRate": trackedSeconds + 0.000001 >= 30 ? Double(blinks) * 60 / trackedSeconds : NSNull(),
+         "asymmetry": asymmetrySeconds + 0.000001 >= 5 ? asymmetryWeighted / asymmetrySeconds * 100 : NSNull()]
     }
 }
 
@@ -45,6 +54,7 @@ final class DailyStatistics {
     private var dayStart: Date
     private var nextMidnight: Date
     private let formatter: DateFormatter
+    private var recent: [(second: Int, tracked: Double, blinks: Int)] = []
 
     init(url: URL? = nil, now: Date = Date()) {
         formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -87,11 +97,21 @@ final class DailyStatistics {
         if frame.events & 4 != 0 { value.blinks += 1 }
         if frame.events & 8 != 0 { value.leftClosures += 1 }
         if frame.events & 16 != 0 { value.rightClosures += 1 }
+        if frame.calibrated {
+            value.longClosures = (value.longClosures ?? 0) + (frame.events & 32 != 0 ? 1 : 0)
+            value.calibratedSeconds = (value.calibratedSeconds ?? 0) + frame.trackedDelta
+            value.bothClosedSeconds = (value.bothClosedSeconds ?? 0) + (frame.closedMask == 3 ? frame.trackedDelta : 0)
+        }
         if frame.phase == .tracking && frame.calibrated && frame.asymmetry.isFinite {
             value.asymmetryWeighted += frame.asymmetry.clamped(to: 0...1) * frame.trackedDelta
             value.asymmetrySeconds += frame.trackedDelta
         }
         records[day] = value; dirty = true
+        let second = Int(now.timeIntervalSince1970)
+        recent.removeAll { $0.second < second - 59 || $0.second > second }
+        if recent.last?.second != second { recent.append((second, 0, 0)) }
+        recent[recent.count - 1].tracked += frame.trackedDelta
+        recent[recent.count - 1].blinks += frame.events & 4 != 0 ? 1 : 0
     }
 
     func reminder(now: Date = Date()) {
@@ -109,8 +129,22 @@ final class DailyStatistics {
             let key = formatter.string(from: date)
             return (records[key] ?? DailyRecord(day: key)).json
         }
-        return ["today": (records[day] ?? DailyRecord(day: day)).json,
-                "week": week, "warning": warning ?? ""]
+        let prior = week.dropLast().filter { ($0["trackedSeconds"] as? Double ?? 0) + 0.000001 >= 30 }
+        let priorSeconds = prior.reduce(0.0) { $0 + ($1["trackedSeconds"] as? Double ?? 0) }
+        let priorBlinks = prior.reduce(0) { $0 + ($1["blinks"] as? Int ?? 0) }
+        let baseline = priorSeconds + 0.000001 >= 300 ? Double(priorBlinks) * 60 / priorSeconds : nil
+        let today = records[day] ?? DailyRecord(day: day)
+        let rate = today.trackedSeconds + 0.000001 >= 30 ? Double(today.blinks) * 60 / today.trackedSeconds : nil
+        let relative = baseline.flatMap { base in rate.flatMap { base > 0 ? ($0 / base - 1) * 100 : nil } }
+        let second = Int(now.timeIntervalSince1970)
+        let window = recent.filter { $0.second >= second - 59 && $0.second <= second }
+        let seconds = window.reduce(0.0) { $0 + $1.tracked }
+        let blinks = window.reduce(0) { $0 + $1.blinks }
+        return ["today": today.json, "week": week, "warning": warning ?? "",
+                "baselineRate": baseline.map { $0 as Any } ?? NSNull(),
+                "relativePercent": relative.map { $0 as Any } ?? NSNull(),
+                "recentRate": seconds + 0.000001 >= 15 ? Double(blinks) * 60 / seconds : NSNull(),
+                "recentSeconds": seconds]
     }
 
     func exportData() throws -> Data {
@@ -147,7 +181,7 @@ final class DailyStatistics {
                 guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw CocoaError(.fileWriteInvalidFileName) }
                 try FileManager.default.removeItem(at: url)
             }
-            records.removeAll(); dirty = false; warning = nil; saveAllowed = true
+            records.removeAll(); recent.removeAll(); dirty = false; warning = nil; saveAllowed = true
         }
     }
 
