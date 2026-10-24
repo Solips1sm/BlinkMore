@@ -55,7 +55,10 @@ import Vision
         }
         precondition(frames.contains { $0.0 == .noFace } && frames.allSatisfy { [.noFace, .delayed].contains($0.0) })
         let searches = frames.filter { $0.0 == .noFace }
-        for pair in zip(searches, searches.dropFirst()) { precondition(pair.1.1 - pair.0.1 >= 0.15) }
+        if let first = searches.first, let last = searches.last {
+            // Search starts are 200 ms apart; admitted captures can differ in age by 100 ms.
+            precondition(Double(searches.count - 1) * 0.2 <= last.1 - first.1 + 0.1 + 1e-6)
+        }
         await withCheckedContinuation { continuation in service.stop { continuation.resume() } }
         // A separate pipeline cannot confuse a pending fresh result with the stale probe.
         var staleFrames: [TrackingFrame] = []
