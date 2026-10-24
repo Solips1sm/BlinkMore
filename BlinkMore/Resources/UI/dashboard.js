@@ -1,95 +1,172 @@
 "use strict";
 (() => {
-  const $ = id => document.getElementById(id);
-  const svgNS = "http://www.w3.org/2000/svg";
+  const $ = id => document.getElementById(id), svgNS = "http://www.w3.org/2000/svg";
   const finite = n => typeof n === "number" && Number.isFinite(n);
-  const fmt = (n, digits = 0, suffix = "") => finite(n) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: digits, minimumFractionDigits: digits }).format(n) + suffix : "Collecting";
+  const fmt = (n, digits = 0, suffix = "") => finite(n) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n) + suffix : "Collecting";
   const text = (id, value) => { const el = $(id); if (el && el.textContent !== String(value)) el.textContent = String(value); };
-  const send = message => window.webkit?.messageHandlers?.blinkmore?.postMessage(message);
-  const tabs = ["activity", "geometry", "settings-page"];
-  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "";
-  function selectTab(index, focus = false) {
-    if (!Number.isInteger(index) || index < 0 || index > 2) return;
-    selected = index;
-    document.querySelectorAll("[data-tab]").forEach((button, i) => {
-      button.setAttribute("aria-selected", String(i === index)); button.tabIndex = i === index ? 0 : -1;
-      $(tabs[i]).hidden = i !== index;
-      if (focus && i === index) button.focus();
-    });
-    if (current && index === 1) geometry(current);
+  const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
+  const pages = ["activity", "practice", "history", "settings-page"];
+  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", historySelection = null;
+  function svg(name, attributes = {}) {
+    const node = document.createElementNS(svgNS, name);
+    Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value))); return node;
   }
-  document.querySelectorAll("[data-tab]").forEach((button, index) => {
-    button.addEventListener("click", () => selectTab(index));
+  function selectTab(index, focus = false) {
+    if (!Number.isInteger(index) || index < 0 || index >= pages.length) return;
+    if (selected === 1 && index !== 1 && ["running", "paused", "completed"].includes(current?.exercise?.phase)) send({ action: "exercise", command: "end" });
+    selected = index; document.body.dataset.page = String(index);
+    document.querySelectorAll("[data-tab]").forEach(button => {
+      const active = Number(button.dataset.tab) === index;
+      button.setAttribute("aria-selected", String(active)); button.tabIndex = active ? 0 : -1;
+      if (active && focus) button.focus();
+    });
+    pages.forEach((page, i) => $(page).hidden = i !== index);
+    if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
+    if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); }
+    if (current && index === 3 && $("measurement-details").open) geometry(current);
+  }
+  document.querySelectorAll("[data-tab]").forEach(button => {
+    button.addEventListener("click", () => selectTab(Number(button.dataset.tab)));
     button.addEventListener("keydown", event => {
-      let next;
-      if (event.key === "ArrowRight") next = (index + 1) % 3;
-      else if (event.key === "ArrowLeft") next = (index + 2) % 3;
-      else if (event.key === "Home") next = 0;
-      else if (event.key === "End") next = 2;
-      else return;
-      event.preventDefault(); selectTab(next, true);
+      const i = Number(button.dataset.tab);
+      const next = event.key === "ArrowRight" ? (i + 1) % 4 : event.key === "ArrowLeft" ? (i + 3) % 4 : event.key === "Home" ? 0 : event.key === "End" ? 3 : null;
+      if (next === null) return; event.preventDefault(); selectTab(next, true);
     });
   });
   document.querySelectorAll("[data-action]").forEach(button => button.addEventListener("click", () => send({ action: button.dataset.action })));
-  document.querySelectorAll("[data-go-settings]").forEach(button => button.addEventListener("click", () => selectTab(2)));
+  document.querySelectorAll("[data-exercise]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: button.dataset.exercise })));
+  document.querySelectorAll("[data-routine]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: "start", routine: button.dataset.routine })));
+  document.querySelectorAll("[data-history]").forEach(button => button.addEventListener("click", () => selectTab(2)));
+  document.querySelectorAll("[data-inspect]").forEach(button => button.addEventListener("click", () => { selectTab(3); $("measurement-details").open = true; if (current) geometry(current); }));
+  $("measurement-details").addEventListener("toggle", () => { if (current && $("measurement-details").open) geometry(current); });
   $("theme-cycle").addEventListener("click", () => {
-    const choices = ["system", "light", "dark"], value = choices[(choices.indexOf(current?.preferences?.theme ?? "system") + 1) % 3];
-    send({ action: "set", key: "theme", value });
+    const choices = ["system", "light", "dark"]; send({ action: "set", key: "theme", value: choices[(choices.indexOf(current?.preferences?.theme ?? "system") + 1) % 3] });
   });
   const preferenceLabel = (key, n) => ["intensity", "sensitivity"].includes(key) ? fmt(n * 100, 0, "%") : ["reminderSeconds", "fadeSeconds"].includes(key) ? fmt(n, key === "fadeSeconds" ? 1 : 0, "s") : fmt(n);
   document.querySelectorAll("[data-preference]").forEach(input => {
     input.addEventListener("input", () => { if (input.type === "range") text(`label-${input.dataset.preference}`, preferenceLabel(input.dataset.preference, Number(input.value))); });
     input.addEventListener("change", () => {
-      if (input.type === "checkbox") {
-        const frame = input.closest(".anistratenco-checkbox-frame");
-        frame.dataset.activation = frame.dataset.activation === "first" ? "repeat" : "first";
-      }
+      if (input.type === "checkbox") { const f = input.closest(".anistratenco-checkbox-frame"); f.dataset.activation = f.dataset.activation === "first" ? "repeat" : "first"; }
       send({ action: "set", key: input.dataset.preference, value: input.type === "checkbox" ? input.checked : input.type === "range" ? Number(input.value) : input.value });
     });
   });
-  function rings(state) {
-    const stats = state.statistics, model = BlinkMetrics.activity(stats.today, stats.week, stats.lifetime, state.preferences);
-    const labels = ["blinks", "minutes", "days"];
-    const accessible = [];
-    model.rings.forEach((ring, i) => {
-      const key = labels[i], circle = $(`ring-${key}`), radius = Number(circle.getAttribute("r")), circumference = Math.PI * 2 * radius;
-      const offset = String(circumference * (1 - ring.progress));
-      if (circle.style.strokeDashoffset !== offset) { circle.style.strokeDasharray = String(circumference); circle.style.strokeDashoffset = offset; }
-      text(`goal-${key}`, `${fmt(ring.current, i === 1 ? 1 : 0)} / ${fmt(ring.goal)}`);
-      text(`percent-${key}`, ring.goal === null ? "No goal" : fmt(ring.current / ring.goal * 100, 0, "%"));
-      accessible.push(`${key}: ${fmt(ring.current, i === 1 ? 1 : 0)} of ${fmt(ring.goal)}`);
-    });
-    $("activity-rings").setAttribute("aria-label", accessible.join(", "));
-    text("goals-complete", `${model.rings.filter(r => r.goal !== null && r.progress >= 1).length} of 3 goals`);
-    text("ring-center-value", fmt(stats.today?.blinks ?? 0));
-    const key = model.achievements.map(a => `${a.earned}-${Math.floor(a.progress * 100)}`).join("/");
-    if (key !== achievementKey) {
-      achievementKey = key;
-      const fragment = document.createDocumentFragment();
-      model.achievements.forEach(a => {
-        const card = document.createElement("div"); card.className = `achievement${a.earned ? " earned" : ""}`;
-        card.setAttribute("aria-label", `${a.name}. ${a.detail}. ${a.earned ? "Earned" : fmt(a.progress * 100, 0, "% complete")}`);
-        const medal = document.createElement("span"); medal.className = "achievement-medal";
-        const svg = document.createElementNS(svgNS, "svg"), use = document.createElementNS(svgNS, "use"); use.setAttribute("href", `#${a.glyph}`); svg.setAttribute("aria-hidden", "true"); svg.append(use); medal.append(svg);
-        const words = document.createElement("div"), title = document.createElement("strong"), detail = document.createElement("p");
-        title.textContent = a.name; detail.textContent = a.earned ? "Earned" : fmt(a.progress * 100, 0, "% complete"); words.append(title, detail); card.append(medal, words); card.title = a.detail; fragment.append(card);
-      });
-      $("achievement-grid").replaceChildren(fragment);
-    }
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && current?.exercise?.phase === "running") { event.preventDefault(); send({ action: "exercise", command: "pause" }); $("exercise-resume").focus(); }
+  });
+  function live(state) {
+    const active = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    $("live-instrument").classList.toggle("unavailable", !active);
+    ["left", "right"].forEach((side, i) => $(`${side}-live`).setAttribute("d", active ? BlinkMetrics.aperture(state[side], i === 0 ? 112 : 328, 66, 176) ?? "" : ""));
+    $("live-eyes").setAttribute("aria-label", active ? `Relative eyelid opening. Left ${fmt(state.left * 100)} percent, right ${fmt(state.right * 100)} percent of each reference.` : "Live eyelid data unavailable");
   }
-  function history(week = []) {
-    const key = JSON.stringify(week.map(d => [d.day, finite(d.blinkRate) ? d.blinkRate.toFixed(1) : null]));
-    if (key === historyKey) return; historyKey = key;
-    const maximum = Math.max(1, ...week.map(d => finite(d.blinkRate) ? d.blinkRate : 0)), fragment = document.createDocumentFragment(), descriptions = [];
-    week.slice(-7).forEach((day, i) => {
-      const column = document.createElement("div"), rate = document.createElement("strong"), bar = document.createElement("i"), label = document.createElement("span");
-      const valid = finite(day.blinkRate); column.className = `day-column${i === week.length - 1 ? " today" : ""}${valid ? "" : " empty"}`;
-      rate.textContent = valid ? fmt(day.blinkRate, 1) : "No data"; bar.style.height = `${valid ? Math.max(3, day.blinkRate / maximum * 63) : 3}px`;
-      const date = new Date(`${day.day}T12:00:00`); label.textContent = Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date) : "";
-      const description = `${day.day}: ${valid ? fmt(day.blinkRate, 1) + " per tracked minute" : "no data"}`;
-      column.title = description; descriptions.push(description); column.append(rate, bar, label); fragment.append(column);
+  function blinkPulse(state) {
+    const blinks = state.statistics.lifetime?.blinks;
+    if (finite(blinks) && lastBlinks !== null && blinks > lastBlinks) {
+      for (const id of ["live-instrument", "exercise-art"]) $(id).dataset.blink = $(id).dataset.blink === "first" ? "repeat" : "first";
+    }
+    if (finite(blinks)) lastBlinks = blinks;
+  }
+  function rhythm(bins = []) {
+    const key = JSON.stringify(bins); if (key === rhythmKey) return; rhythmKey = key;
+    const fragment = document.createDocumentFragment(); let observed = 0, blinks = 0;
+    Array.from({ length: 60 }, (_, i) => bins[i] ?? {}).forEach((bin, i) => {
+      const tracked = finite(bin.tracked) && bin.tracked > 0, count = finite(bin.blinks) ? Math.max(0, Math.floor(bin.blinks)) : 0;
+      const height = !tracked ? 18 : count > 0 ? 10 + 7 * Math.min(count, 3) : 2;
+      fragment.append(svg("path", { d: `M${12 + i * 10.4} ${32 - height / 2}v${height}`, class: !tracked ? "rhythm-gap" : count > 0 ? "rhythm-event" : "rhythm-coverage" }));
+      if (tracked) { observed += bin.tracked; blinks += count; }
     });
-    $("week-chart").replaceChildren(fragment); $("week-chart").setAttribute("aria-label", descriptions.join(", "));
+    if (observed === 0) fragment.replaceChildren(svg("path", { d: "M12 32H628", class: "rhythm-gap" }));
+    $("rhythm-chart").replaceChildren(fragment);
+    $("rhythm-chart").setAttribute("aria-label", `${fmt(blinks)} detected blinks in ${fmt(observed)} tracked seconds. Dashed intervals have no observations. Mark height caps at three events per second.`);
+  }
+  const medal = {
+    moment: "M7 29h34M13 28a11 11 0 0 1 22 0M24 9v5M10 15l4 4M38 15l-4 4M13 36h22",
+    petals: "M24 24C2 4 2 44 24 24C44 2 4 2 24 24C46 44 46 4 24 24C4 46 44 46 24 24ZM20 24h8M24 20v8",
+    orbit: "M11 35A17 17 0 1 1 37 35M24 3v6M3 24h6M39 24h6M24 15v9l8 6M16 42h16",
+    days: "M6 33V24M12 33V16M18 33V20M24 33V10M30 33V17M36 33V13M42 33V22M6 39h36"
+  };
+  function progress(state) {
+    const stats = state.statistics, model = BlinkMetrics.activity(stats.today, stats.week, stats.lifetime, state.preferences);
+    model.gauges.forEach((g, i) => {
+      const name = i === 0 ? "minutes" : "days", unit = i === 0 ? "min" : "days";
+      $("gauge-" + name).style.strokeDashoffset = String(100 * (1 - g.progress));
+      text("goal-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} ${unit}`);
+      text(i === 0 ? "time-goal-note" : "day-goal-note", `Goal ${fmt(g.goal)} ${unit}${i === 1 ? " in seven" : ""}`);
+      $(name + "-gauge").setAttribute("aria-label", `${fmt(g.current, i === 0 ? 1 : 0)} of ${fmt(g.goal)} ${unit}, personal observation goal`);
+    });
+    const earned = model.achievements.filter(a => a.earned).length;
+    text("earned-count", `${earned} of ${model.achievements.length} earned`);
+    text("goals-summary", `${fmt(stats.today?.resets ?? 0)} resets today`);
+    text("today-achievement", earned ? `${earned} milestones earned` : "View progress");
+    const key = model.achievements.map(a => `${a.earned}-${Math.floor(a.progress * 100)}`).join("/");
+    if (key === achievementKey) return; achievementKey = key;
+    const fragment = document.createDocumentFragment();
+    model.achievements.forEach(a => {
+      const card = document.createElement("article"); card.className = `achievement${a.earned ? " earned" : ""}`;
+      const drawing = svg("svg", { viewBox: "0 0 48 48", "aria-hidden": "true" }); drawing.append(svg("path", { d: medal[a.glyph] }));
+      const title = document.createElement("h3"), detail = document.createElement("p"), track = document.createElement("div"), fill = document.createElement("span");
+      title.textContent = a.name; detail.textContent = a.earned ? "Earned" : fmt(Math.floor(a.progress * 100), 0, "% recorded");
+      track.className = "achievement-track"; fill.style.width = `${a.progress * 100}%`; track.append(fill);
+      card.title = a.detail; card.setAttribute("aria-label", `${a.name}. ${a.detail}. ${a.earned ? "Earned" : detail.textContent}`);
+      card.append(drawing, title, detail, track); fragment.append(card);
+    });
+    $("achievement-grid").replaceChildren(fragment);
+  }
+  function history(week = [], baseline) {
+    const key = JSON.stringify([week, baseline]); if (key === historyKey) return; historyKey = key;
+    const maximum = Math.max(1, finite(baseline) ? baseline : 0, ...week.map(d => finite(d.blinkRate) ? d.blinkRate : 0)) * 1.1;
+    const fragment = document.createDocumentFragment(), descriptions = [];
+    if ($("week-days").childElementCount !== Math.min(7, week.length)) $("week-days").replaceChildren();
+    if (finite(baseline)) fragment.append(svg("path", { d: `M24 ${102 - baseline / maximum * 88}H616`, class: "week-baseline" }));
+    week.slice(-7).forEach((day, i) => {
+      const x = 46 + i * 91.3, valid = finite(day.blinkRate), y = valid ? 102 - day.blinkRate / maximum * 88 : 102;
+      if (valid) fragment.append(svg("path", { d: `M${x} 102V${y}`, class: `week-stem${i === 6 ? " week-today" : ""}` }));
+      else fragment.append(svg("circle", { cx: x, cy: 100, r: 3, class: "week-missing" }));
+      const date = new Date(`${day.day}T12:00:00`);
+      let button = $("week-days").children[i];
+      if (!button) {
+        button = document.createElement("button");
+        button.addEventListener("click", () => {
+          historySelection = button.dataset.day; text("baseline-detail", button.dataset.description);
+          $("week-days").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+        });
+        $("week-days").append(button);
+      }
+      button.textContent = Number.isFinite(date.getTime()) ? new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date) : "Day";
+      const description = `${day.day}: ${valid ? fmt(day.blinkRate, 1) + " / min" : "No rate"}, ${fmt((day.trackedSeconds ?? 0) / 60, 1)} min observed`;
+      button.dataset.day = day.day; button.dataset.description = description;
+      button.setAttribute("aria-label", description); button.setAttribute("aria-pressed", String(historySelection ? historySelection === day.day : i === week.length - 1));
+      descriptions.push(description);
+    });
+    $("week-chart").replaceChildren(fragment);
+    $("week-chart").setAttribute("aria-label", descriptions.join(". "));
+    text("baseline-detail", [...$("week-days").children].find(b => b.dataset.day === historySelection)?.dataset.description ?? (finite(baseline) ? `${fmt(baseline, 1)} / min personal baseline, prior six days.` : "Your baseline needs five tracked minutes in prior days."));
+  }
+  function exerciseView(state) {
+    const e = state.exercise ?? { phase: "idle", step: "blink", remaining: 10, progress: 0 }, phase = e.phase;
+    document.body.dataset.exercise = phase;
+    $("practice-ready").hidden = phase !== "idle"; $("practice-session").hidden = phase === "idle";
+    const running = phase === "running", paused = phase === "paused", done = phase === "completed", look = e.step === "look";
+    $("blink-scene").toggleAttribute("hidden", look); $("look-scene").toggleAttribute("hidden", !look);
+    text("exercise-kind", e.routine === "blink" ? "Blink play" : e.routine === "look" ? "Look away" : "Full reset");
+    text("exercise-state", paused ? "Paused" : done ? "Complete" : look ? "Look away" : "Blink play");
+    text("exercise-heading", done ? "A moment taken" : paused ? "Reset paused" : look ? "Look beyond the screen" : "Blink naturally");
+    text("exercise-instruction", done ? "Return at your own pace." : paused ? "Resume when you are ready." : look ? "Choose a distant real object." : "Let the drawing follow your blinks.");
+    text("exercise-remaining", done ? "Done" : fmt(Math.ceil(finite(e.remaining) ? e.remaining : 0)));
+    document.querySelector(".exercise-clock .muted").hidden = done;
+    const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
+    $("exercise-progress").style.width = `${progress * 100}%`; document.querySelector(".exercise-progress").setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+    const feedback = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    text("exercise-feedback", done ? "Saved to today’s activity." : look ? "Timer guidance. You can look away." : feedback ? "Live eyelid feedback" : "Camera feedback off. The guide still works.");
+    if (running && !look) $("practice-lid").setAttribute("d", BlinkMetrics.aperture(feedback ? (state.left + state.right) / 2 : 1, 300, 85, 230) ?? "");
+    $("exercise-pause").hidden = !running; $("exercise-resume").hidden = !paused;
+    $("exercise-end").textContent = done ? "Back to practice" : "End reset";
+    if (phase !== lastExercise) {
+      if (phase === "running" && lastExercise !== "paused") selectTab(1);
+      if (paused) $("exercise-resume").focus();
+      if (done) $("exercise-end").focus();
+      lastExercise = phase;
+    }
   }
   function scan(side, points, data, active) {
     const projection = active ? BlinkMetrics.contour(points, data.width, data.height) : null;
@@ -122,9 +199,10 @@
     text("processing-p95", finite(state.p95Ms) && state.p95Ms > 0 ? fmt(state.p95Ms, 0, "ms") : "Waiting");
     text("processing-fps", active && finite(state.fps) && state.fps > 0 ? fmt(state.fps, 1) : "Waiting"); text("processing-drops", fmt(state.dropped ?? 0));
     text("reminder-state", reminderText(state));
-    text("color-gamut", matchMedia("(color-gamut: p3)").matches && CSS.supports("color", "color(display-p3 1 0 0)") ? "Display P3" : "sRGB");
+    text("color-gamut", "sRGB");
   }
   function reminderText(state) {
+    if (["running", "paused"].includes(state.exercise?.phase)) return "Reminders rest during the reset.";
     if (!state.preferences.remindersEnabled) return "Screen reminders off";
     if (state.fading) return "Reminder active. Close your eyes to clear.";
     if (state.reminderState === "waitingForBlink") return "Blink to start the next reminder interval.";
@@ -132,29 +210,33 @@
     return "Reminders wait for fresh eye data.";
   }
   window.blinkmore = { selectTab, update(state) {
-    if (!state || !state.preferences || !state.statistics) return;
+    if (!state?.preferences || !state.statistics) return;
     current = state; const stats = state.statistics, today = stats.today ?? {}, prefs = state.preferences;
     document.documentElement.classList.toggle("dark", state.actualTheme === "dark");
     document.documentElement.classList.toggle("reduce-motion", Boolean(state.reducedMotion));
-    text("today-date", new Intl.DateTimeFormat(undefined, { weekday: "long", month: "short", day: "numeric" }).format(new Date()));
     $("tracking-status").dataset.phase = state.phase;
-    text("tracking-title", state.title ?? "Starting camera"); text("tracking-detail", state.phase === "calibrating" ? `${fmt((state.calibration ?? 0) * 100)}% calibrated. ${state.detail ?? ""}` : state.detail ?? "");
+    text("tracking-title", state.title ?? "Starting camera");
+    text("tracking-detail", state.phase === "calibrating" ? `${fmt((state.calibration ?? 0) * 100)}% calibrated` : state.phase === "tracking" ? "" : state.detail ?? "");
     $("tracking-detail").title = state.detail ?? "";
     $("pause-button").querySelector("span").textContent = state.phase === "paused" ? "Resume" : "Pause";
     const unavailable = ["starting", "paused", "cameraDenied", "cameraMissing", "cameraError"].includes(state.phase);
     $("calibrate-button").disabled = unavailable; $("settings-calibrate").disabled = unavailable;
     $("camera-settings").hidden = state.phase !== "cameraDenied"; $("retry-button").hidden = !["cameraError", "cameraMissing", "delayed"].includes(state.phase);
-    rings(state); history(stats.week);
-    text("recent-rate", fmt(stats.recentRate, 1)); text("recent-rate-detail", `${fmt(stats.recentSeconds ?? 0)}s tracked in the last 60s`);
-    text("daily-rate", fmt(today.blinkRate, 1)); text("daily-rate-detail", `${fmt((today.trackedSeconds ?? 0) / 60, 1)} minutes tracked today`);
+    $("start-reset").disabled = state.phase === "paused";
+    document.querySelectorAll("[data-routine]").forEach(button => button.disabled = state.phase === "paused");
+    text("recent-rate", fmt(stats.recentRate, 1)); $("recent-rate").classList.toggle("empty", !finite(stats.recentRate));
+    text("recent-rate-detail", `${fmt(stats.recentSeconds ?? 0)}s observed`);
+    text("relative-rate-detail", finite(stats.baselineRate) ? `Usual ${fmt(stats.baselineRate, 1)} / min` : "Building your baseline");
+    text("activity-exposure", `${fmt((today.trackedSeconds ?? 0) / 60, 1)} min observed today`);
+    text("daily-rate", fmt(today.blinkRate, 1, " / min"));
     text("relative-rate", finite(stats.relativePercent) ? `${stats.relativePercent > 0 ? "+" : ""}${fmt(stats.relativePercent, 0, "%")}` : "Collecting");
-    text("relative-rate-detail", finite(stats.baselineRate) ? `${fmt(stats.baselineRate, 1)}/min personal baseline` : "Needs 5 tracked minutes in prior days");
-    const active = ["tracking", "eyesClosed"].includes(state.phase);
-    text("open-interval", active ? fmt(state.openSeconds, 1, "s") : "Waiting"); text("open-interval-detail", reminderText(state));
-    ["recent-rate", "daily-rate", "relative-rate", "open-interval"].forEach(id => $(id).classList.toggle("empty", ["Waiting", "Collecting"].includes($(id).textContent)));
-    text("baseline-detail", finite(stats.baselineRate) ? "Prior six days, weighted by tracked time. Personal comparison, not a health score." : "No personal baseline yet. Prior days need at least 5 tracked minutes combined.");
-    text("type-bilateral", fmt(today.blinks ?? 0)); text("type-left", fmt(today.leftClosures ?? 0)); text("type-right", fmt(today.rightClosures ?? 0)); text("type-long", fmt(today.longClosures));
-    text("activity-exposure", `${fmt(today.reminders ?? 0)} cues today, ${fmt((today.trackedSeconds ?? 0) / 60, 1)} minutes observed`);
+    text("type-bilateral", fmt(today.blinks ?? 0)); text("type-left", fmt(today.leftClosures ?? 0)); text("type-right", fmt(today.rightClosures ?? 0)); text("type-long", fmt(today.longClosures)); text("resets-today", fmt(today.resets));
+    const due = Boolean(state.exercise?.due) && !state.fading;
+    text("invitation-title", due ? "Ready for a reset?" : "A moment for your eyes");
+    text("invitation-detail", due ? "A quiet break is ready." : "Blink, then look away.");
+    $("exercise-later").hidden = !due; $("exercise-skip").hidden = !due;
+    if (selected === 0) { live(state); rhythm(stats.recentBins); }
+    blinkPulse(state); progress(state); if (selected === 2) history(stats.week, stats.baselineRate); exerciseView(state);
     const cameras = state.cameras ?? [], key = JSON.stringify(cameras);
     if (key !== cameraKey) {
       cameraKey = key; const fragment = document.createDocumentFragment();
@@ -162,13 +244,13 @@
       $("camera-choice").replaceChildren(fragment);
     }
     document.querySelectorAll("[data-preference]").forEach(input => {
-      const key = input.dataset.preference, v = prefs[key];
-      if (input.type === "checkbox") input.checked = Boolean(v);
-      else if (document.activeElement !== input) input.value = v ?? "";
+      const key = input.dataset.preference, value = prefs[key];
+      if (input.type === "checkbox") input.checked = Boolean(value);
+      else if (document.activeElement !== input) input.value = value ?? "";
       if (input.type === "range" && document.activeElement !== input) text(`label-${key}`, preferenceLabel(key, Number(input.value)));
     });
-    text("footer-notice", state.notice || stats.warning || "On this Mac. No camera images saved.");
-    if (selected === 1) geometry(state);
+    text("footer-notice", state.notice || stats.warning || "");
+    if (selected === 3 && $("measurement-details").open) geometry(state);
   } };
   send({ action: "ready" });
 })();

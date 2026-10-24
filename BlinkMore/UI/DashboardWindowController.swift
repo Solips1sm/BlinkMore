@@ -27,12 +27,12 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
         configuration.websiteDataStore = .nonPersistent()
         configuration.userContentController.add(relay, name: "blinkmore")
         webView = WKWebView(frame: .zero, configuration: configuration)
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 740),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 580),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "BlinkMore"
         window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none; window.isReleasedWhenClosed = false
-        window.minSize = NSSize(width: 720, height: 560)
+        window.minSize = NSSize(width: 680, height: 520)
         window.contentView = webView; window.center()
         super.init(window: window)
         relay.owner = self; window.delegate = self; webView.navigationDelegate = self
@@ -51,7 +51,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     }
 
     func selectTab(_ index: Int) {
-        guard (0...2).contains(index) else { return }; selectedTab = index
+        guard (0...3).contains(index) else { return }; selectedTab = index
         guard ready else { return }
         webView.callAsyncJavaScript("window.blinkmore.selectTab(tab)", arguments: ["tab": index], in: nil, in: .page, completionHandler: nil)
     }

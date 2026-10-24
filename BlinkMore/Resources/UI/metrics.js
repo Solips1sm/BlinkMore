@@ -9,14 +9,19 @@ const BlinkMetrics = (() => {
   function activity(today = {}, week = [], lifetime = {}, goals = {}) {
     const days = week.filter(d => finite(d.trackedSeconds) && d.trackedSeconds + 1e-6 >= 30).length;
     return {
-      rings: [ring(today.blinks, goals.blinkGoal), ring(value(today.trackedSeconds) / 60, goals.minuteGoal), ring(days, goals.dayGoal)],
+      gauges: [ring(value(today.trackedSeconds) / 60, goals.minuteGoal), ring(days, goals.dayGoal)],
       achievements: [
-        { name: "First blink", detail: "One bilateral blink recorded", current: value(lifetime.blinks), target: 1, glyph: "eye" },
-        { name: "A thousand", detail: "1,000 blinks in saved history", current: value(lifetime.blinks), target: 1000, glyph: "spark" },
-        { name: "Half an hour", detail: "30 tracked minutes recorded", current: value(lifetime.trackedSeconds) / 60, target: 30, glyph: "clock" },
-        { name: "Seven days", detail: "Seven days with 30s of data", current: value(lifetime.days), target: 7, glyph: "award" }
+        { name: "First moment", detail: "Finish one guided reset", current: value(lifetime.resets), target: 1, glyph: "moment" },
+        { name: "Ten moments", detail: "Finish ten guided resets", current: value(lifetime.resets), target: 10, glyph: "petals" },
+        { name: "Half an hour", detail: "Thirty minutes observed", current: value(lifetime.trackedSeconds) / 60, target: 30, glyph: "orbit" },
+        { name: "Seven days", detail: "Seven days with thirty seconds observed", current: value(lifetime.days), target: 7, glyph: "days" }
       ].map(a => ({ ...a, earned: a.current + 1e-6 >= a.target, progress: Math.min(1, a.current / a.target) }))
     };
+  }
+  function aperture(opening, cx, cy, width) {
+    if (![opening, cx, cy, width].every(finite) || width <= 0) return null;
+    const gap = 24 * Math.min(1.5, Math.max(0, opening));
+    return `M${cx-width/2} ${cy}Q${cx} ${cy-gap} ${cx+width/2} ${cy}Q${cx} ${cy+gap} ${cx-width/2} ${cy}Z`;
   }
   function contour(points, width, height) {
     if (!Array.isArray(points) || points.length < 4 || points.length > 32 || !finite(width) || !finite(height) || width <= 0 || height <= 0) return null;
@@ -36,6 +41,6 @@ const BlinkMetrics = (() => {
     const axis = (i, distance) => draw([center[0] + (i === 0 ? distance * c : -distance * s), center[1] + (i === 0 ? distance * s : distance * c)]);
     return { points: pixels.map(draw), axes: [[axis(0, lo[0]), axis(0, hi[0])], [axis(1, lo[1]), axis(1, hi[1])]], aperture: (hi[1] - lo[1]) / (hi[0] - lo[0]), span: hi[0] - lo[0] };
   }
-  return { activity, ring, contour };
+  return { activity, ring, contour, aperture };
 })();
 if (typeof module !== "undefined") module.exports = BlinkMetrics;

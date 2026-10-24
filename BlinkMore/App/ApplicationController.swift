@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import IOKit.ps
 import UniformTypeIdentifiers
+import CoreGraphics
 
 final class ApplicationController: NSObject, NSApplicationDelegate {
     let preferences = AppPreferences()
@@ -20,6 +21,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var dashboard: DashboardWindowController?
     private var previewUntil: Double = 0
     private var reminderPolicy = ReminderPolicy()
+    private var exercise = ExercisePolicy()
+    private var sleeping = false
+    private var locked = false
+    private var inactiveSession = false
+    private var userIdle = false
+    private var systemSuspended: Bool { sleeping || locked || inactiveSession }
     private var latency: [Double] = []
     private var cameras: [[String: String]] = []
     private var notice = ""
@@ -45,6 +52,17 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         updateCameras()
         NotificationCenter.default.addObserver(self, selector: #selector(updateCameras), name: AVCaptureDevice.wasConnectedNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateCameras), name: AVCaptureDevice.wasDisconnectedNotification, object: nil)
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.willSleepNotification, NSWorkspace.didWakeNotification] {
+            workspace.addObserver(self, selector: #selector(sleepChanged(_:)), name: name, object: nil)
+        }
+        for name in [NSWorkspace.sessionDidResignActiveNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
+            workspace.addObserver(self, selector: #selector(sessionChanged(_:)), name: name, object: nil)
+        }
+        // shortcut: distributed lock notifications need live verification on each macOS release.
+        for name in ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"] {
+            DistributedNotificationCenter.default().addObserver(self, selector: #selector(lockChanged(_:)), name: Notification.Name(name), object: nil)
+        }
         applyTheme(); reconcile()
         powerTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.reconcile(); self?.writeDiagnostics() }
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.updateFade() }
@@ -79,6 +97,20 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         cameras = EyeTrackingService.cameras().map { ["id": $0.uniqueID, "name": $0.localizedName] }
     }
 
+    @objc private func sleepChanged(_ notification: Notification) {
+        sleeping = notification.name == NSWorkspace.willSleepNotification; lifecycleChanged()
+    }
+    @objc private func sessionChanged(_ notification: Notification) {
+        inactiveSession = notification.name == NSWorkspace.sessionDidResignActiveNotification; lifecycleChanged()
+    }
+    @objc private func lockChanged(_ notification: Notification) {
+        locked = notification.name.rawValue == "com.apple.screenIsLocked"; lifecycleChanged()
+    }
+    private func lifecycleChanged() {
+        exercise.end(now: EyeTrackingService.clock()); reminderPolicy.reset(); previewUntil = 0
+        reconcile(); updateFade()
+    }
+
     private var effectivePhase: TrackingPhase {
         if [.tracking, .eyesClosed, .calibrating].contains(frame.phase), EyeTrackingService.clock() - frame.timestamp > 0.5 { return .delayed }
         return frame.phase
@@ -92,7 +124,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     private func reconcile() {
         guard onACPower() else { NSApplication.shared.terminate(nil); return }
-        if preferences.pauseUntil != nil {
+        userIdle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!) >= 60
+        if systemSuspended || preferences.pauseUntil != nil {
             stopCamera(); frame.phase = .paused; menu.update(.paused); return
         }
         let authorization = AVCaptureDevice.authorizationStatus(for: .video)
@@ -145,13 +178,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private func updateFade() {
         let now = EyeTrackingService.clock()
         menu?.update(effectivePhase)
+        let wasActive = exercise.active
+        if exercise.tick(now: now, eligible: !systemSuspended && !userIdle && preferences.pauseUntil == nil,
+                         enabled: preferences.exercisesEnabled, minutes: preferences.exerciseMinutes) {
+            statistics.completedReset(seconds: exercise.routine.duration); statistics.flush()
+        }
+        if wasActive && !exercise.active { reminderPolicy.waitForBlink(); previewUntil = 0 }
         let preview = now < previewUntil
         let decision = reminderPolicy.update(now: now, frame: frame,
-            enabled: preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
-        let visible = preferences.pauseUntil == nil && (preview || decision.visible)
+            enabled: !systemSuspended && !exercise.active && preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
+        let visible = !systemSuspended && !exercise.active && preferences.pauseUntil == nil && (preview || decision.visible)
         if decision.triggered && !preview { statistics.reminder() }
         fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity,
-                        duration: preview ? min(0.25, preferences.fadeSeconds) : preferences.fadeSeconds)
+                        duration: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : preview ? min(0.25, preferences.fadeSeconds) : preferences.fadeSeconds)
     }
 
     private func writeDiagnostics() {
@@ -159,7 +198,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let value: [String: Any] = ["phase": effectivePhase.rawValue, "calibration": frame.calibration,
             "delayMs": frame.latencyMs, "fps": frame.fps, "dropped": frame.dropped,
             "frameAge": max(0, EyeTrackingService.clock() - frame.timestamp), "quality": frame.qualityNote,
-            "reminderState": reminderPolicy.mode.rawValue, "fading": fade.isFaded]
+            "reminderState": reminderPolicy.mode.rawValue, "fading": fade.isFaded,
+            "exercise": exercise.snapshot(now: EyeTrackingService.clock())]
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("BlinkMore/diagnostic-status.json")
         do {
@@ -176,12 +216,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func openSettings() { openDashboard(tab: 2) }
+    @objc private func openSettings() { openDashboard(tab: 3) }
 
     func openDashboard(tab: Int? = nil) {
         if dashboard == nil {
             dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot() ?? [:] }, command: { [weak self] in self?.command($0) })
-            dashboard?.onClose = { [weak self] in self?.dashboard = nil }
+            dashboard?.onClose = { [weak self] in
+                guard let self = self else { return }
+                if self.exercise.phase != .idle { self.exercise.end(now: EyeTrackingService.clock()); self.reminderPolicy.waitForBlink() }
+                self.dashboard = nil
+            }
         }
         if let tab = tab { dashboard?.selectTab(tab) }
         dashboard?.showWindow(nil)
@@ -197,6 +241,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let actualTheme = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
         let phase = effectivePhase
         var result: [String: Any] = ["phase": phase.rawValue, "title": phase.title, "detail": phase.detail]
+        result["exercise"] = exercise.snapshot(now: EyeTrackingService.clock())
         result["closedMask"] = frame.closedMask
         result["left"] = frame.left; result["right"] = frame.right
         result["geometry"] = ["left": frame.leftContour.map { [$0.x, $0.y] },
@@ -220,9 +265,24 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         guard let action = message["action"] as? String else { return }
         switch action {
         case "ready": dashboard?.refresh()
+        case "startReset": startExercise(.reset)
+        case "exercise":
+            guard let value = message["command"] as? String else { return }
+            let now = EyeTrackingService.clock()
+            switch value {
+            case "start":
+                guard let raw = message["routine"] as? String, let routine = ExercisePolicy.Routine(rawValue: raw) else { return }
+                startExercise(routine)
+            case "pause": exercise.pause(now: now)
+            case "resume": exercise.resume(now: now)
+            case "end", "skip": exercise.end(now: now); reminderPolicy.waitForBlink()
+            case "later": exercise.later(now: now)
+            default: return
+            }
+            updateFade()
         case "pause": togglePause()
         case "calibrate": tracker?.recalibrate(); notify("Calibration restarted. Look toward the camera and blink normally.")
-        case "preview": reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
+        case "preview": exercise.end(now: EyeTrackingService.clock()); reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
         case "retry": stopCamera(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reconcile() }
         case "cameraSettings":
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") { NSWorkspace.shared.open(url) }
@@ -234,25 +294,34 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         dashboard?.refresh()
     }
 
+    private func startExercise(_ routine: ExercisePolicy.Routine) {
+        guard preferences.pauseUntil == nil, !systemSuspended else { return }
+        userIdle = false; exercise.start(routine, now: EyeTrackingService.clock())
+        previewUntil = 0; reminderPolicy.reset(); updateFade(); openDashboard(tab: 1)
+    }
+
     private func setPreference(_ message: [String: Any]) {
         guard let key = message["key"] as? String else { return }
         let value = message["value"]
         switch key {
         case "theme": if let v = value as? String { preferences.theme = v }
         case "color": if let v = value as? String, !preferences.setColor(hex: v) { notify("Choose a valid fade color.") }
-        case "remindersEnabled":
-            if let v = value as? NSNumber, CFGetTypeID(v) == CFBooleanGetTypeID() { preferences.remindersEnabled = v.boolValue }
+        case "remindersEnabled", "exercisesEnabled":
+            if let v = value as? NSNumber, CFGetTypeID(v) == CFBooleanGetTypeID() {
+                if key == "remindersEnabled" { preferences.remindersEnabled = v.boolValue }
+                else { preferences.exercisesEnabled = v.boolValue }
+            }
         case "cameraID":
             if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
                 stopCamera(); preferences.cameraID = v.isEmpty ? nil : v
             }
-        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "blinkGoal", "minuteGoal", "dayGoal":
+        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "exerciseMinutes", "minuteGoal", "dayGoal":
             guard let v = value as? NSNumber, CFGetTypeID(v) != CFBooleanGetTypeID(), v.doubleValue.isFinite else { return }
             switch key {
             case "reminderSeconds": preferences.reminderSeconds = v.doubleValue
             case "fadeSeconds": preferences.fadeSeconds = v.doubleValue
             case "intensity": preferences.intensity = v.doubleValue
-            case "blinkGoal": preferences.blinkGoal = v.doubleValue
+            case "exerciseMinutes": preferences.exerciseMinutes = v.doubleValue
             case "minuteGoal": preferences.minuteGoal = v.doubleValue
             case "dayGoal": preferences.dayGoal = v.doubleValue
             default: preferences.sensitivity = v.doubleValue

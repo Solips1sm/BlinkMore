@@ -32,6 +32,14 @@ final class AppPreferences {
         get { defaults.object(forKey: "remindersEnabled") == nil || defaults.bool(forKey: "remindersEnabled") }
         set { defaults.set(newValue, forKey: "remindersEnabled"); onChange?() }
     }
+    var exercisesEnabled: Bool {
+        get { defaults.bool(forKey: "exercisesEnabled") }
+        set { defaults.set(newValue, forKey: "exercisesEnabled"); onChange?() }
+    }
+    var exerciseMinutes: Double {
+        get { bounded("exerciseMinutes", fallback: 20, range: 5...60) }
+        set { defaults.set(newValue.clamped(to: 5...60).rounded(), forKey: "exerciseMinutes"); onChange?() }
+    }
     var blinkGoal: Double {
         get { bounded("dailyBlinkGoal", fallback: 300, range: 10...10000) }
         set { defaults.set(newValue.clamped(to: 10...10000).rounded(), forKey: "dailyBlinkGoal"); onChange?() }
@@ -76,7 +84,7 @@ final class AppPreferences {
         ["reminderSeconds": reminderSeconds, "fadeSeconds": fadeSeconds, "intensity": intensity,
          "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
          "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0,
-         "blinkGoal": blinkGoal, "minuteGoal": minuteGoal, "dayGoal": dayGoal]
+         "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "dayGoal": dayGoal]
     }
     private func bounded(_ key: String, fallback: Double, range: ClosedRange<Double>) -> Double {
         guard defaults.object(forKey: key) != nil else { return fallback }

@@ -22,6 +22,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         add("Open BlinkMore", "open")
         for key in ["status", "count", "rate", "relative"] { add("", key, enabled: false) }
         contextMenu.addItem(.separator())
+        add("Start a reset", "startReset")
         add("Pause for 5 minutes", "pause")
         add("Screen reminders", "reminders")
         add("Preview fade", "preview")
@@ -69,7 +70,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func selected(_ sender: NSMenuItem) {
         switch sender.representedObject as? String {
         case "open": onOpen?(0)
-        case "settings": onOpen?(2)
+        case "settings": onOpen?(3)
         case "reminders": onCommand?(["action": "set", "key": "remindersEnabled", "value": sender.state != .on])
         case .some(let action): onCommand?(["action": action])
         default: break

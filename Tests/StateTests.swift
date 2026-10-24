@@ -123,6 +123,29 @@ import AppKit
         precondition(restoredPreferences.blinkGoal == 500 && restoredPreferences.minuteGoal == 45 && restoredPreferences.dayGoal == 4)
         preferences.blinkGoal = -1; preferences.minuteGoal = 1000; preferences.dayGoal = 100
         precondition(preferences.blinkGoal == 10 && preferences.minuteGoal == 720 && preferences.dayGoal == 7)
+        precondition(!preferences.exercisesEnabled && preferences.exerciseMinutes == 20)
+        preferences.exercisesEnabled = true; preferences.exerciseMinutes = 999
+        precondition(AppPreferences(defaults: defaults).exercisesEnabled && preferences.exerciseMinutes == 60)
+        preferences.exerciseMinutes = -1
+        precondition(preferences.exerciseMinutes == 5)
+        let resetStats = DailyStatistics(url: root.appendingPathComponent("resets.json"), now: date)
+        resetStats.completedReset(seconds: 30, now: date)
+        resetStats.completedReset(seconds: 20, now: date)
+        resetStats.completedReset(seconds: -1, now: date)
+        resetStats.flush(synchronous: true)
+        let resetRestored = DailyStatistics(url: root.appendingPathComponent("resets.json"), now: date)
+        let resets = resetRestored.snapshot(now: date)
+        precondition((resets["today"] as! [String: Any])["resets"] as? Int == 2)
+        precondition((resets["today"] as! [String: Any])["resetSeconds"] as? Double == 50)
+        precondition((resets["lifetime"] as! [String: Any])["resets"] as? Int == 2)
+        precondition(old["resets"] is NSNull)
+        precondition(!DailyRecord(day: "2026-10-24", resets: -1).valid)
+        precondition(!DailyRecord(day: "2026-10-24", resetSeconds: .infinity).valid)
+        let bins = comparison["recentBins"] as! [[String: Any]]
+        precondition(bins.count == 60 && bins.last?["blinks"] as? Int == 18)
+        precondition((metrics.snapshot(now: date.addingTimeInterval(60))["recentBins"] as! [[String: Any]]).allSatisfy { $0["tracked"] as? Double == 0 })
+        try resetRestored.reset()
+        precondition((resetRestored.snapshot(now: date)["lifetime"] as! [String: Any])["resets"] as? Int == 0)
         print("State tests passed: persistence, legacy history, rate windows, personal baseline, closure types, reset, recovery, DST, validation, preferences")
     }
 }

@@ -13,13 +13,16 @@ struct DailyRecord: Codable {
     var longClosures: Int?
     var bothClosedSeconds: Double?
     var calibratedSeconds: Double?
+    var resets: Int?
+    var resetSeconds: Double?
 
     var valid: Bool {
         Self.validDay(day) &&
         trackedSeconds.isFinite && (0...90001).contains(trackedSeconds) &&
         asymmetryWeighted.isFinite && asymmetryWeighted >= 0 && asymmetryWeighted <= asymmetrySeconds + 0.000001 &&
         asymmetrySeconds.isFinite && (0...90001).contains(asymmetrySeconds) &&
-        [blinks, leftClosures, rightClosures, reminders, longClosures ?? 0].allSatisfy { (0...1_000_000).contains($0) } &&
+        [blinks, leftClosures, rightClosures, reminders, longClosures ?? 0, resets ?? 0].allSatisfy { (0...1_000_000).contains($0) } &&
+        (resetSeconds ?? 0).isFinite && (0...90001).contains(resetSeconds ?? 0) &&
         (calibratedSeconds ?? 0).isFinite && (0...90001).contains(calibratedSeconds ?? 0) &&
         (bothClosedSeconds ?? 0).isFinite && (0...(calibratedSeconds ?? 0) + 0.000001).contains(bothClosedSeconds ?? 0)
     }
@@ -34,6 +37,8 @@ struct DailyRecord: Codable {
     var json: [String: Any] {
         ["day": day, "trackedSeconds": trackedSeconds, "blinks": blinks,
          "leftClosures": leftClosures, "rightClosures": rightClosures, "reminders": reminders,
+         "resets": resets.map { $0 as Any } ?? NSNull(),
+         "resetSeconds": resetSeconds.map { $0 as Any } ?? NSNull(),
          "longClosures": longClosures.map { $0 as Any } ?? NSNull(),
          "bothClosedSeconds": bothClosedSeconds.map { $0 as Any } ?? NSNull(),
          "closedPercent": (calibratedSeconds ?? 0) + 0.000001 >= 30 ? (bothClosedSeconds ?? 0) / calibratedSeconds! * 100 : NSNull(),
@@ -58,6 +63,7 @@ final class DailyStatistics {
     private var lifetimeBlinks = 0
     private var lifetimeSeconds: Double = 0
     private var lifetimeDays = 0
+    private var lifetimeResets = 0
 
     init(url: URL? = nil, now: Date = Date()) {
         formatter = DateFormatter(); formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -80,6 +86,7 @@ final class DailyStatistics {
                 records = Dictionary(uniqueKeysWithValues: values.map { ($0.day, $0) })
                 lifetimeBlinks = values.reduce(0) { $0 + $1.blinks }
                 lifetimeSeconds = values.reduce(0) { $0 + $1.trackedSeconds }
+                lifetimeResets = values.reduce(0) { $0 + ($1.resets ?? 0) }
                 lifetimeDays = values.filter { $0.trackedSeconds + 0.000001 >= 30 }.count
             } catch {
                 do {
@@ -124,6 +131,16 @@ final class DailyStatistics {
         recent[recent.count - 1].blinks += frame.events & 4 != 0 ? 1 : 0
     }
 
+    func completedReset(seconds: Double, now: Date = Date()) {
+        guard [10.0, 20.0, 30.0].contains(seconds) else { return }
+        lock.lock(); defer { lock.unlock() }
+        rollDay(now)
+        var value = records[day] ?? DailyRecord(day: day)
+        value.resets = (value.resets ?? 0) + 1
+        value.resetSeconds = (value.resetSeconds ?? 0) + seconds
+        lifetimeResets += 1; records[day] = value; dirty = true
+    }
+
     func reminder(now: Date = Date()) {
         lock.lock(); defer { lock.unlock() }
         rollDay(now)
@@ -148,6 +165,7 @@ final class DailyStatistics {
         let relative = baseline.flatMap { base in rate.flatMap { base > 0 ? ($0 / base - 1) * 100 : nil } }
         let second = Int(now.timeIntervalSince1970)
         let window = recent.filter { $0.second >= second - 59 && $0.second <= second }
+        let binsBySecond = Dictionary(uniqueKeysWithValues: window.map { ($0.second, $0) })
         let seconds = window.reduce(0.0) { $0 + $1.tracked }
         let blinks = window.reduce(0) { $0 + $1.blinks }
         return ["today": today.json, "week": week, "warning": warning ?? "",
@@ -155,7 +173,11 @@ final class DailyStatistics {
                 "relativePercent": relative.map { $0 as Any } ?? NSNull(),
                 "recentRate": seconds + 0.000001 >= 15 ? Double(blinks) * 60 / seconds : NSNull(),
                 "recentSeconds": seconds,
-                "lifetime": ["blinks": lifetimeBlinks, "trackedSeconds": lifetimeSeconds, "days": lifetimeDays]]
+                "recentBins": (0..<60).map { offset -> [String: Any] in
+                    let bin = binsBySecond[second - 59 + offset]
+                    return ["tracked": bin?.tracked ?? 0.0, "blinks": bin?.blinks ?? 0]
+                },
+                "lifetime": ["blinks": lifetimeBlinks, "trackedSeconds": lifetimeSeconds, "days": lifetimeDays, "resets": lifetimeResets]]
     }
 
     func exportData() throws -> Data {
@@ -193,7 +215,7 @@ final class DailyStatistics {
                 try FileManager.default.removeItem(at: url)
             }
             records.removeAll(); recent.removeAll(); dirty = false; warning = nil; saveAllowed = true
-            lifetimeBlinks = 0; lifetimeSeconds = 0; lifetimeDays = 0
+            lifetimeBlinks = 0; lifetimeSeconds = 0; lifetimeDays = 0; lifetimeResets = 0
         }
     }
 

@@ -45,6 +45,8 @@ codesign --verify --strict "$staging"
 launchctl bootout "$domain/com.openai.codex.blinkmore-on-ac" 2>/dev/null || true
 launchctl bootout "$domain/$label" 2>/dev/null || true
 dist/BlinkMoreACAgent --stop
+stats="$HOME/Library/Containers/com.oxremy.blinkmorefree/Data/Library/Application Support/BlinkMore/daily-statistics.json"
+[[ ! -f "$stats" ]] || cp "$stats" "$backup/daily-statistics.json"
 [[ ! -d /Applications/BlinkMore.app ]] || mv /Applications/BlinkMore.app "$rollback"
 installed=1
 mv "$staging" /Applications/BlinkMore.app

@@ -5,32 +5,31 @@ import WebKit
     @MainActor static func main() {
         _ = NSApplication.shared; NSApp.setActivationPolicy(.accessory)
         Task { @MainActor in
-            do { try await run(); print("Hybrid dashboard tests passed: primitives, themes, rings, geometry, milestones, native bridge, menu, compact layout"); exit(0) }
+            do { try await run(); print("Optical dashboard passed: themes, compact fit, gauges, milestones, rhythm, exercise controls, geometry, native menu and eye") ; exit(0) }
             catch { fputs("Dashboard tests failed: \(error)\n", stderr); exit(1) }
         }
         NSApp.run()
     }
     @MainActor static func run() async throws {
-        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let output = root.appendingPathComponent("test-results")
+        let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath), output = root.appendingPathComponent("test-results")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
-        let week: [[String: Any]] = (0..<7).map { i -> [String: Any] in
+        let week: [[String: Any]] = (0..<7).map { i in
             var record: [String: Any] = ["day": "2026-10-\(18 + i)", "blinkRate": 10.0 + Double(i) / 2, "blinks": 130 + i * 19, "trackedSeconds": 1200.0]
             if i < 2 { record["blinkRate"] = NSNull(); record["blinks"] = 0; record["trackedSeconds"] = 0.0 }
             return record
         }
-        let points: [[Double]] = (0..<8).map { i -> [Double] in
+        let points: [[Double]] = (0..<8).map { i in
             let angle = Double(i) * .pi / 4
             return [0.32 + 0.08 * cos(angle), 0.65 + 0.014 * sin(angle)]
         }
-        let today: [String: Any] = ["blinks": 240, "trackedSeconds": 1200.0, "blinkRate": 12.0, "asymmetry": 3.7,
-            "leftClosures": 2, "rightClosures": 1, "longClosures": 3, "closedPercent": 1.4, "reminders": 8]
-        var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Synthetic QA data. No camera is used.", "left": 1.0, "right": 0.93, "calibration": 1.0,
-            "openSeconds": 2.4, "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0,
-            "notice": "Synthetic QA data. No camera is used.", "actualTheme": "light",
+        let bins: [[String: Any]] = (0..<60).map { i in ["tracked": (18...25).contains(i) ? 0.0 : 1.0, "blinks": [2,7,11,16,29,34,38,43,48,52,57].contains(i) ? 1 : 0] }
+        let today: [String: Any] = ["blinks": 240, "trackedSeconds": 1200.0, "blinkRate": 12.0, "asymmetry": 3.7, "leftClosures": 2, "rightClosures": 1, "longClosures": 3, "closedPercent": 1.4, "reminders": 8, "resets": 2]
+        var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Both eyes visible.", "left": 1.0, "right": 0.93, "calibration": 1.0, "openSeconds": 2.4,
+            "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0, "notice": "Synthetic QA data. No camera is used.", "actualTheme": "light",
+            "exercise": ["phase": "idle", "step": "blink", "remaining": 10.0, "progress": 0.0, "due": false],
             "geometry": ["left": points, "right": points.map { [$0[0] + 0.35, $0[1]] }, "width": 210.0, "height": 310.0, "confidence": 0.98, "leftAperture": 0.258, "rightAperture": 0.248],
-            "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "blinkGoal": 300.0, "minuteGoal": 30.0, "dayGoal": 3.0],
-            "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 14.0, "recentSeconds": 52.0, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5]],
+            "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
+            "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 12.7, "recentSeconds": 52.0, "recentBins": bins, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5, "resets": 6]],
             "cameras": [["id": "test-camera", "name": "QA camera"]]]
         var commands: [[String: Any]] = []
         let controller = DashboardWindowController(resources: root.appendingPathComponent("BlinkMore/Resources/UI"), snapshot: { state }, command: { message in
@@ -39,7 +38,7 @@ import WebKit
                 preferences[key] = message["value"]; state["preferences"] = preferences
             }
         })
-        controller.selectTab(2); controller.showWindow(nil)
+        controller.selectTab(3); controller.showWindow(nil)
         let view = controller.window!.contentView as! WKWebView
         for _ in 0..<100 {
             if commands.contains(where: { $0["action"] as? String == "ready" }) { break }
@@ -52,66 +51,110 @@ import WebKit
             }
         }
         func expect<T: Equatable>(_ source: String, _ expected: T) async throws {
-            let value = try await js(source)
-            guard let actual = value as? T else { preconditionFailure("Wrong result type: \(source)") }
-            precondition(actual == expected, "Unexpected result: \(source)")
+            let actual = try await js(source) as? T
+            precondition(actual == expected, "Unexpected result: \(source), got \(String(describing: actual))")
         }
-        try await Task.sleep(for: .milliseconds(150))
-        try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "2")
+        func refresh() async throws { controller.refresh(); try await Task.sleep(for: .milliseconds(250)) }
+        func screenshot(_ name: String) async throws {
+            let image: NSImage? = await withCheckedContinuation { continuation in controller.takeSnapshot { continuation.resume(returning: $0) } }
+            guard let data = image?.tiffRepresentation, let bitmap = NSBitmapImageRep(data: data), let png = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
+            try png.write(to: output.appendingPathComponent(name + ".png"))
+        }
+        try await refresh()
+        try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "3")
         for theme in ["light", "dark"] {
             state["actualTheme"] = theme; controller.window?.appearance = NSAppearance(named: theme == "dark" ? .darkAqua : .aqua)
-            controller.refresh(); try await Task.sleep(for: .milliseconds(350))
-            for tab in 0..<3 {
-                controller.selectTab(tab); controller.refresh(); try await Task.sleep(for: .milliseconds(350))
-                let minText = try await js("return Math.min(...[...document.querySelectorAll('main span,main p,main label,main small,main button,main strong,main code,main dt,main dd,main summary')].filter(e=>e.getClientRects().length).map(e=>parseFloat(getComputedStyle(e).fontSize)))") as! Double
+            try await refresh()
+            for tab in 0..<4 {
+                controller.selectTab(tab); try await refresh()
+                let minText = try await js("return Math.min(...[...document.querySelectorAll('main span,main p,main label,main button,main h2,main h3,main code,main dt,main dd,main summary')].filter(e=>e.getClientRects().length).map(e=>parseFloat(getComputedStyle(e).fontSize)))") as! Double
                 precondition(minText >= 14)
-                try await expect("return document.documentElement.scrollWidth <= innerWidth + 1", true)
-                if tab == 1 {
-            let contrast = try await js("const canvas=document.createElement('canvas'), ctx=canvas.getContext('2d'); canvas.width=2; canvas.height=1; const rgb=color=>{ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].slice(0,3).map(v=>{v/=255;return v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4})}; const lum=c=>0.2126*c[0]+0.7152*c[1]+0.0722*c[2]; const bg=lum(rgb(getComputedStyle(document.body).backgroundColor)); return Math.min(...['.model-text','.text-action'].map(sel=>{const fg=lum(rgb(getComputedStyle(document.querySelector(sel)).color));return (Math.max(bg,fg)+0.05)/(Math.min(bg,fg)+0.05)}))") as! Double
-            precondition(contrast >= 4.5)
+                try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
+                if tab == 0 {
+                    let contrast = try await js("const c=document.createElement('canvas'),ctx=c.getContext('2d'); c.width=1;c.height=1; const px=()=>[...ctx.getImageData(0,0,1,1).data].slice(0,3);const lum=a=>{const v=a.map(n=>{n/=255;return n<=0.04045?n/12.92:((n+0.055)/1.055)**2.4});return .2126*v[0]+.7152*v[1]+.0722*v[2]};return Math.min(...['#pause-button span','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s),chain=[];for(let n=e;n;n=n.parentElement)chain.unshift(n);ctx.clearRect(0,0,1,1);ctx.fillStyle=getComputedStyle(document.body).backgroundColor;ctx.fillRect(0,0,1,1);chain.forEach(n=>{ctx.fillStyle=getComputedStyle(n).backgroundColor;ctx.fillRect(0,0,1,1)});const bg=lum(px());ctx.fillStyle=getComputedStyle(e).color;ctx.fillRect(0,0,1,1);const fg=lum(px());return (Math.max(bg,fg)+.05)/(Math.min(bg,fg)+.05)}))") as! Double
+                    let colors = try await js("return ['#pause-button span','.readout .muted','.text-action','.axis-labels'].map(s=>{const e=document.querySelector(s);return [s,getComputedStyle(e).color,getComputedStyle(e).backgroundColor]})")
+                    precondition(contrast >= 4.5, "Text contrast: \(contrast), \(String(describing: colors))")
                 }
-                let image: NSImage? = await withCheckedContinuation { continuation in controller.takeSnapshot { continuation.resume(returning: $0) } }
-                guard let data = image?.tiffRepresentation, let bitmap = NSBitmapImageRep(data: data), let png = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
-                try png.write(to: output.appendingPathComponent("dashboard-\(theme)-\(tab).png"))
+                if tab < 2 { try await expect("const main=document.querySelector('main'); return main.scrollHeight <= main.clientHeight+1", true) }
+                try await screenshot("dashboard-\(theme)-\(tab)")
             }
         }
-        controller.selectTab(0); controller.refresh(); try await Task.sleep(for: .milliseconds(350))
-        try await expect("return document.getElementById('ring-center-value').textContent", "240")
-        try await expect("return document.querySelectorAll('.achievement.earned').length", 3)
-        let ringProgress = try await js("const c=document.getElementById('ring-blinks'); return 1-parseFloat(getComputedStyle(c).strokeDashoffset)/(2*Math.PI*Number(c.getAttribute('r')))") as! Double
-        precondition(abs(ringProgress - 0.8) < 0.001)
-        try await expect("return getComputedStyle(document.documentElement).getPropertyValue('--blur-card').trim()", "12px")
+        controller.selectTab(0); try await refresh()
+        try await expect("return document.getElementById('recent-rate').textContent", "12.7")
+        try await expect("return document.querySelectorAll('#rhythm-chart .rhythm-event').length", 11)
+        try await expect("return document.querySelectorAll('#rhythm-chart .rhythm-gap').length", 8)
+        try await expect("return document.querySelector('header').textContent.includes('AC only')", false)
+        controller.selectTab(2); try await refresh()
+        try await expect("return document.querySelectorAll('.achievement.earned').length", 2)
+        let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
+        precondition(abs(offset - 100.0 / 3) < 0.01)
+        _ = try await js("document.querySelector('#week-days button').focus(); document.querySelector('#week-days button').click()")
+        var revisedStats = state["statistics"] as! [String: Any]
+        var revisedWeek = revisedStats["week"] as! [[String: Any]]; revisedWeek[6]["blinkRate"] = 13.1
+        revisedStats["week"] = revisedWeek; state["statistics"] = revisedStats; try await refresh()
+        try await expect("return document.activeElement === document.querySelector('#week-days button')", true)
         for phase in [TrackingPhase.starting, .calibrating, .tracking, .eyesClosed, .noFace, .multipleFaces, .lowQuality, .delayed, .paused, .cameraDenied, .cameraMissing, .cameraError] {
-            state["phase"] = phase.rawValue; state["title"] = phase.title; state["detail"] = phase.detail; controller.refresh()
-            try await Task.sleep(for: .milliseconds(70))
+            state["phase"] = phase.rawValue; state["title"] = phase.title; state["detail"] = phase.detail
+            try await refresh()
             try await expect("return document.getElementById('tracking-title').textContent", phase.title)
-            try await expect("return !document.getElementById('camera-settings').hidden", (phase == .cameraDenied))
+            try await expect("return !document.getElementById('camera-settings').hidden", phase == .cameraDenied)
         }
         state["phase"] = "tracking"; state["frameAgeMs"] = 76.0; state["reminderState"] = "waitingForBlink"
-        controller.selectTab(1); controller.refresh(); try await Task.sleep(for: .milliseconds(150))
+        controller.selectTab(0); try await refresh()
+        _ = try await js("document.querySelector('[data-inspect]').click()")
+        try await refresh()
         try await expect("return document.querySelectorAll('#left-points circle').length", 8)
         try await expect("return document.getElementById('left-aperture').textContent", "0.258")
-        try await expect("return document.getElementById('reminder-state').textContent", "Blink to start the next reminder interval.")
-        state["frameAgeMs"] = 900.0; controller.refresh(); try await Task.sleep(for: .milliseconds(150))
-        try await expect("return document.getElementById('left-outline').getAttribute('d')", "")
+        state["frameAgeMs"] = 900.0; try await refresh()
         try await expect("return document.querySelectorAll('#left-points circle').length", 0)
-        state["reducedMotion"] = true; controller.refresh(); try await Task.sleep(for: .milliseconds(150))
-        try await expect("return getComputedStyle(document.getElementById('ring-blinks')).transitionDuration", "0s")
-        controller.selectTab(2)
-        _ = try await js("const g=document.getElementById('setting-blinkGoal'); g.value='500'; g.dispatchEvent(new Event('change')); const s=document.getElementById('setting-sensitivity'); s.value='0.8'; s.dispatchEvent(new Event('change')); const t=document.getElementById('appearance'); t.value='dark'; t.dispatchEvent(new Event('change')); document.querySelector('[data-action=preview]').click(); const check=document.getElementById('reminders-enabled'); check.checked=false; check.dispatchEvent(new Event('change'))")
-        try await Task.sleep(for: .milliseconds(150))
-        precondition(commands.contains { $0["key"] as? String == "blinkGoal" && $0["value"] as? Double == 500 })
+        controller.selectTab(0); try await refresh()
+        try await expect("return document.getElementById('left-live').getAttribute('d')", "")
+        state["frameAgeMs"] = 76.0; state["reducedMotion"] = true; try await refresh()
+        try await expect("return getComputedStyle(document.querySelector('.blink-ripple')).animationName", "none")
+        controller.selectTab(1); try await refresh()
+        _ = try await js("document.querySelector('[data-routine=reset]').click()")
+        try await Task.sleep(for: .milliseconds(100))
+        precondition(commands.contains { $0["action"] as? String == "exercise" && $0["routine"] as? String == "reset" })
+        state["exercise"] = ["phase": "running", "routine": "reset", "step": "blink", "remaining": 8.0, "progress": 0.1, "due": false]
+        try await refresh()
+        try await expect("return !document.getElementById('practice-session').hidden", true)
+        try await expect("return document.getElementById('blink-scene').hasAttribute('hidden')", false)
+        try await screenshot("dashboard-practice-blink")
+        revisedStats = state["statistics"] as! [String: Any]
+        var revisedLifetime = revisedStats["lifetime"] as! [String: Any]; revisedLifetime["blinks"] = 1901
+        revisedStats["lifetime"] = revisedLifetime; state["statistics"] = revisedStats; try await refresh()
+        try await expect("return document.getElementById('exercise-art').dataset.blink", "first")
+        state["phase"] = "cameraDenied"; try await refresh()
+        try await expect("return document.getElementById('exercise-feedback').textContent.includes('Camera feedback off')", true)
+        _ = try await js("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))")
+        try await Task.sleep(for: .milliseconds(100))
+        precondition(commands.contains { $0["action"] as? String == "exercise" && $0["command"] as? String == "pause" })
+        state["exercise"] = ["phase": "paused", "routine": "reset", "step": "look", "remaining": 18.0, "progress": 0.4, "due": false]
+        try await refresh()
+        try await expect("return document.activeElement.id", "exercise-resume")
+        try await expect("return document.getElementById('look-scene').hasAttribute('hidden')", false)
+        state["exercise"] = ["phase": "completed", "routine": "reset", "step": "look", "remaining": 0.0, "progress": 1.0, "due": false]
+        try await refresh()
+        try await expect("return document.activeElement.id", "exercise-end")
+        try await screenshot("dashboard-practice-completed")
+        controller.selectTab(3); state["exercise"] = ["phase": "idle"]; try await refresh()
+        _ = try await js("const s=document.getElementById('setting-sensitivity');s.value='0.8';s.dispatchEvent(new Event('change'));const c=document.getElementById('exercises-enabled');c.checked=true;c.dispatchEvent(new Event('change'))")
+        try await Task.sleep(for: .milliseconds(100))
         precondition(commands.contains { $0["key"] as? String == "sensitivity" && $0["value"] as? Double == 0.8 })
-        precondition(commands.contains { $0["key"] as? String == "theme" && $0["value"] as? String == "dark" })
-        precondition(commands.contains { $0["key"] as? String == "remindersEnabled" && $0["value"] as? Bool == false })
-        precondition(commands.contains { $0["action"] as? String == "preview" })
-        controller.window?.setContentSize(NSSize(width: 720, height: 560))
-        for tab in 0..<3 {
-            controller.selectTab(tab); try await Task.sleep(for: .milliseconds(150))
+        precondition(commands.contains { $0["key"] as? String == "exercisesEnabled" && $0["value"] as? Bool == true })
+        controller.window?.setContentSize(NSSize(width: 680, height: 520))
+        state["phase"] = "tracking"
+        for tab in 0..<4 {
+            controller.selectTab(tab); try await refresh()
             try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
+            if tab < 2 { try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true) }
         }
-        _ = try await js("document.querySelector('[data-tab=\"2\"]').dispatchEvent(new KeyboardEvent('keydown',{key:'Home',bubbles:true}))")
-        try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "0")
+        controller.selectTab(1); state["exercise"] = ["phase": "running", "routine": "look", "step": "look", "remaining": 12.0, "progress": 0.4]; try await refresh()
+        try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true)
+        try await screenshot("dashboard-practice-minimum")
+        state["exercise"] = ["phase": "idle"]; try await refresh()
+        _ = try await js("document.querySelector('[data-tab=\"1\"]').dispatchEvent(new KeyboardEvent('keydown',{key:'End',bubbles:true}))")
+        try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "3")
         let menu = MenuBarController(); menu.snapshot = { state }; var opened: [Int] = []
         menu.onOpen = { opened.append($0) }; menu.onCommand = { commands.append($0) }
         menu.update(.tracking); let open = menu.item.button!.image!
@@ -122,7 +165,7 @@ import WebKit
         menu.item.button?.performClick(nil); precondition(opened == [0])
         menu.menuNeedsUpdate(menu.contextMenu); precondition(menu.contextMenu.items.contains { $0.title == "240 blinks today" })
         let settings = menu.contextMenu.items.first { $0.representedObject as? String == "settings" }!
-        NSApp.sendAction(settings.action!, to: settings.target, from: settings); precondition(opened == [0, 2])
+        NSApp.sendAction(settings.action!, to: settings.target, from: settings); precondition(opened == [0,3])
         controller.close()
     }
 }
