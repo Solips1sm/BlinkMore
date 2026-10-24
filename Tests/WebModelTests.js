@@ -36,3 +36,7 @@ for (const [name, info] of Object.entries(manifest.files)) {
   assert.equal(crypto.createHash("sha256").update(fs.readFileSync(`BlinkMore/Resources/UI/vendor/${name}`)).digest("hex"), info.sha256);
 }
 console.log("Web model tests passed: goal bounds, achievements, aspect correction, principal axes, invalid scans, design primitive hashes");
+
+for (const [name, info] of Object.entries(manifest.assets)) {
+  assert.equal(crypto.createHash("sha256").update(fs.readFileSync(`BlinkMore/Resources/UI/${name}`)).digest("hex"), info.sha256);
+}

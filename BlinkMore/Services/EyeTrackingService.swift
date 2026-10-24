@@ -12,7 +12,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private var pendingImage: (CVPixelBuffer, Double)?
     private var inferenceScheduled = false
     private var captureDrops = 0
-    private var latestFrame = TrackingFrame()
+    private var delivery = TrackingDelivery()
     private var session: AVCaptureSession?
     private var output: AVCaptureVideoDataOutput?
     private var errorObserver: NSObjectProtocol?
@@ -82,6 +82,15 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 self.session = session; self.output = output
                 guard !self.isStopped else { output.setSampleBufferDelegate(nil, queue: nil); return }
                 session.startRunning()
+                // Match the existing inference budget at the camera, avoiding discarded captures.
+                if session.isRunning, let duration = Self.captureDuration(ranges: device.activeFormat.videoSupportedFrameRateRanges.map({ $0.minFrameRate...$0.maxFrameRate })) {
+                    do {
+                        try device.lockForConfiguration()
+                        defer { device.unlockForConfiguration() }
+                        device.activeVideoMinFrameDuration = duration
+                        device.activeVideoMaxFrameDuration = duration
+                    } catch { NSLog("Camera keeps its default frame rate: %@", error.localizedDescription) }
+                }
                 if !session.isRunning { self.deliver(TrackingFrame(phase: .cameraError)) }
             } catch {
                 self.deliver(TrackingFrame(phase: .cameraError))
@@ -151,7 +160,8 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         guard timestamp.isFinite, now - timestamp < 0.1, now - timestamp >= -0.1 else {
             dropped += 1; missing(.delayed, timestamp: timestamp.isFinite ? timestamp : now); return
         }
-        guard now - lastProcessed >= 1.0 / 15.0 else { return }
+        // Allow capture jitter around 15 Hz without dropping every other camera sample.
+        guard now - lastProcessed >= 1.0 / 18.0 else { return }
         lastProcessed = now
         // Search at 5 Hz while absent, then return to full eye tracking as soon as a face appears.
         guard faceTracker != nil || now - lastFaceSearch >= 0.2 else { return }
@@ -265,16 +275,20 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private func deliver(_ frame: TrackingFrame) {
         lock.lock()
         guard !stopped else { lock.unlock(); return }
-        latestFrame = frame
+        delivery.replace(frame)
         guard !deliveryPending else { lock.unlock(); return }
         deliveryPending = true; lock.unlock()
         // One pending main-thread delivery keeps a busy UI from building a frame backlog.
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.lock.lock(); let value = self.latestFrame; let stopped = self.stopped
+            self.lock.lock(); let value = self.delivery.take(); let stopped = self.stopped
             self.deliveryPending = false; self.lock.unlock()
-            if !stopped { self.onFrame(value) }
+            if !stopped, let value { self.onFrame(value) }
         }
+    }
+
+    static func captureDuration(ranges: [ClosedRange<Double>]) -> CMTime? {
+        ranges.contains(where: { $0.contains(15) }) ? CMTime(value: 1, timescale: 15) : nil
     }
 
     static func clock() -> Double { CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) }

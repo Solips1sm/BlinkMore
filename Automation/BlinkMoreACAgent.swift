@@ -3,7 +3,7 @@ import IOKit.ps
 import Darwin
 
 final class BlinkMoreACAgent {
-    private let appURL = URL(fileURLWithPath: "/Applications/BlinkMore.app")
+    private let appURL = URL(fileURLWithPath: "/Applications/Eyesight.app")
     private var opening = false
 
     func onACPower() -> Bool {
@@ -23,7 +23,7 @@ final class BlinkMoreACAgent {
 
     func reconcile() {
         let apps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.oxremy.blinkmorefree")
-            .filter { $0.bundleURL?.standardizedFileURL == appURL }
+            .filter { ["/Applications/Eyesight.app", "/Applications/BlinkMore.app"].contains($0.bundleURL?.standardizedFileURL.path ?? "") }
         guard onACPower() else {
             for app in apps {
                 stop(app)
@@ -36,12 +36,12 @@ final class BlinkMoreACAgent {
         configuration.activates = false
         configuration.hides = false
         if CommandLine.arguments.contains("--diagnose") { configuration.arguments = ["--diagnose"] }
-        NSLog("AC power: launching BlinkMore")
+        NSLog("AC power: launching Eyesight")
         NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
             DispatchQueue.main.async {
                 self.opening = false
                 if let error = error {
-                    NSLog("BlinkMore launch failed: %@", error.localizedDescription)
+                    NSLog("Eyesight launch failed: %@", error.localizedDescription)
                 }
                 if !self.onACPower(), let app = app {
                     self.stop(app)
@@ -53,7 +53,7 @@ final class BlinkMoreACAgent {
 
 if CommandLine.arguments.contains("--stop") {
     let apps = NSRunningApplication.runningApplications(withBundleIdentifier: "com.oxremy.blinkmorefree")
-        .filter { $0.bundleURL?.standardizedFileURL.path == "/Applications/BlinkMore.app" }
+        .filter { ["/Applications/Eyesight.app", "/Applications/BlinkMore.app"].contains($0.bundleURL?.standardizedFileURL.path ?? "") }
     apps.forEach { $0.terminate() }
     let deadline = Date().addingTimeInterval(3)
     while apps.contains(where: { !$0.isTerminated }) && Date() < deadline {

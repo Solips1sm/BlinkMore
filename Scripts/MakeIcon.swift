@@ -15,7 +15,7 @@ import AppKit
                 NSColor(srgbRed: 0, green: 0.435, blue: 0.90, alpha: 1).setFill()
                 NSBezierPath(roundedRect: NSRect(x: 0, y: 0, width: pixels, height: pixels), xRadius: pixels * 0.22, yRadius: pixels * 0.22).fill()
                 let inset = pixels * 0.18
-                MenuBarController.mark(size: pixels - inset * 2, color: .white)
+                MenuBarController.mark(size: pixels - inset * 2, color: .white, source: URL(fileURLWithPath: CommandLine.arguments[2]))
                     .draw(in: NSRect(x: inset, y: inset, width: pixels - inset * 2, height: pixels - inset * 2))
                 NSGraphicsContext.restoreGraphicsState()
                 guard let png = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }

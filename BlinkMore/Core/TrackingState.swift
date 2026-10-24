@@ -63,3 +63,23 @@ struct TrackingFrame {
     var faceHeight: Double = 0
     var faceConfidence: Double = 0
 }
+
+struct TrackingDelivery {
+    private var latest: TrackingFrame?
+    private var blinkAt: Double?
+
+    mutating func replace(_ frame: TrackingFrame) {
+        var value = frame
+        if frame.calibrated && [.tracking, .eyesClosed].contains(frame.phase) {
+            if frame.events & 4 != 0 { blinkAt = frame.timestamp }
+            if let blinkAt, (0...0.25).contains(frame.timestamp - blinkAt) { value.events |= 4 }
+            else { blinkAt = nil }
+        } else { blinkAt = nil }
+        latest = value
+    }
+
+    mutating func take() -> TrackingFrame? {
+        defer { latest = nil; blinkAt = nil }
+        return latest
+    }
+}

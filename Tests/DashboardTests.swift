@@ -61,6 +61,13 @@ import WebKit
             try png.write(to: output.appendingPathComponent(name + ".png"))
         }
         try await refresh()
+        try await expect("await document.fonts.load('500 21px Comfortaa'); return [...document.fonts].some(f=>f.family==='Comfortaa' && f.status==='loaded')", true)
+        try await expect("return document.querySelector('.identity h1').textContent", "eyesight")
+        try await expect("const image=document.querySelector('.logo'); await image.decode(); return image.complete && image.naturalWidth > 0", true)
+        let brandURL = root.appendingPathComponent("BlinkMore/Resources/UI/eyesight.svg")
+        precondition(NSImage(contentsOf: brandURL) != nil)
+        let nativeMark = MenuBarController.mark(size: 64, color: .white, source: brandURL)
+        precondition(nativeMark.tiffRepresentation != nil)
         try await expect("return document.querySelector('[aria-selected=true]').dataset.tab", "3")
         for theme in ["light", "dark"] {
             state["actualTheme"] = theme; controller.window?.appearance = NSAppearance(named: theme == "dark" ? .darkAqua : .aqua)
@@ -93,12 +100,17 @@ import WebKit
         var revisedWeek = revisedStats["week"] as! [[String: Any]]; revisedWeek[6]["blinkRate"] = 13.1
         revisedStats["week"] = revisedWeek; state["statistics"] = revisedStats; try await refresh()
         try await expect("return document.activeElement === document.querySelector('#week-days button')", true)
+        state["calibration"] = 0.42
         for phase in [TrackingPhase.starting, .calibrating, .tracking, .eyesClosed, .noFace, .multipleFaces, .lowQuality, .delayed, .paused, .cameraDenied, .cameraMissing, .cameraError] {
             state["phase"] = phase.rawValue; state["title"] = phase.title; state["detail"] = phase.detail
             try await refresh()
             try await expect("return document.getElementById('tracking-title').textContent", phase.title)
             try await expect("return !document.getElementById('camera-settings').hidden", phase == .cameraDenied)
+            try await expect("return !document.getElementById('tracking-rail').hidden", [.starting, .calibrating].contains(phase))
+            if phase == .starting { try await expect("return document.getElementById('tracking-rail').hasAttribute('aria-valuenow')", false) }
+            if phase == .calibrating { try await expect("return document.getElementById('tracking-rail').getAttribute('aria-valuenow')", "42") }
         }
+        state["calibration"] = 1.0
         state["phase"] = "tracking"; state["frameAgeMs"] = 76.0; state["reminderState"] = "waitingForBlink"
         controller.selectTab(0); try await refresh()
         _ = try await js("document.querySelector('[data-inspect]').click()")
@@ -111,6 +123,7 @@ import WebKit
         try await expect("return document.getElementById('left-live').getAttribute('d')", "")
         state["frameAgeMs"] = 76.0; state["reducedMotion"] = true; try await refresh()
         try await expect("return getComputedStyle(document.querySelector('.blink-ripple')).animationName", "none")
+        try await expect("return getComputedStyle(document.querySelector('#tracking-rail span')).animationName", "none")
         controller.selectTab(1); try await refresh()
         _ = try await js("document.querySelector('[data-routine=reset]').click()")
         try await Task.sleep(for: .milliseconds(100))
@@ -119,6 +132,7 @@ import WebKit
         try await refresh()
         try await expect("return !document.getElementById('practice-session').hidden", true)
         try await expect("return document.getElementById('blink-scene').hasAttribute('hidden')", false)
+        try await expect("return document.querySelector('.exercise-progress').getAttribute('aria-valuenow')", "10")
         try await screenshot("dashboard-practice-blink")
         revisedStats = state["statistics"] as! [String: Any]
         var revisedLifetime = revisedStats["lifetime"] as! [String: Any]; revisedLifetime["blinks"] = 1901

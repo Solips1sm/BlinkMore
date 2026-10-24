@@ -155,7 +155,7 @@
     text("exercise-remaining", done ? "Done" : fmt(Math.ceil(finite(e.remaining) ? e.remaining : 0)));
     document.querySelector(".exercise-clock .muted").hidden = done;
     const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
-    $("exercise-progress").style.width = `${progress * 100}%`; document.querySelector(".exercise-progress").setAttribute("aria-valuenow", String(Math.round(progress * 100)));
+    $("exercise-progress").style.transform = `scaleX(${progress})`; document.querySelector(".exercise-progress").setAttribute("aria-valuenow", String(Math.round(progress * 100)));
     const feedback = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
     text("exercise-feedback", done ? "Saved to today’s activity." : look ? "Timer guidance. You can look away." : feedback ? "Live eyelid feedback" : "Camera feedback off. The guide still works.");
     if (running && !look) $("practice-lid").setAttribute("d", BlinkMetrics.aperture(feedback ? (state.left + state.right) / 2 : 1, 300, 85, 230) ?? "");
@@ -215,6 +215,12 @@
     document.documentElement.classList.toggle("dark", state.actualTheme === "dark");
     document.documentElement.classList.toggle("reduce-motion", Boolean(state.reducedMotion));
     $("tracking-status").dataset.phase = state.phase;
+    const preparing = ["starting", "calibrating"].includes(state.phase), calibrated = state.phase === "calibrating";
+    const rail = $("tracking-rail"); rail.hidden = !preparing; rail.dataset.determinate = String(calibrated);
+    rail.setAttribute("aria-label", calibrated ? "Eye calibration" : "Starting camera");
+    if (calibrated) rail.setAttribute("aria-valuenow", String(Math.round(Math.max(0, Math.min(1, state.calibration ?? 0)) * 100)));
+    else rail.removeAttribute("aria-valuenow");
+    rail.firstElementChild.style.transform = calibrated ? `scaleX(${Math.max(0, Math.min(1, state.calibration ?? 0))})` : "";
     text("tracking-title", state.title ?? "Starting camera");
     text("tracking-detail", state.phase === "calibrating" ? `${fmt((state.calibration ?? 0) * 100)}% calibrated` : state.phase === "tracking" ? "" : state.detail ?? "");
     $("tracking-detail").title = state.detail ?? "";

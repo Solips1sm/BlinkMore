@@ -334,7 +334,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     private func exportStatistics() {
         let panel = NSSavePanel(); panel.allowedContentTypes = [.json]
-        panel.nameFieldStringValue = "BlinkMore-statistics.json"
+        panel.nameFieldStringValue = "Eyesight-statistics.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do { try statistics.exportData().write(to: url, options: .atomic); notify("Statistics exported.") }
         catch { notify("Statistics could not be exported. Choose another location.") }

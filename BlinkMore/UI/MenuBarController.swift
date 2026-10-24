@@ -19,7 +19,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         item.button?.target = self; item.button?.action = #selector(clicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         contextMenu.delegate = self; contextMenu.autoenablesItems = false
-        add("Open BlinkMore", "open")
+        add("Open Eyesight", "open")
         for key in ["status", "count", "rate", "relative"] { add("", key, enabled: false) }
         contextMenu.addItem(.separator())
         add("Start a reset", "startReset")
@@ -33,7 +33,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     deinit { NSStatusBar.system.removeStatusItem(item) }
     func update(_ phase: TrackingPhase) {
         self.phase = phase
-        item.button?.toolTip = "BlinkMore: \(phase.title)"
+        item.button?.toolTip = "Eyesight: \(phase.title)"
         let closed = phase == .eyesClosed || Date() < blinkUntil
         let image = [.tracking, .eyesClosed].contains(phase) ? (closed ? closedEye : openEye) : idleMark
         image.isTemplate = true
@@ -95,14 +95,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         }
     }
 
-    static func mark(size: CGFloat, color: NSColor = .labelColor) -> NSImage {
+    static func mark(size: CGFloat, color: NSColor = .labelColor, source: URL? = nil) -> NSImage {
+        let url = source ?? Bundle.main.resourceURL?.appendingPathComponent("UI/eyesight.svg")
+        let mark = url.flatMap { NSImage(contentsOf: $0) } ?? NSImage(systemSymbolName: "eye", accessibilityDescription: "Eyesight")!
         let image = NSImage(size: NSSize(width: size, height: size))
         image.lockFocus()
+        mark.draw(in: NSRect(x: 0, y: size * 0.1875, width: size, height: size * 0.625))
         color.setFill()
-        let centers: [(CGFloat, CGFloat)] = [(25.76, 14), (22.316, 22.316), (14, 25.76), (5.684, 22.316), (2.24, 14), (5.684, 5.684), (14, 2.24), (22.316, 5.684)]
-        for (x, y) in centers {
-            NSBezierPath(ovalIn: NSRect(x: (x - 1.96) * size / 28, y: (y - 1.96) * size / 28, width: 3.92 * size / 28, height: 3.92 * size / 28)).fill()
-        }
+        NSRect(x: 0, y: 0, width: size, height: size).fill(using: .sourceIn)
         image.unlockFocus()
         return image
     }
