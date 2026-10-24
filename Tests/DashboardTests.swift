@@ -15,7 +15,9 @@ import WebKit
         let output = root.appendingPathComponent("test-results")
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
         let week: [[String: Any]] = (0..<7).map { i -> [String: Any] in
-            ["day": "2026-10-\(18 + i)", "blinkRate": 10.0 + Double(i) / 2, "blinks": 130 + i * 19, "trackedSeconds": 1200.0]
+            var record: [String: Any] = ["day": "2026-10-\(18 + i)", "blinkRate": 10.0 + Double(i) / 2, "blinks": 130 + i * 19, "trackedSeconds": 1200.0]
+            if i < 2 { record["blinkRate"] = NSNull(); record["blinks"] = 0; record["trackedSeconds"] = 0.0 }
+            return record
         }
         let points: [[Double]] = (0..<8).map { i -> [Double] in
             let angle = Double(i) * .pi / 4
