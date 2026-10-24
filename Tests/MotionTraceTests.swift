@@ -15,6 +15,28 @@ import Foundation
         trace.record(TrackingFrame(phase: .tracking,timestamp:0.5,left:1,right:1,calibrated:true))
         precondition(trace.snapshot().count == 1)
         trace.record(TrackingFrame(timestamp:.nan)); precondition(trace.snapshot().count == 1)
+        let dense = MotionTrace()
+        for i in 0..<2300 {
+            dense.record(TrackingFrame(phase:.tracking,timestamp:1+Double(i)/60,left:1,right:1,calibrated:true))
+        }
+        let denseSamples = dense.snapshot()
+        precondition(denseSamples.count == 1000)
+        precondition(abs((denseSamples.first!["t"] as! Double) - (1+1300.0/60)) < 1e-9)
+        precondition(abs((denseSamples.last!["t"] as! Double) - (1+2299.0/60)) < 1e-9)
+        let denseMirror = MotionTrace()
+        denseMirror.startMirror(now:300)
+        for i in 0..<700 {
+            denseMirror.record(TrackingFrame(phase:.tracking,timestamp:300+Double(i)/60,left:1,right:1,
+                trackedDelta:1.0/60,events:i == 699 ? 5 : 1,calibrated:true))
+        }
+        let denseClip = denseMirror.mirrorSnapshot()["clip"] as! [[String:Any]]
+        precondition((denseMirror.mirrorSnapshot()["blinks"] as! Int) == 1 && (30...31).contains(denseClip.count))
+        let denseCoverage = MotionTrace()
+        for i in 0..<19000 {
+            denseCoverage.record(TrackingFrame(phase:.tracking,timestamp:1+Double(i)/60))
+        }
+        let retainedCoverage = denseCoverage.coverageSnapshot(now:1+18999.0/60)["segments"] as! [[String:Any]]
+        precondition((retainedCoverage.first?["start"] as? Double ?? 0) > 199)
         let history = MotionTrace()
         history.startMirror(now: 100)
         for i in 0...30 {

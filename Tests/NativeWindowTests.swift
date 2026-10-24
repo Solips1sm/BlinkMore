@@ -16,7 +16,8 @@ import WebKit
         let suite = "Eyesight-Native-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName:suite)!
         defer { defaults.removePersistentDomain(forName:suite); try? FileManager.default.removeItem(at:temp) }
-        let owner = ApplicationController(preferences:AppPreferences(defaults:defaults), statistics:DailyStatistics(url:temp.appendingPathComponent("stats.json")), resources:root.appendingPathComponent("BlinkMore/Resources/UI"))
+        let resources = Bundle.main.resourceURL?.appendingPathComponent("UI") ?? root.appendingPathComponent("BlinkMore/Resources/UI")
+        let owner = ApplicationController(preferences:AppPreferences(defaults:defaults), statistics:DailyStatistics(url:temp.appendingPathComponent("stats.json")), resources:resources)
         owner.installMenu()
         func ready(_ window: DashboardWindowController) async throws {
             for _ in 0..<100 {
@@ -25,16 +26,40 @@ import WebKit
             }
             preconditionFailure("Native window did not load its local interface")
         }
+        func waitFor(_ condition: () -> Bool) async throws {
+            for _ in 0..<40 {
+                if condition() { return }
+                try await Task.sleep(for:.milliseconds(50))
+            }
+        }
+        func studio(_ window: DashboardWindowController) async throws -> String? {
+            let value: Any = try await withCheckedThrowingContinuation { continuation in
+                window.webView.callAsyncJavaScript("return document.getElementById('examine').dataset.studio",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
+            }
+            return value as? String
+        }
+        func selectStudio(_ window: DashboardWindowController, _ name: String) async throws -> String? {
+            let value: Any = try await withCheckedThrowingContinuation { continuation in
+                window.webView.callAsyncJavaScript("document.querySelector('[data-studio=\"' + name + '\"]').click(); return document.getElementById('examine').dataset.studio",arguments:["name":name],in:nil,in:.page) { result in continuation.resume(with:result) }
+            }
+            return value as? String
+        }
+        func waitForStudio(_ window: DashboardWindowController, _ expected: String) async throws {
+            for _ in 0..<40 {
+                if try await studio(window) == expected { return }
+                try await Task.sleep(for:.milliseconds(50))
+            }
+            preconditionFailure("Native window studio did not change to \(expected)")
+        }
         owner.menu.item.button!.performClick(nil)
         let first = owner.dashboard!
         try await ready(first)
         precondition(first.window!.isVisible)
+        let assets: Any = try await withCheckedThrowingContinuation { continuation in
+            first.webView.callAsyncJavaScript("const logo=document.querySelector('.logo');await logo.decode();return logo.naturalWidth>0&&getComputedStyle(logo).objectFit==='contain'&&typeof window.blinkmore.update==='function'",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
+        }
+        precondition(assets as? Bool == true, "Bundled SVG, stylesheet and controls must load")
         precondition(first.window!.collectionBehavior.contains(.moveToActiveSpace))
-        first.window!.miniaturize(nil)
-        try await Task.sleep(for:.milliseconds(200))
-        precondition(first.window!.isMiniaturized)
-        owner.menu.item.button!.performClick(nil)
-        precondition(first.window!.isVisible && !first.window!.isMiniaturized)
         first.window!.orderOut(nil); owner.menu.item.button!.performClick(nil)
         precondition(first.window!.isVisible)
         first.window!.close(); precondition(owner.dashboard == nil)
@@ -44,10 +69,7 @@ import WebKit
         let setup = owner.menu.contextMenu.items.first { $0.representedObject as? String == "setup" }!
         NSApp.sendAction(setup.action!,to:setup.target,from:setup)
         try await Task.sleep(for:.milliseconds(250))
-        let studio: Any = try await withCheckedThrowingContinuation { continuation in
-            second.webView.callAsyncJavaScript("return document.getElementById('examine').dataset.studio",arguments:[:],in:nil,in:.page) { result in continuation.resume(with:result) }
-        }
-        precondition(studio as? String == "setup")
+        let initialStudio = try await studio(second); precondition(initialStudio == "setup")
         var images: [Data] = []
         for phase in [TrackingPhase.tracking,.eyesClosed,.paused,.multipleFaces,.cameraDenied,.delayed,.calibrating] {
             owner.menu.update(phase)
@@ -56,16 +78,43 @@ import WebKit
             images.append(owner.menu.item.button!.image!.tiffRepresentation!)
         }
         precondition(Set(images).count == images.count)
+        owner.menu.update(.paused)
+        let pausedImage = owner.menu.item.button!.image!
+        owner.menu.blink(); precondition(owner.menu.item.button!.image === pausedImage)
+        let motionStudio = try await selectStudio(second,"motion"); precondition(motionStudio == "motion")
+        try await Task.sleep(for:.milliseconds(100))
+        second.reloadInterface(); try await ready(second)
+        try await waitForStudio(second,"motion")
+        second.showSetup(); try await waitForStudio(second,"setup")
         second.refresh(); second.reloadInterface(); second.reloadInterface(); try await ready(second)
+        let reloadedStudio = try await studio(second); precondition(reloadedStudio == "setup")
         second.webViewWebContentProcessDidTerminate(second.webView)
         precondition(!second.interfaceAvailable && second.window!.isVisible)
         try await ready(second)
+        let recoveredStudio = try await studio(second); precondition(recoveredStudio == "setup")
         second.webViewWebContentProcessDidTerminate(second.webView)
         precondition(!second.interfaceAvailable && second.window!.isVisible)
         func descendants(_ view:NSView)->[NSView] { view.subviews.flatMap { [$0]+descendants($0) } }
         let reload = descendants(second.window!.contentView!).compactMap { $0 as? NSButton }.first { $0.title == "Reload window" }!
         precondition(!reload.isHidden)
         reload.performClick(nil); try await ready(second)
+        let manuallyReloadedStudio = try await studio(second); precondition(manuallyReloadedStudio == "setup")
+        second.present()
+        try await Task.sleep(for:.milliseconds(150))
+        let restoredWindow = second.window!
+        guard let miniButton = restoredWindow.standardWindowButton(.miniaturizeButton) else {
+            preconditionFailure("Dashboard miniaturize button was unavailable")
+        }
+        precondition(miniButton.isEnabled, "Dashboard miniaturize button should be enabled")
+        miniButton.performClick(nil)
+        try await waitFor { second.window!.isMiniaturized }
+        precondition(second.window!.isMiniaturized)
+        owner.menu.item.button!.performClick(nil)
+        precondition(second.window!.isVisible && !second.window!.isMiniaturized)
         second.window!.close()
+        precondition(owner.applicationShouldTerminate(NSApp) == .terminateNow)
+        owner.command(["action":"preview"])
+        precondition(owner.snapshot()["fading"] as? Bool == false)
+        precondition(owner.applicationShouldTerminate(NSApp) == .terminateLater)
     }
 }

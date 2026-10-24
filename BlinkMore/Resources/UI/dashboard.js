@@ -41,7 +41,10 @@
     }
     if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
     if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); coverageView(current.coverage); }
-    if (current && index === 4) { geometry(current); liveView(current); }
+    if (current && index === 4) {
+      if (studio === "setup") setupView(current);
+      else { geometry(current); liveView(current); }
+    }
   }
   document.querySelectorAll("[data-tab]").forEach(button => {
     button.addEventListener("click", () => selectTab(Number(button.dataset.tab)));
@@ -67,14 +70,18 @@
   }));
   function selectStudio(next) {
     if (!["motion","difference","geometry","setup"].includes(next)) return;
+    if (studio === next) return;
     if (studio !== next && current?.eyeCheck?.phase === "running") send({action:"cancelCheck"});
     if (studio !== next) document.querySelector("main").scrollTop = 0;
-    studio = next; $("examine").dataset.studio = studio;
+    studio = next; $("examine").dataset.studio = studio; send({action:"view",tab:selected,studio});
     document.querySelectorAll("button[data-studio]").forEach(b => b.setAttribute("aria-pressed",String(b.dataset.studio === studio)));
     $("geometry-workspace").hidden = studio !== "geometry";
     $("setup-workspace").hidden = studio !== "setup";
     document.querySelector(".motion-panel").hidden = !["motion","difference"].includes(studio);
-    if (current) { liveView(current); geometry(current); setupView(current); }
+    if (current) {
+      if (studio === "setup") setupView(current);
+      else { geometry(current); liveView(current); }
+    }
   }
   document.querySelectorAll("button[data-studio]").forEach(button => button.addEventListener("click", () => selectStudio(button.dataset.studio)));
   function showSetup() { selectTab(4); selectStudio("setup"); document.querySelector("main").scrollTop = 0; }
@@ -82,7 +89,10 @@
   $("setup-settings").addEventListener("click",()=>selectTab(3));
   function stopReplay() { if (replayFrame !== null) cancelAnimationFrame(replayFrame); replayFrame = null; replayClip = null; }
   function mirrorEyes(left,right) {
-    [["left",left,112],["right",right,328]].forEach(([side,value,cx])=>$("mirror-"+side).setAttribute("d",finite(value) ? BlinkMetrics.aperture(value,cx,50,176) ?? "" : ""));
+    [["left",left,112],["right",right,328]].forEach(([side,value,cx])=>{
+      const path = $("mirror-"+side), d = finite(value) ? BlinkMetrics.aperture(value,cx,50,176) ?? "" : "";
+      if (path.getAttribute("d") !== d) path.setAttribute("d",d);
+    });
   }
   $("mirror-replay").addEventListener("click",()=>{
     const clip = current?.mirror?.clip ?? [], trace = BlinkMetrics.replay(clip);
@@ -91,12 +101,14 @@
     if (current.reducedMotion || matchMedia("(prefers-reduced-motion:reduce)").matches) {
       text("mirror-source","Recorded trace"); text("mirror-description","Playback animation is off with reduced motion."); $("mirror-trace").focus(); return;
     }
-    replayClip = clip.map(p=>({...p}));
+    replayClip = clip;
+    let sampleIndex = 0;
     const start = performance.now(), first = replayClip[0].t;
     const play = now => {
       if (!replayClip || selected !== 1) { stopReplay(); return; }
       const elapsed = (now-start)/1000, time = first+elapsed;
-      const sample = [...replayClip].reverse().find(p=>p.t<=time);
+      while (sampleIndex + 1 < replayClip.length && replayClip[sampleIndex + 1].t <= time) sampleIndex++;
+      const sample = replayClip[sampleIndex];
       mirrorEyes(sample && time-sample.t<=.25 ? sample.left : null,sample && time-sample.t<=.25 ? sample.right : null);
       text("mirror-source","Recorded blink");
       if (elapsed < trace.duration) replayFrame = requestAnimationFrame(play);
@@ -126,7 +138,7 @@
     if (event.key === "Escape" && current?.exercise?.phase === "running") { event.preventDefault(); send({ action: "exercise", command: "pause" }); $("exercise-resume").focus(); }
   });
   function live(state) {
-    const active = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    const active = BlinkMetrics.freshEyes(state);
     $("live-instrument").classList.toggle("unavailable", !active);
     ["left", "right"].forEach((side, i) => $(`${side}-live`).setAttribute("d", active ? BlinkMetrics.aperture(state[side], i === 0 ? 112 : 328, 66, 176) ?? "" : ""));
     $("live-eyes").setAttribute("aria-label", active ? `Relative eyelid opening. Left ${fmt(state.left * 100)} percent, right ${fmt(state.right * 100)} percent of each reference.` : "Live eyelid data unavailable");
@@ -244,7 +256,7 @@
     document.querySelector(".exercise-clock .muted").hidden = done;
     const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
     $("exercise-progress").style.transform = `scaleX(${progress})`; document.querySelector(".exercise-progress").setAttribute("aria-valuenow", String(Math.round(progress * 100)));
-    const feedback = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    const feedback = BlinkMetrics.freshEyes(state);
     if (running && lastExercise !== "running" && lastExercise !== "paused") practiceBlinks = state.statistics.lifetime?.blinks ?? 0;
     text("practice-blinks", feedback ? fmt(Math.max(0, (state.statistics.lifetime?.blinks ?? 0) - practiceBlinks)) : "Unavailable");
     ["left", "right"].forEach(side => text("practice-" + side, feedback ? fmt(state[side] * 100, 0, "% ref") : "Unavailable"));
@@ -262,8 +274,9 @@
   }
   function mirrorView(state) {
     const mirror = state.mirror ?? {phase:"idle",clip:[],blinks:0,observedSeconds:0}, trace = BlinkMetrics.replay(mirror.clip);
-    const active = ["tracking","eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
-    $("mirror-trace-left").setAttribute("d",trace.left); $("mirror-trace-right").setAttribute("d",trace.right);
+    const active = BlinkMetrics.freshEyes(state);
+    if ($("mirror-trace-left").getAttribute("d") !== trace.left) $("mirror-trace-left").setAttribute("d",trace.left);
+    if ($("mirror-trace-right").getAttribute("d") !== trace.right) $("mirror-trace-right").setAttribute("d",trace.right);
     const recording = mirror.phase === "running", cancelled = mirror.phase === "cancelled";
     if (recording || state.reducedMotion || !trace.left) stopReplay();
     $("mirror-replay").textContent = state.reducedMotion ? "View trace" : "Replay blink";
@@ -350,32 +363,34 @@
     $(`${side}-scan`).setAttribute("aria-label", projection ? `${side} eyelid, ${projection.points.length} landmarks, aperture ${fmt(data[`${side}Aperture`], 3)}` : `${side} eyelid landmarks unavailable`);
   }
   function liveView(state) {
-    const active = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500 && finite(state.left) && finite(state.right);
+    const active = BlinkMetrics.freshEyes(state);
     text("live-difference", active ? fmt(Math.abs(state.left - state.right) * 100, 1, "%") : "Waiting");
     text("live-daily-difference", fmt(state.statistics.today?.asymmetry, 1, "%"));
     text("live-age", active ? fmt(state.frameAgeMs, 0, "ms") : "Waiting");
     text("live-fps", active && state.fps > 0 ? fmt(state.fps, 1) : "Waiting");
     $("start-check").disabled = !active || (state.calibration ?? 0) < 1;
-    const time = state.sampleTime;
-    const traceNow = finite(time) ? time + (finite(state.frameAgeMs) ? Math.max(0, state.frameAgeMs) / 1000 : 0) : 0;
-    const trace = BlinkMetrics.motion(state.motion ?? [], traceNow, motionSpan);
-    const difference = studio === "difference";
-    text("motion-title", difference ? "Left minus right opening" : "Opening over time");
-    text("motion-reference-label", difference ? "Zero = equal relative opening" : "Dashed = 100% reference");
-    document.querySelector(".motion-lane-labels").hidden = difference;
-    document.querySelector(".motion-reference").setAttribute("d", difference ? "M12 84H628" : "M12 32H628M12 112H628");
-    $("motion-left").setAttribute("d", difference ? trace.difference : trace.left); $("motion-right").setAttribute("d", difference ? "" : trace.right);
-    $("motion-left-area").setAttribute("d", difference ? "" : trace.areas[0]); $("motion-right-area").setAttribute("d", difference ? "" : trace.areas[1]);
-    const marks = document.createDocumentFragment();
-    for (const event of trace.events) {
-      const marker = svg("path", { d: `M${event.x} 165v5`, class: `trace-event event-${event.type}` });
-      const title = svg("title"); title.textContent = event.type === "blink" ? "Bilateral blink" : `${event.type} closure`; marker.append(title); marks.append(marker);
+    if (studio !== "geometry") {
+      const time = state.sampleTime;
+      const traceNow = finite(time) ? time + (finite(state.frameAgeMs) ? Math.max(0, state.frameAgeMs) / 1000 : 0) : 0;
+      const trace = BlinkMetrics.motion(state.motion ?? [], traceNow, motionSpan);
+      const difference = studio === "difference";
+      text("motion-title", difference ? "Left minus right opening" : "Opening over time");
+      text("motion-reference-label", difference ? "Zero = equal relative opening" : "Dashed = 100% reference");
+      document.querySelector(".motion-lane-labels").hidden = difference;
+      document.querySelector(".motion-reference").setAttribute("d", difference ? "M12 84H628" : "M12 32H628M12 112H628");
+      $("motion-left").setAttribute("d", difference ? trace.difference : trace.left); $("motion-right").setAttribute("d", difference ? "" : trace.right);
+      $("motion-left-area").setAttribute("d", difference ? "" : trace.areas[0]); $("motion-right-area").setAttribute("d", difference ? "" : trace.areas[1]);
+      const marks = document.createDocumentFragment();
+      for (const event of trace.events) {
+        const marker = svg("path", { d: `M${event.x} 165v5`, class: `trace-event event-${event.type}` });
+        const title = svg("title"); title.textContent = event.type === "blink" ? "Bilateral blink" : `${event.type} closure`; marker.append(title); marks.append(marker);
+      }
+      $("motion-events").replaceChildren(marks);
+      text("motion-start", `${motionSpan}s ago`);
+      text("motion-coverage", `${fmt(trace.observed,1)}s observed`);
+      text("motion-event-count", `${trace.events.filter(e=>e.type === "blink").length} blinks in view`);
+      $("motion-chart").setAttribute("aria-label", ` ${difference ? "Left minus right opening, minus 100 to plus 100 percentage points, zero centered" : "Left and right opening in separate lanes"} over ${motionSpan} seconds. ${difference ? "Above zero means the left is relatively more open; below zero means the right is relatively more open." : "Dashed lines mark 100 percent reference; display caps at 150 percent."} Gaps have no measurement. ${fmt(trace.observed,1)} seconds observed. ${trace.events.length} closure events.`);
     }
-    $("motion-events").replaceChildren(marks);
-    text("motion-start", `${motionSpan}s ago`);
-    text("motion-coverage", `${fmt(trace.observed,1)}s observed`);
-    text("motion-event-count", `${trace.events.filter(e=>e.type === "blink").length} blinks in view`);
-    $("motion-chart").setAttribute("aria-label", ` ${difference ? "Left minus right opening, minus 100 to plus 100 percentage points, zero centered" : "Left and right opening in separate lanes"} over ${motionSpan} seconds. ${difference ? "Above zero means the left is relatively more open; below zero means the right is relatively more open." : "Dashed lines mark 100 percent reference; display caps at 150 percent."} Gaps have no measurement. ${fmt(trace.observed,1)} seconds observed. ${trace.events.length} closure events.`);
     const check = state.eyeCheck ?? { phase: "idle" }, running = check.phase === "running", done = check.phase === "completed";
     $("review-check").hidden = !["completed", "cancelled"].includes(check.phase);
     $("check-session").dataset.phase = check.phase;
@@ -476,7 +491,10 @@
       if (input.type === "range" && document.activeElement !== input) text(`label-${key}`, preferenceLabel(key, Number(input.value)));
     });
     text("footer-notice", state.notice || stats.warning || "");
-    if (selected === 4) { geometry(state); liveView(state); setupView(state); }
+    if (selected === 4) {
+      if (studio === "setup") setupView(state);
+      else { geometry(state); liveView(state); }
+    }
   } };
   send({ action: "ready" });
 })();

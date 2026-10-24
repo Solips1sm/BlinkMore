@@ -11,7 +11,7 @@ private final class FadePaint: NSView {
 }
 
 final class OverlayFade {
-    private var windows: [NSWindow] = []
+    private(set) var windows: [NSWindow] = []
     private var generation = 0
     private(set) var isFaded = false
 
@@ -45,16 +45,17 @@ final class OverlayFade {
                 }
             }
         }
-        guard visible != isFaded else { return }
+        guard visible != isFaded || (!visible && duration == 0 && windows.contains(where: { $0.isVisible })) else { return }
         generation += 1; let current = generation; isFaded = visible
         if visible { windows.forEach { $0.orderFrontRegardless() } }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = visible ? duration : 0.07
+            context.duration = duration == 0 ? 0 : visible ? duration : 0.07
             context.allowsImplicitAnimation = true
             windows.forEach { $0.animator().alphaValue = visible ? 1 : 0 }
         } completionHandler: { [weak self] in
             guard let self = self, current == self.generation, !visible else { return }
             self.windows.forEach { $0.orderOut(nil) }
         }
+        if !visible && duration == 0 { windows.forEach { $0.orderOut(nil) } }
     }
 }

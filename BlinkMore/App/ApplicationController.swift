@@ -21,16 +21,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var powerTimer: Timer?
     private var fadeTimer: Timer?
     private var saveTimer: Timer?
+    private var powerSource: CFRunLoopSource?
+    private var terminating = false
     private(set) var dashboard: DashboardWindowController?
     private var previewUntil: Double = 0
     private var reminderPolicy = ReminderPolicy()
     private var exercise = ExercisePolicy()
     private var checking = false
-    private var sleeping = false
-    private var locked = false
-    private var inactiveSession = false
+    private var activity = SessionActivity()
     private var userIdle = false
-    private var systemSuspended: Bool { sleeping || locked || inactiveSession }
+    private var systemSuspended: Bool { activity.suspended }
     private var latency: [Double] = []
     private var cameras: [[String: String]] = []
     private var notice = ""
@@ -72,11 +72,21 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         for name in [NSWorkspace.sessionDidResignActiveNotification, NSWorkspace.sessionDidBecomeActiveNotification] {
             workspace.addObserver(self, selector: #selector(sessionChanged(_:)), name: name, object: nil)
         }
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.screensDidWakeNotification] {
+            workspace.addObserver(self, selector: #selector(screenChanged(_:)), name: name, object: nil)
+        }
         // shortcut: distributed lock notifications need live verification on each macOS release.
         for name in ["com.apple.screenIsLocked", "com.apple.screenIsUnlocked"] {
             DistributedNotificationCenter.default().addObserver(self, selector: #selector(lockChanged(_:)), name: Notification.Name(name), object: nil)
         }
+        activity = SessionActivity(session: CGSessionCopyCurrentDictionary() as? [String: Any] ?? ["kCGSSessionOnConsoleKey": false])
+        powerSource = IOPSNotificationCreateRunLoopSource({ context in
+            guard let context else { return }
+            Unmanaged<ApplicationController>.fromOpaque(context).takeUnretainedValue().reconcile()
+        }, Unmanaged.passUnretained(self).toOpaque())?.takeRetainedValue()
+        if let powerSource { CFRunLoopAddSource(CFRunLoopGetMain(), powerSource, .commonModes) }
         applyTheme(); reconcile()
+        guard !terminating else { return }
         powerTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.reconcile(); self?.writeDiagnostics() }
         fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in self?.updateFade() }
         saveTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in self?.statistics.flush() }
@@ -93,7 +103,11 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard !terminating else { return .terminateLater }
+        terminating = true; sessionID = UUID()
         powerTimer?.invalidate(); fadeTimer?.invalidate(); saveTimer?.invalidate()
+        if let powerSource { CFRunLoopRemoveSource(CFRunLoopGetMain(), powerSource, .commonModes) }
+        powerSource = nil
         fade.setVisible(false, color: preferences.fadeColor, intensity: preferences.intensity, duration: 0)
         statistics.flush(synchronous: true)
         guard let tracker = tracker else { return .terminateNow }
@@ -111,15 +125,19 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     @objc private func sleepChanged(_ notification: Notification) {
-        sleeping = notification.name == NSWorkspace.willSleepNotification; lifecycleChanged()
+        activity.receive(notification.name == NSWorkspace.willSleepNotification ? .sleep : .wake); lifecycleChanged()
+    }
+    @objc private func screenChanged(_ notification: Notification) {
+        activity.receive(notification.name == NSWorkspace.screensDidSleepNotification ? .screenSleep : .screenWake); lifecycleChanged()
     }
     @objc private func sessionChanged(_ notification: Notification) {
-        inactiveSession = notification.name == NSWorkspace.sessionDidResignActiveNotification; lifecycleChanged()
+        activity.receive(notification.name == NSWorkspace.sessionDidResignActiveNotification ? .resign : .activate); lifecycleChanged()
     }
     @objc private func lockChanged(_ notification: Notification) {
-        locked = notification.name.rawValue == "com.apple.screenIsLocked"; lifecycleChanged()
+        activity.receive(notification.name.rawValue == "com.apple.screenIsLocked" ? .lock : .unlock); lifecycleChanged()
     }
     private func lifecycleChanged() {
+        guard !terminating else { return }
         exercise.end(now: EyeTrackingService.clock()); reminderPolicy.reset(); previewUntil = 0
         reconcile(); updateFade()
     }
@@ -136,6 +154,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     private func reconcile() {
+        guard !terminating else { return }
         defer {
             if tracker == nil { observation.record(TrackingFrame(phase: frame.phase, timestamp: EyeTrackingService.clock())) }
         }
@@ -188,7 +207,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         sessionID = UUID(); tracker = nil; stoppingCamera = true
         frame = TrackingFrame(phase: .starting)
         service.stop { [weak self] in
-            self?.stoppingCamera = false; self?.statistics.flush()
+            self?.stoppingCamera = false; self?.statistics.flush(); self?.reconcile()
         }
         observation.record(TrackingFrame(phase: .starting, timestamp: EyeTrackingService.clock()))
         previewUntil = 0; reminderPolicy.reset()
@@ -196,6 +215,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     private func updateFade() {
+        guard !terminating else { return }
         let now = EyeTrackingService.clock()
         menu?.update(effectivePhase)
         let wasChecking = checking
@@ -229,7 +249,10 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             "delayMs": frame.latencyMs, "fps": frame.fps, "dropped": frame.dropped,
             "frameAge": max(0, EyeTrackingService.clock() - frame.timestamp), "quality": frame.qualityNote,
             "reminderState": reminderPolicy.mode.rawValue, "fading": fade.isFaded,
-            "exercise": exercise.snapshot(now: EyeTrackingService.clock())]
+            "exercise": exercise.snapshot(now: EyeTrackingService.clock()),
+            "acPower": onACPower(), "cameraServiceActive": tracker != nil, "sessionSuspended": systemSuspended,
+            "sleeping": activity.sleeping, "screenSleeping": activity.screenSleeping,
+            "locked": activity.locked, "inactiveSession": activity.inactive]
         let url = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("BlinkMore/diagnostic-status.json")
         do {
@@ -300,6 +323,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     func command(_ message: [String: Any]) {
+        guard !terminating else { return }
         guard let action = message["action"] as? String else { return }
         switch action {
         case "ready": dashboard?.refresh()

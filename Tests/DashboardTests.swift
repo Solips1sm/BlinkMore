@@ -48,6 +48,7 @@ import WebKit
                 preferences[key] = message["value"]; state["preferences"] = preferences
             }
         })
+        precondition(controller.window?.minSize == NSSize(width: 680, height: 520), "Dashboard minimum window size changed")
         controller.selectTab(3); controller.showWindow(nil)
         let view = controller.webView
         for _ in 0..<100 {
@@ -75,7 +76,12 @@ import WebKit
         try await expect("await document.fonts.load('500 21px Comfortaa'); return [...document.fonts].some(f=>f.family==='Comfortaa' && f.status==='loaded')", true)
         try await expect("return document.querySelector('.identity h1').textContent", "eyesight")
         try await expect("const image=document.querySelector('.logo'); await image.decode(); return image.complete && image.naturalWidth > 0", true)
+        try await expect("return [...document.querySelectorAll('svg[viewBox]')].every(svg=>svg.viewBox.baseVal.width>0&&svg.viewBox.baseVal.height>0)", true)
         let brandURL = root.appendingPathComponent("BlinkMore/Resources/UI/eyesight.svg")
+        let brandViewBox = try XMLDocument(contentsOf: brandURL, options: []).rootElement()?.attribute(forName: "viewBox")?.stringValue?.split(whereSeparator: \.isWhitespace).compactMap(Double.init) ?? []
+        precondition(brandViewBox.count == 4 && brandViewBox[2] > 0 && brandViewBox[3] > 0 && abs(brandViewBox[2] / brandViewBox[3] - 1.6) < 0.001, "Brand SVG viewBox aspect ratio changed")
+        let logoFit = try await js("const image=document.querySelector('.logo'),box=image.getBoundingClientRect(),style=getComputedStyle(image),ratio=aspect,drawnWidth=Math.min(box.width,box.height*ratio),drawnHeight=drawnWidth/ratio;return image.complete&&style.objectFit==='contain'&&drawnWidth<=box.width&&drawnHeight<=box.height&&Math.abs(drawnWidth/drawnHeight-ratio)<0.001", arguments: ["aspect": brandViewBox[2] / brandViewBox[3]]) as? Bool
+        precondition(logoFit == true, "Brand SVG does not fit its viewBox proportionally")
         precondition(NSImage(contentsOf: brandURL) != nil)
         let nativeMark = MenuBarController.mark(size: 64, color: .white, source: brandURL)
         precondition(nativeMark.tiffRepresentation != nil)
@@ -83,6 +89,7 @@ import WebKit
         for theme in ["light", "dark"] {
             state["actualTheme"] = theme; controller.window?.appearance = NSAppearance(named: theme == "dark" ? .darkAqua : .aqua)
             try await refresh()
+            try await expect("return document.documentElement.classList.contains('dark')", theme == "dark")
             for tab in 0..<5 {
                 controller.selectTab(tab); try await refresh()
                 let minText = try await js("return Math.min(...[...document.querySelectorAll('main span,main p,main label,main button,main h2,main h3,main code,main dt,main dd,main summary')].filter(e=>e.getClientRects().length).map(e=>parseFloat(getComputedStyle(e).fontSize)))") as! Double
@@ -106,6 +113,11 @@ import WebKit
                     try data.write(to:output.appendingPathComponent("studio-render-\(theme).json"))
                 }
                 try await screenshot("dashboard-\(theme)-\(tab)")
+                if tab == 3 {
+                    _ = try await js("document.querySelector('.privacy-panel').scrollIntoView({block:'center'})")
+                    try await expect("const image=document.querySelector('.privacy-mark');await image.decode();const rect=image.getBoundingClientRect(),style=getComputedStyle(image),ratio=image.naturalWidth/image.naturalHeight,drawnWidth=Math.min(rect.width,rect.height*ratio),drawnHeight=drawnWidth/ratio;return image.complete&&image.naturalWidth>0&&image.naturalHeight>0&&Number.isFinite(ratio)&&style.objectFit==='contain'&&rect.width>=48&&rect.width<=56&&rect.height>=48&&rect.height<=56&&drawnWidth>0&&drawnHeight>0&&drawnWidth<=rect.width&&drawnHeight<=rect.height",true)
+                    try await screenshot("dashboard-privacy-\(theme)")
+                }
             }
         }
         controller.selectTab(0); try await refresh()
@@ -117,8 +129,16 @@ import WebKit
         try await expect("return document.querySelectorAll('.achievement.earned').length", 3)
         try await expect("return document.getElementById('coverage-total').textContent","195s valid exposure")
         try await expect("return document.querySelectorAll('#coverage-segments rect').length",8)
+        try await expect("const chart=document.getElementById('coverage-chart'),group=document.getElementById('coverage-segments'),clip=document.querySelector('#coverage-clip rect'),segments=[...group.querySelectorAll('rect')];return group.getAttribute('clip-path')==='url(#coverage-clip)'&&clip.getAttribute('x')==='0'&&clip.getAttribute('width')==='640'&&segments.map(r=>r.getAttribute('class')).join(',')==='coverage-interrupted,coverage-calibrating,coverage-observed,coverage-interrupted,coverage-calibrating,coverage-observed,coverage-unknown,coverage-observed'",true)
+        try await expect("const clip=document.querySelector('#coverage-clip rect'),segments=[...document.querySelectorAll('#coverage-segments rect')],x=segments.map(r=>Number(r.getAttribute('x'))),w=segments.map(r=>Number(r.getAttribute('width')));return segments.every((r,i)=>{const y=Number(r.getAttribute('y')),h=Number(r.getAttribute('height'));return x[i]>=0&&x[i]+w[i]<=640&&y>=Number(clip.getAttribute('y'))&&y+h<=Number(clip.getAttribute('y'))+Number(clip.getAttribute('height'))&&(i===0||Math.abs(x[i]-(x[i-1]+w[i-1]))<0.01)})&&Math.abs(x[0])<0.01&&Math.abs(x[x.length-1]+w[w.length-1]-640)<0.01",true)
+        try await expect("const ids=[...document.querySelectorAll('[id]')].map(e=>e.id),refs=[...document.querySelectorAll('svg [clip-path]')].map(e=>e.getAttribute('clip-path').match(/^url\\(#(.+)\\)$/)?.[1]);return ids.length===new Set(ids).size&&refs.length===1&&refs.every(id=>document.getElementById(id)?.ownerSVGElement===document.getElementById('coverage-chart'))",true)
         _ = try await js("document.getElementById('coverage-section').scrollIntoView({block:'start'})")
         try await screenshot("dashboard-coverage")
+        let coverageFixture = state["coverage"] as! [String: Any]
+        state["coverage"] = ["observedSeconds":0.0,"span":300,"segments":[]]; try await refresh()
+        try await expect("return document.querySelectorAll('#coverage-segments rect').length",0)
+        try await expect("return !document.getElementById('coverage-empty').hidden&&document.getElementById('coverage-summary').textContent==='Waiting for observations'",true)
+        state["coverage"] = coverageFixture; try await refresh()
         let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
         precondition(abs(offset - 100.0 / 3) < 0.01)
         _ = try await js("document.querySelector('#week-days button').focus(); document.querySelector('#week-days button').click()")
@@ -239,6 +259,12 @@ import WebKit
         try await expect("return document.getElementById('setup-allow').hidden",false)
         try await expect("return document.getElementById('setup-face').hasAttribute('hidden')",true)
         try await expect("return document.getElementById('setup-calibrate').disabled",true)
+        state["phase"] = "noFace"; state["frameAgeMs"] = 76.0; state["scene"] = ["count":0,"ageMs":300.0]
+        try await refresh()
+        try await expect("return document.getElementById('setup-summary').textContent==='Adjust the conditions below'&&document.getElementById('setup-face').hasAttribute('hidden')&&document.getElementById('setup-calibrate').disabled",true)
+        state["phase"] = "cameraMissing"; state["scene"] = ["count":1,"ageMs":300.0]
+        try await refresh()
+        try await expect("return !document.getElementById('setup-retry').hidden&&document.getElementById('setup-allow').hidden&&document.getElementById('setup-calibrate').disabled",true)
         state["phase"] = "tracking"; state["frameAgeMs"] = 76.0
         controller.selectTab(1)
         state["exercise"] = ["phase":"running","routine":"blink","step":"blink","remaining":5.0,"progress":0.5]
@@ -253,17 +279,20 @@ import WebKit
         try await refresh()
         try await expect("return document.getElementById('mirror-panel').hidden",false)
         try await expect("return document.getElementById('mirror-replay').disabled",true)
+        try await expect("const eyes=document.getElementById('mirror-eyes'),trace=document.getElementById('mirror-trace');return eyes.getAttribute('viewBox')==='0 0 440 100'&&eyes.getAttribute('preserveAspectRatio')!=='none'&&trace.getAttribute('viewBox')==='0 0 320 72'&&trace.getAttribute('preserveAspectRatio')==='none'",true)
         state["exercise"] = ["phase":"completed","routine":"blink","step":"blink","remaining":0.0,"progress":1.0]
         state["mirror"] = ["phase":"completed","observedSeconds":9.4,"blinks":3,"clip":clip]
         state["reducedMotion"] = false; try await refresh()
         try await expect("return document.getElementById('mirror-replay').disabled",false)
         try await expect("return document.getElementById('mirror-totals').textContent","3 blinks, 9.4s observed")
+        try await expect("return ['#mirror-trace-left','#mirror-trace-right'].every(selector=>{const path=document.querySelector(selector),box=path.getBBox(),view=path.ownerSVGElement.viewBox.baseVal;return box.width>0&&box.x>=0&&box.y>=0&&box.x+box.width<=view.width&&box.y+box.height<=view.height})",true)
         _ = try await js("document.getElementById('mirror-replay').click()")
         try await Task.sleep(for:.milliseconds(100))
         try await expect("return document.getElementById('mirror-source').textContent","Recorded blink")
         try await screenshot("dashboard-mirror")
         for theme in ["light","dark"] {
             state["actualTheme"] = theme; try await refresh()
+            try await expect("return document.documentElement.classList.contains('dark')", theme == "dark")
             try await expect("const m=document.querySelector('main');return m.scrollHeight<=m.clientHeight+1",true)
             try await screenshot("dashboard-mirror-\(theme)")
         }
@@ -280,6 +309,7 @@ import WebKit
         precondition(commands.contains { $0["key"] as? String == "sensitivity" && $0["value"] as? Double == 0.8 })
         precondition(commands.contains { $0["key"] as? String == "exercisesEnabled" && $0["value"] as? Bool == true })
         controller.window?.setContentSize(NSSize(width: 680, height: 520))
+        try await expect("return Math.round(innerWidth)===680&&Math.round(innerHeight)===520",true)
         state["phase"] = "tracking"
         for tab in 0..<5 {
             controller.selectTab(tab); try await refresh()
@@ -289,6 +319,8 @@ import WebKit
         controller.showSetup(); try await refresh()
         try await expect("const b=document.getElementById('setup-calibrate').getBoundingClientRect(),m=document.querySelector('main').getBoundingClientRect();return b.bottom<=m.bottom+1",true)
         controller.selectTab(1); state["exercise"] = ["phase":"completed","routine":"blink","step":"blink","remaining":0.0,"progress":1.0]; try await refresh()
+        try await expect("return !document.getElementById('mirror-panel').hidden",true)
+        try await expect("const panel=document.getElementById('mirror-panel').getBoundingClientRect(),items=['#mirror-eyes','#mirror-trace','.mirror-replay','#mirror-description'].map(s=>document.querySelector(s).getBoundingClientRect());return items.every(b=>b.left>=panel.left-1&&b.right<=panel.right+1)&&document.querySelector('main').scrollHeight<=document.querySelector('main').clientHeight+1",true)
         try await expect("const m=document.querySelector('main');return m.scrollHeight<=m.clientHeight+1",true)
         controller.selectTab(1); state["exercise"] = ["phase": "running", "routine": "look", "step": "look", "remaining": 12.0, "progress": 0.4]; try await refresh()
         try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true)

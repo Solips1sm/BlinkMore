@@ -2,6 +2,9 @@
 const BlinkMetrics = (() => {
   const finite = (n) => typeof n === "number" && Number.isFinite(n);
   const value = (n) => finite(n) ? Math.max(0, n) : 0;
+  function freshEyes(state = {}) {
+    return ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs >= 0 && state.frameAgeMs <= 500 && finite(state.left) && finite(state.right);
+  }
   function ring(current, goal) {
     const available = finite(goal) && goal > 0;
     return { current: value(current), goal: available ? goal : null, progress: available ? Math.min(1, value(current) / goal) : 0 };
@@ -82,11 +85,12 @@ const BlinkMetrics = (() => {
     const one = finite(scene.ageMs) && scene.ageMs >= 0 && scene.ageMs <= 1500 && scene.count === 1;
     const lids = visible && contour(g.left,g.width,g.height) !== null && contour(g.right,g.width,g.height) !== null;
     const reference = visible && state.calibration >= 1 && ["tracking","eyesClosed"].includes(state.phase);
+    const freshMeasurement = fresh && finite(state.latencyMs) && state.latencyMs >= 0 && state.latencyMs <= 250;
     const checks = [
       {name:"Camera stream",ok:camera,detail:camera ? "Receiving frames" : state.phase === "cameraDenied" ? "Allow camera access" : state.phase === "paused" ? "Resume monitoring" : "Waiting for the camera"},
       {name:"One person",ok:one,detail:one ? "Single measurable face" : scene.count > 1 ? "One person at a time" : "Move into view"},
       {name:"Both eyelids",ok:lids,detail:lids ? "Both contours measured" : "Face the camera with both eyes visible"},
-      {name:"Fresh samples",ok:fresh && finite(state.latencyMs) && state.latencyMs <= 250,detail:fresh ? `${Math.round(state.frameAgeMs)}ms sample age` : "Waiting for recent measurements"},
+      {name:"Fresh samples",ok:freshMeasurement,detail:freshMeasurement ? `${Math.round(state.frameAgeMs)}ms sample age` : "Waiting for recent measurements"},
       {name:"Eye reference",ok:reference,detail:reference ? "Independent reference for each eye" : "Blink normally while calibration finishes"}
     ];
     return {checks,ready:checks.every(c=>c.ok),visible};
@@ -106,6 +110,6 @@ const BlinkMetrics = (() => {
     }
     return {left:paths[0].join(""),right:paths[1].join(""),duration:end-start};
   }
-  return { activity, ring, contour, aperture, motion, setup, replay };
+  return { activity, ring, contour, aperture, motion, setup, replay, freshEyes };
 })();
 if (typeof module !== "undefined") module.exports = BlinkMetrics;

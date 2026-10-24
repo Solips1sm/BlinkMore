@@ -2,6 +2,30 @@ import AppKit
 import AVFoundation
 import Vision
 
+private final class PixelBufferReleaseCounter {
+    private let lock = NSLock()
+    private var count = 0
+
+    var released: Int { lock.lock(); defer { lock.unlock() }; return count }
+    func recordRelease() { lock.lock(); count += 1; lock.unlock() }
+
+    func makeBlankBuffer() -> CVPixelBuffer {
+        let rowBytes = 640 * 4
+        let base = UnsafeMutableRawPointer.allocate(byteCount: rowBytes * 480, alignment: 64)
+        base.initializeMemory(as: UInt8.self, repeating: 0, count: rowBytes * 480)
+        var buffer: CVPixelBuffer?
+        let status = CVPixelBufferCreateWithBytes(kCFAllocatorDefault, 640, 480, kCVPixelFormatType_32BGRA,
+            base, rowBytes, { refCon, address in
+                UnsafeMutableRawPointer(mutating: address!).deallocate()
+                Unmanaged<PixelBufferReleaseCounter>.fromOpaque(refCon!).takeUnretainedValue().recordRelease()
+            }, Unmanaged.passUnretained(self).toOpaque(), nil, &buffer)
+        guard status == kCVReturnSuccess, let buffer else {
+            base.deallocate(); preconditionFailure("Unable to allocate test pixel buffer")
+        }
+        return buffer
+    }
+}
+
 @main enum VisionPipelineTests {
     @MainActor static func main() async throws {
         precondition(EyeTrackingService.captureDuration(ranges: [1...30]) == CMTime(value: 1, timescale: 15))
@@ -64,7 +88,22 @@ import Vision
             // Search starts are 200 ms apart; admitted captures can differ in age by 100 ms.
             precondition(Double(searches.count - 1) * 0.2 <= last.1 - first.1 + 0.1 + 1e-6)
         }
+        let releaseCounter = PixelBufferReleaseCounter()
+        var burst = (0..<96).map { _ in releaseCounter.makeBlankBuffer() }
+        let burstTimestamp = EyeTrackingService.clock()
+        for image in burst { service.enqueue(image, timestamp: burstTimestamp) }
+        burst.removeAll()
+        for _ in 0..<50 {
+            if releaseCounter.released >= 94 { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        precondition(releaseCounter.released >= 94, "The bounded BGRA inbox retained more than two frames")
+        service.enqueue(buffer!, timestamp: EyeTrackingService.clock())
         await withCheckedContinuation { continuation in service.stop { continuation.resume() } }
+        let deliveredAtStop = frames.count, historyAtStop = service.motion.snapshot().count
+        service.enqueue(buffer!, timestamp: EyeTrackingService.clock())
+        try await Task.sleep(for: .milliseconds(150))
+        precondition(frames.count == deliveredAtStop && service.motion.snapshot().count == historyAtStop)
         // A separate pipeline cannot confuse a pending fresh result with the stale probe.
         var staleFrames: [TrackingFrame] = []
         let staleService = EyeTrackingService(cameraID: nil, sensitivity: 0.5, statistics: statistics) { staleFrames.append($0) }
@@ -81,6 +120,6 @@ import Vision
         staleService.enqueue(buffer!,timestamp:EyeTrackingService.clock())
         try await Task.sleep(for:.milliseconds(150))
         precondition(staleService.motion.snapshot().count == historyCount)
-        print("Vision pipeline tests passed: actual no-face inference, bounded search rate, camera rate fallback, coalesced blink preservation and expiry, stale-frame rejection, no invented activity")
+        print("Vision pipeline tests passed: actual no-face inference, bounded BGRA retention, stop drain, bounded search rate, camera rate fallback, coalesced blink preservation and expiry, stale-frame rejection, no invented activity")
     }
 }

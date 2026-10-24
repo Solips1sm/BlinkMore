@@ -2,7 +2,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
-const { activity, ring, contour, aperture, motion } = require("../BlinkMore/Resources/UI/metrics.js");
+const { activity, ring, contour, aperture, motion, freshEyes } = require("../BlinkMore/Resources/UI/metrics.js");
 assert.equal(ring(120, 100).progress, 1);
 assert.equal(ring(-10, 100).progress, 0);
 assert.equal(ring(10, 0).goal, null);
@@ -65,13 +65,22 @@ assert.equal((motion([{t:10,left:1,right:1},{t:10.3,left:1,right:1}],11).left.ma
 console.log("Studio model passed: pixel geometry, native brief closure, signed difference, filled segments, event ticks and missing intervals");
 
 const {setup,replay}=require("../BlinkMore/Resources/UI/metrics.js");
-const prepared={phase:"tracking",frameAgeMs:60,latencyMs:30,calibration:1,scene:{ageMs:300,count:1},geometry:{left:eye,right:eye,width:200,height:100}};
+const prepared={phase:"tracking",frameAgeMs:60,latencyMs:30,left:1,right:.9,calibration:1,scene:{ageMs:300,count:1},geometry:{left:eye,right:eye,width:200,height:100}};
 assert.equal(setup(prepared).ready,true);
 assert.equal(setup({...prepared,frameAgeMs:800}).ready,false);
+assert.equal(setup({...prepared,latencyMs:-1}).checks[3].ok,false);
 assert.equal(setup({...prepared,scene:{ageMs:100,count:2}}).checks[1].ok,false);
 assert.equal(setup({...prepared,phase:"cameraDenied"}).checks[0].ok,false);
 assert.equal(setup({...prepared,calibration:.5}).checks[4].ok,false);
+const calibrating=setup({...prepared,phase:"calibrating",calibration:.5});
+assert.equal(calibrating.visible,true);
+assert.equal(calibrating.checks[4].ok,false);
 assert.equal(setup({...prepared,geometry:{}}).checks[2].ok,false);
+assert.equal(freshEyes(prepared),true);
+assert.equal(freshEyes({...prepared,frameAgeMs:501}),false);
+assert.equal(freshEyes({...prepared,phase:"noFace"}),false);
+assert.equal(freshEyes({...prepared,phase:"calibrating"}),false);
+assert.equal(freshEyes({...prepared,left:null}),false);
 const playback=replay([{t:0,left:1,right:1},{t:.1,left:.1,right:.1},{t:.2,left:1,right:1}]);
 assert.equal(playback.duration,.2);assert(playback.left.includes("L160.00"));
 assert.equal(replay([]).left,"");assert.equal(replay([{t:0,left:1,right:1},{t:3,left:1,right:1}]).left,"");

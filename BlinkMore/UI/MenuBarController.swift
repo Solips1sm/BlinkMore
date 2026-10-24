@@ -6,7 +6,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private let resources: URL?
     private var phase: TrackingPhase?
     private var stateMarks: [String: NSImage] = [:]
+    private var displayedImage: NSImage?
     private var blinkUntil = Date.distantPast
+    private var blinkReset: DispatchWorkItem?
     private lazy var openEye = eyeImage("OpenEye", symbol: "eye")
     private lazy var closedEye = eyeImage("ClosedEye", symbol: "eye.slash")
     private lazy var idleMark = Self.mark(size: 20, source: resources?.appendingPathComponent("UI/eyesight.svg"))
@@ -17,10 +19,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     init(resources: URL? = nil) {
         self.resources = resources ?? Bundle.main.resourceURL
         super.init()
-        item.button?.image = Self.mark(size: 22, source: self.resources?.appendingPathComponent("UI/eyesight.svg"))
-        item.button?.image?.isTemplate = true
+        let image = Self.mark(size: 22, source: self.resources?.appendingPathComponent("UI/eyesight.svg"))
+        image.isTemplate = true
+        displayedImage = image
+        item.button?.image = image
+        item.button?.isEnabled = true
+        item.button?.appearsDisabled = false
         item.button?.target = self; item.button?.action = #selector(clicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        item.button?.setAccessibilityLabel("Eyesight, Starting camera")
+        item.button?.setAccessibilityHelp("Click to open the dashboard. Right-click or Control-click to open the native menu.")
+        item.button?.toolTip = "Eyesight: Starting camera. Click to open the dashboard. Right-click or Control-click for the menu."
         contextMenu.delegate = self; contextMenu.autoenablesItems = false
         add("Open Eyesight", "open")
         for key in ["status", "detail", "count", "rate", "relative"] { add("", key, enabled: false) }
@@ -36,25 +45,43 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         contextMenu.addItem(.separator())
         add("Settings…", "settings")
     }
-    deinit { NSStatusBar.system.removeStatusItem(item) }
+    deinit {
+        blinkReset?.cancel()
+        NSStatusBar.system.removeStatusItem(item)
+    }
     func update(_ phase: TrackingPhase) {
+        let changed = self.phase != phase
         self.phase = phase
-        item.button?.toolTip = "Eyesight: \(phase.title). Click to open; Control click for the menu."
-        item.button?.setAccessibilityLabel("Eyesight, \(phase.title)")
-        item.button?.setAccessibilityHelp("Click to open the window. Control click for the native menu.")
-        if ![.tracking, .eyesClosed].contains(phase) { blinkUntil = .distantPast }
-        let closed = phase == .eyesClosed || Date() < blinkUntil
-        let image = [.tracking, .eyesClosed].contains(phase) ? (closed ? closedEye : openEye) : stateMark(phase)
-        image.isTemplate = true
-        if item.button?.image !== image { item.button?.image = image }
-        item.button?.appearsDisabled = false
+        if changed {
+            item.button?.toolTip = "Eyesight: \(phase.title). Click to open the dashboard. Right-click or Control-click for the menu."
+            item.button?.setAccessibilityLabel("Eyesight, \(phase.title)")
+        }
+        guard phase == .tracking || phase == .eyesClosed else {
+            blinkUntil = .distantPast
+            blinkReset?.cancel()
+            blinkReset = nil
+            show(stateMark(phase))
+            return
+        }
+        show(phase == .eyesClosed || Date() < blinkUntil ? closedEye : openEye)
     }
     func blink() {
+        guard let phase = phase, phase == .tracking || phase == .eyesClosed else { return }
         blinkUntil = Date().addingTimeInterval(0.12)
-        update(phase ?? .tracking)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) { [weak self] in
-            guard let self = self else { return }; self.update(self.phase ?? .starting)
+        update(phase)
+        blinkReset?.cancel()
+        let reset = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.blinkReset = nil
+            if let phase = self.phase { self.update(phase) }
         }
+        blinkReset = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.13, execute: reset)
+    }
+    private func show(_ image: NSImage) {
+        guard displayedImage !== image else { return }
+        displayedImage = image
+        item.button?.image = image
     }
     private func stateMark(_ phase: TrackingPhase) -> NSImage {
         if let image = stateMarks[phase.rawValue] { return image }
@@ -74,6 +101,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             path.move(to: NSPoint(x: 18, y: 1)); path.line(to: NSPoint(x: 18, y: 6))
         case .cameraDenied, .cameraMissing, .cameraError:
             path.move(to: NSPoint(x: 16, y: 7)); path.line(to: NSPoint(x: 13, y: 1)); path.line(to: NSPoint(x: 19, y: 1)); path.close()
+        case .noFace:
+            path.appendOval(in: NSRect(x: 13, y: 0.5, width: 6, height: 6))
         case .multipleFaces:
             path.appendOval(in: NSRect(x: 12.5, y: 1.5, width: 4, height: 4)); path.appendOval(in: NSRect(x: 16, y: 2.5, width: 3, height: 3))
         case .delayed:

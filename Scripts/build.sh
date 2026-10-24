@@ -23,9 +23,10 @@ cp BlinkMore/Info.plist "$app/Contents/Info.plist"
 rm -rf "$app/Contents/Resources/UI" "$app/Contents/Resources/Icons"
 cp -R BlinkMore/Resources/Icons "$app/Contents/Resources/Icons"
 cp -R BlinkMore/Resources/UI "$app/Contents/Resources/UI"
+rm -rf "$app/Contents/Resources/UI/assets/sources"
 cp LICENSE.md "$app/Contents/Resources/LICENSE.md"
 cp LICENSE-RUST-STD "$app/Contents/Resources/LICENSE-RUST-STD"
 codesign --force --sign "${BLINKMORE_SIGN_IDENTITY:--}" --entitlements BlinkMore/BlinkMore.entitlements "$app"
 codesign --verify --strict "$app"
-swiftc -O -target "$arch-apple-macosx14.0" Automation/BlinkMoreACAgent.swift -o dist/BlinkMoreACAgent
+swiftc -O -parse-as-library -target "$arch-apple-macosx14.0" Automation/*.swift -o dist/BlinkMoreACAgent
 printf 'Built %s\n' "$app"

@@ -9,6 +9,10 @@ node --check BlinkMore/Resources/UI/metrics.js
 node Tests/WebModelTests.js
 if [[ $(uname -s) == Darwin ]]; then
   mkdir -p test-results
+  swiftc -parse-as-library Tests/SessionActivityTests.swift BlinkMore/Core/SessionActivity.swift -o test-results/session-tests
+  test-results/session-tests
+  swiftc -parse-as-library Tests/PowerStopTests.swift Automation/PowerStopPolicy.swift -o test-results/power-stop-tests
+  test-results/power-stop-tests
   swiftc -O -parse-as-library Tests/StateTests.swift BlinkMore/Core/TrackingState.swift BlinkMore/Core/EyeCheck.swift BlinkMore/Services/AppPreferences.swift BlinkMore/Services/DailyStatistics.swift -o test-results/state-tests
   test-results/state-tests
   swiftc -parse-as-library Tests/ReminderTests.swift BlinkMore/Core/TrackingState.swift BlinkMore/Core/ReminderPolicy.swift -o test-results/reminder-tests

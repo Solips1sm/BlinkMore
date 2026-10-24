@@ -1,6 +1,6 @@
 {
   "architecture": "x86_64",
-  "scope": "Synthetic eyelid geometry and state only. Excludes camera, Vision and display latency.",
+  "scope": "normal and two_busy_workers retain the earlier fixed-contour snapshot referenced by README. calibrated_tracking is the current workload and supersedes those figures for before/after comparisons.",
   "normal": {
     "updates": 1000000,
     "elapsed_seconds": 0.627024923,
@@ -12,5 +12,85 @@
     "elapsed_seconds": 1.04351966,
     "median_ns": 508,
     "p95_ns": 817
+  },
+  "calibrated_tracking": {
+    "command": "cargo run --release --manifest-path core/Cargo.toml --locked --example benchmark",
+    "host": {
+      "model": "MacBookPro16,1",
+      "cpu": "Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz",
+      "physical_cpus": 6,
+      "logical_cpus": 12,
+      "rustc": "rustc 1.95.0 (59807616e 2026-04-14) (Homebrew)",
+      "load": "Five sequential runs were taken while BlinkMore, the Codex service and renderer, and WindowServer were active. This is a loaded-host result, not an idle-machine guarantee."
+    },
+    "workload": {
+      "updates_per_run": 1000000,
+      "input_rate_hz": 15,
+      "landmarks_per_eye": 8,
+      "face_size_pixels": [200, 300],
+      "calibration_updates_before_timing": 30,
+      "warmup_updates": 3000,
+      "sample_every_updates": 97,
+      "samples_per_run": 10310,
+      "geometry": "Each eye uses a changing, slightly tilted eight-point contour, subtle open-aperture variation, and two closed samples per 60-frame cycle. The cycle gives 15 synthetic bilateral closures per minute at 15 Hz.",
+      "guard": "The example asserts that calibration completed before timing and that warmup observed at least one blink. It black_boxes each input and tracker call and consumes output flags."
+    },
+    "final_source_runs": [
+      {
+        "elapsed_seconds": 0.557712186,
+        "mean_ns_per_update": 557.712186,
+        "median_ns": 476,
+        "p95_ns": 863
+      },
+      {
+        "elapsed_seconds": 0.610948884,
+        "mean_ns_per_update": 610.948884,
+        "median_ns": 444,
+        "p95_ns": 789
+      },
+      {
+        "elapsed_seconds": 0.541124412,
+        "mean_ns_per_update": 541.124412,
+        "median_ns": 404,
+        "p95_ns": 669
+      },
+      {
+        "elapsed_seconds": 0.652115195,
+        "mean_ns_per_update": 652.115195,
+        "median_ns": 510,
+        "p95_ns": 924
+      },
+      {
+        "elapsed_seconds": 0.670149205,
+        "mean_ns_per_update": 670.149205,
+        "median_ns": 505,
+        "p95_ns": 923
+      }
+    ],
+    "final_source_summary": {
+      "median_of_run_medians_ns": 476,
+      "median_of_run_p95_ns": 863,
+      "median_of_run_mean_ns_per_update": 610.948884,
+      "run_ranges_ns": {
+        "median": [404, 510],
+        "p95": [669, 924],
+        "mean_ns_per_update": [541.124412, 670.149205]
+      }
+    },
+    "temporary_candidate_comparison": {
+      "change": "A fixed 32-point stack buffer cached pixel-scaled coordinates inside aperture().",
+      "status": "reverted; not present in final source",
+      "method": "Six baseline and six candidate binaries were run in alternating order with the same calibrated workload.",
+      "baseline_median_ns_by_pair": [497, 410, 407, 385, 415, 507],
+      "candidate_median_ns_by_pair": [642, 634, 591, 503, 478, 610],
+      "baseline_p95_ns_by_pair": [939, 703, 797, 677, 757, 960],
+      "candidate_p95_ns_by_pair": [1172, 1134, 1110, 893, 841, 1071],
+      "result": "The candidate was slower in all six alternating pairs. Host load varied substantially, so no speedup claim is supported."
+    },
+    "limitations": [
+      "This measures Rust contour processing and tracker state only. It excludes camera capture, Vision, Swift scheduling, and display latency.",
+      "Input timestamps advance at 15 Hz, but the benchmark does not sleep between updates; elapsed time is CPU benchmark time, not a 15 fps end-to-end camera run.",
+      "Per-call samples include Instant timing overhead. The reported p95 is a sampled microbenchmark result, not a deadline guarantee under arbitrary load."
+    ]
   }
 }

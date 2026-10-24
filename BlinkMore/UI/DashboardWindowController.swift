@@ -23,7 +23,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     private let reloadButton = NSButton(title: "Reload window", target: nil, action: nil)
     private var loadTimeout: DispatchWorkItem?
     private var recoveries = 0
-    private var pendingSetup = false
+    private var setupRequested = false
     private var pendingNavigation: WKNavigation?
     private var loadGeneration = 0
     private var updating = false
@@ -90,12 +90,11 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     }
 
     func showSetup() {
-        pendingSetup = true; selectTab(4)
+        setupRequested = true; selectTab(4)
         if ready { openSetup() }
     }
 
     private func openSetup() {
-        pendingSetup = false
         webView.callAsyncJavaScript("window.blinkmore.showSetup()", arguments: [:], in: nil, in: .page, completionHandler: nil)
     }
 
@@ -126,6 +125,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
 
     func selectTab(_ index: Int) {
         guard (0...4).contains(index) else { return }; selectedTab = index
+        if index != 4 { setupRequested = false }
         guard ready else { return }
         webView.callAsyncJavaScript("window.blinkmore.selectTab(tab)", arguments: ["tab": index], in: nil, in: .page, completionHandler: nil)
     }
@@ -136,14 +136,22 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
               let body = message.body as? [String: Any], let action = body["action"] as? String,
               action.count < 40 else { return }
         if action == "view" {
-            if let index = body["tab"] as? Int, (0...4).contains(index) { selectedTab = index; refresh() }
+            if let index = body["tab"] as? Int, (0...4).contains(index) {
+                selectedTab = index
+                if index != 4 { setupRequested = false }
+                else if let studio = body["studio"] as? String {
+                    if studio == "setup" { setupRequested = true }
+                    else if ["motion", "difference", "geometry"].contains(studio) { setupRequested = false }
+                }
+                refresh()
+            }
             return
         }
         if action == "ready" {
             ready = true; loadTimeout?.cancel(); spinner.stopAnimation(nil)
             fallback.isHidden = true; webView.isHidden = false
             selectTab(selectedTab)
-            if pendingSetup { openSetup() }
+            if setupRequested { openSetup() }
         }
         command(body); refresh()
     }

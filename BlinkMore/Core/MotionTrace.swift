@@ -4,47 +4,61 @@ import Foundation
 final class MotionTrace {
     private let lock = NSLock()
     private var coverage: [(time: Double, phase: TrackingPhase, delta: Double)] = []
+    private var coverageStart = 0
     private var mirror = BlinkMirror()
     private var samples: [(Double, Double?, Double?, UInt32)] = []
+    private var samplesStart = 0
 
     func record(_ frame: TrackingFrame) {
         guard frame.timestamp.isFinite, frame.timestamp > 0 else { return }
         let valid = frame.calibrated && [.tracking, .eyesClosed].contains(frame.phase) && frame.left.isFinite && frame.right.isFinite
         lock.lock(); defer { lock.unlock() }
-        if let last = coverage.last, frame.timestamp < last.time { coverage.removeAll(keepingCapacity: true); mirror.update(phase: "cancelled") }
+        if let last = coverage.last, frame.timestamp < last.time {
+            coverage.removeAll(keepingCapacity: true); coverageStart = 0; mirror.update(phase: "cancelled")
+        }
         if coverage.last?.time != frame.timestamp {
             let delta = valid && frame.trackedDelta.isFinite ? min(0.25, max(0, frame.trackedDelta)) : 0
             coverage.append((frame.timestamp, frame.phase, delta))
-            coverage.removeAll { $0.time < frame.timestamp - 301 }
-            if coverage.count > 6000 { coverage.removeFirst(coverage.count - 6000) }
+            while coverageStart < coverage.count && coverage[coverageStart].time < frame.timestamp - 301 { coverageStart += 1 }
+            if coverage.count - coverageStart > 6000 { coverageStart += coverage.count - coverageStart - 6000 }
+            if coverageStart > 256 && coverageStart * 2 >= coverage.count {
+                coverage.removeFirst(coverageStart); coverageStart = 0
+            }
         }
         mirror.record(frame)
         if let last = samples.last {
             if frame.timestamp == last.0 { return }
-            if frame.timestamp < last.0 { samples.removeAll(keepingCapacity: true) }
+            if frame.timestamp < last.0 { samples.removeAll(keepingCapacity: true); samplesStart = 0 }
         }
         samples.append((frame.timestamp, valid ? frame.left : nil, valid ? frame.right : nil, valid ? frame.events & 60 : 0))
-        samples.removeAll { $0.0 < frame.timestamp - 60 }
-        if samples.count > 1000 { samples.removeFirst(samples.count - 1000) }
+        while samplesStart < samples.count && samples[samplesStart].0 < frame.timestamp - 60 { samplesStart += 1 }
+        if samples.count - samplesStart > 1000 { samplesStart += samples.count - samplesStart - 1000 }
+        if samplesStart > 256 && samplesStart * 2 >= samples.count {
+            samples.removeFirst(samplesStart); samplesStart = 0
+        }
     }
 
     func snapshot() -> [[String: Any]] {
-        lock.lock(); let copy = samples; lock.unlock()
+        lock.lock(); let copy = Array(samples[samplesStart..<samples.endIndex]); lock.unlock()
         return copy.map { ["t": $0.0, "left": $0.1.map { $0 as Any } ?? NSNull(),
                           "right": $0.2.map { $0 as Any } ?? NSNull(), "events": $0.3] }
     }
 
     func clear() {
-        lock.lock(); samples.removeAll(keepingCapacity: true); coverage.removeAll(keepingCapacity: true); mirror = BlinkMirror(); lock.unlock()
+        lock.lock(); samples.removeAll(keepingCapacity: true); samplesStart = 0
+        coverage.removeAll(keepingCapacity: true); coverageStart = 0; mirror = BlinkMirror(); lock.unlock()
     }
 
     func startMirror(now: Double) { lock.lock(); mirror.start(now: now); lock.unlock() }
     func updateMirror(phase: String) { lock.lock(); mirror.update(phase: phase); lock.unlock() }
-    func mirrorSnapshot() -> [String: Any] { lock.lock(); defer { lock.unlock() }; return mirror.snapshot() }
+    func mirrorSnapshot() -> [String: Any] {
+        lock.lock(); let copy = mirror.detachedSnapshotCopy(); lock.unlock()
+        return copy.snapshot()
+    }
 
     func coverageSnapshot(now: Double) -> [String: Any] {
         guard now.isFinite else { return ["segments": [], "observedSeconds": 0, "span": 300] }
-        lock.lock(); let points = coverage; lock.unlock()
+        lock.lock(); let points = Array(coverage[coverageStart..<coverage.endIndex]); lock.unlock()
         let floor = now - 300
         var segments: [(start: Double, end: Double, phase: TrackingPhase)] = []
         var observed = 0.0
@@ -73,6 +87,7 @@ struct BlinkMirror {
     private var phase = "idle"
     private var started = 0.0
     private var samples: [(time: Double, left: Double?, right: Double?, events: UInt32)] = []
+    private var samplesStart = 0
     private var observed = 0.0
     private var blinks = 0
 
@@ -91,14 +106,24 @@ struct BlinkMirror {
         let valid = frame.calibrated && frame.events & 1 != 0 && [.tracking, .eyesClosed].contains(frame.phase)
             && frame.left.isFinite && frame.right.isFinite && frame.trackedDelta.isFinite && (0...0.25).contains(frame.trackedDelta)
         samples.append((frame.timestamp, valid ? frame.left : nil, valid ? frame.right : nil, valid ? frame.events & 60 : 0))
-        if samples.count > 300 { samples.removeFirst(samples.count - 300) }
+        if samples.count - samplesStart > 300 { samplesStart += samples.count - samplesStart - 300 }
+        if samplesStart > 128 && samplesStart * 2 >= samples.count {
+            samples.removeFirst(samplesStart); samplesStart = 0
+        }
         if valid {
             observed = min(10, observed + min(frame.trackedDelta, frame.timestamp - started))
             if frame.events & 4 != 0 { blinks += 1 }
         }
     }
+    fileprivate func detachedSnapshotCopy() -> BlinkMirror {
+        var copy = self
+        copy.samples = Array(samples[samplesStart..<samples.endIndex])
+        copy.samplesStart = 0
+        return copy
+    }
     func snapshot() -> [String: Any] {
         var clip: [[String: Any]] = []
+        let samples = samples[samplesStart..<samples.endIndex]
         if let blink = samples.last(where: { $0.events & 4 != 0 }) {
             let start = blink.time - 0.5
             clip = samples.filter { (start...blink.time + 0.3).contains($0.time) }.map {

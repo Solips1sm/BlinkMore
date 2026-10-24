@@ -27,7 +27,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private let onFrame: (TrackingFrame) -> Void
     private let faceDetection = VNDetectFaceRectanglesRequest()
     private let landmarks = VNDetectFaceLandmarksRequest()
-    private let sequence = VNSequenceRequestHandler()
+    private var sequence = VNSequenceRequestHandler()
     private var faceTracker: VNTrackObjectRequest?
     private var lastFaceSearch = -Double.infinity
     private var lastFaceTrackFinished = -Double.infinity
@@ -111,8 +111,11 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
             if self.session?.isRunning == true { self.session?.stopRunning() }
             self.session = nil; self.output = nil
             if let observer = self.errorObserver { NotificationCenter.default.removeObserver(observer) }; self.errorObserver = nil
-            self.videoQueue.async {
-                DispatchQueue.main.async { withExtendedLifetime(self) { completion?() } }
+            self.captureQueue.async {
+                self.videoQueue.async {
+                    self.faceTracker = nil; self.sequence = VNSequenceRequestHandler()
+                    DispatchQueue.main.async { withExtendedLifetime(self) { completion?() } }
+                }
             }
         }
     }
@@ -139,8 +142,9 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         if pendingImage != nil { captureDrops += 1 }
         pendingImage = (image, timestamp)
         guard !inferenceScheduled else { lock.unlock(); return }
-        inferenceScheduled = true; lock.unlock()
+        inferenceScheduled = true
         videoQueue.async { self.consumeLatest() }
+        lock.unlock()
     }
 
     private func consumeLatest() {
@@ -151,7 +155,13 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
         pendingImage = nil; lock.unlock()
         process(next.0, timestamp: next.1)
         // Each inference takes the newest capture, rather than the first frame queued while busy.
-        videoQueue.async { self.consumeLatest() }
+        lock.lock()
+        if stopped {
+            inferenceScheduled = false; pendingImage = nil
+        } else {
+            videoQueue.async { self.consumeLatest() }
+        }
+        lock.unlock()
     }
 
     private var totalDropped: Int {
@@ -175,6 +185,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 let face: VNFaceObservation
                 var locationPass = "cached"
                 if faceTracker == nil || now - lastFaceSearch >= 0.7 {
+                    try endFaceTracking(on: image)
                     locationPass = "search"
                     lastFaceSearch = now
                     try handler.perform([faceDetection])
@@ -184,9 +195,9 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                     let selection = FaceSelection.choose(faces, imageSize: imageSize)
                     switch selection {
                     case .none:
-                        faceTracker = nil; resetOwner(timestamp: timestamp); missing(.noFace, timestamp: timestamp); return
+                        resetOwner(timestamp: timestamp); missing(.noFace, timestamp: timestamp); return
                     case .ambiguous:
-                        faceTracker = nil; resetOwner(timestamp: timestamp); missing(.multipleFaces, timestamp: timestamp); return
+                        resetOwner(timestamp: timestamp); missing(.multipleFaces, timestamp: timestamp); return
                     case .selected(let found):
                         if let previous = ownerBox, !FaceSelection.continuous(previous, found.boundingBox) {
                             bm_tracker_reset(core); statistics.cancelCheck(now: timestamp); motion.updateMirror(phase: "cancelled")
@@ -203,7 +214,8 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                         try sequence.perform([tracker], on: image, orientation: .up)
                         guard let observation = tracker.results?.first as? VNDetectedObjectObservation,
                               observation.confidence >= 0.6 else {
-                            faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                            try endFaceTracking(on: image)
+                            missing(.noFace, timestamp: timestamp); return
                         }
                         tracker.inputObservation = observation
                         ownerBox = observation.boundingBox
@@ -217,7 +229,8 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 guard let measured = landmarks.results?.first,
                       let left = measured.landmarks?.leftEye,
                       let right = measured.landmarks?.rightEye else {
-                    faceTracker = nil; missing(.noFace, timestamp: timestamp); return
+                    try endFaceTracking(on: image)
+                    missing(.noFace, timestamp: timestamp); return
                 }
                 guard abs(measured.yaw?.doubleValue ?? 0) <= 0.65,
                       abs(measured.pitch?.doubleValue ?? 0) <= 0.55 else {
@@ -268,9 +281,17 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 statistics.record(frame)
                 deliver(frame)
             } catch {
-                faceTracker = nil; missing(.cameraError, timestamp: timestamp, note: error.localizedDescription)
+                faceTracker = nil; sequence = VNSequenceRequestHandler()
+                missing(.cameraError, timestamp: timestamp, note: error.localizedDescription)
             }
         }
+    }
+
+    private func endFaceTracking(on image: CVPixelBuffer) throws {
+        guard let tracker = faceTracker else { return }
+        tracker.isLastFrame = true
+        try sequence.perform([tracker], on: image, orientation: .up)
+        faceTracker = nil; sequence = VNSequenceRequestHandler()
     }
 
     private func resetOwner(timestamp: Double) {

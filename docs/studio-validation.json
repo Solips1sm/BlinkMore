@@ -1,38 +1,41 @@
 {
-  "version": "2.7.0",
+  "version": "2.8.1",
   "date": "2026-10-24",
-  "fixture": "Synthetic UI data. No camera frames, identity templates or personal observations.",
+  "fixture": "Synthetic UI data only. No camera frames, personal observations or identity templates.",
   "checks": {
     "rustTests": 11,
     "rustFmtClippy": "passed",
     "webModels": "passed",
     "swiftStatePoliciesABI": "passed",
-    "blankFrameVision": "passed, including stopped pipeline guard",
-    "nativeWindow": "passed through actual status button wiring, minimize, hide, close and reopen, setup route, native image differences and accessibility, double reload and WebKit process recovery",
-    "nativeWKWebView": "passed for all five pages in both themes, default and minimum sizes, mirror capture/replay/empty states/reduced motion, camera setup conditions and native commands, coverage and missing intervals",
-    "historyModels": "passed for original blink capture, pause, resume, completion, cancellation, bounded storage, coverage exposure, missing gaps, camera off states and clear",
-    "hardware": "User allowed camera access for preceding build. Physical confirmation of the new installed executable remains pending."
+    "sessionActivity": "passed including exact SDK console-key mapping and overlapping lock/sleep/display/console causes",
+    "acStopPolicy": "passed reconnect cancellation, duplicate request and terminated-process cases",
+    "blankFrameVision": "passed including bounded 96-buffer release and stop drain",
+    "nativeOverlay": "passed screen geometry, all Spaces, immediate hiding, interrupted animation and screen rebuild",
+    "nativeWKWebView": "passed all five pages, themes, minimum size, mirror replay, setup recovery, coverage clipping/empty state, SVG references and privacy artwork",
+    "signedBundleSmoke": "passed in isolated signed sandbox app with production entitlements, bundled CSS/SVG/JS, navigation, reload, minimize and reopen, camera inactive",
+    "consolidatedNativeHarness": "pending investigation of programmatic minimize behavior after merging signed fixture coverage; prior independent signed smoke passed",
+    "hardware": "Camera allowed on 2.8 and current 2.8.1 reports calibrated native tracking. Final user window/mirror confirmation and physical fade, AC, lock/sleep/wake checks pending."
   },
   "render": {
     "light": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 8.233333333333333,
+      "meanMs": 8.633333333333333,
       "p95Ms": 9,
       "samples": 30,
       "theme": "light"
     },
     "dark": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 8.733333333333302,
-      "p95Ms": 10,
+      "meanMs": 7.866666666666666,
+      "p95Ms": 9,
       "samples": 30,
       "theme": "dark"
     }
   },
   "limits": [
-    "Render timings measure synchronous JavaScript updates, not capture, Vision or display latency.",
-    "Camera scene detection can take 0.7 seconds and does not identify people.",
-    "Mirror and coverage survive only within this process and are not exported.",
-    "Native click tests use AppKit programmatic button actions; final physical user interaction remains a separate check."
+    "Rust microbenchmark excludes capture, Vision and display. No accuracy or arbitrary-load deadline claim.",
+    "Initial lock state uses an undocumented macOS session key plus lifecycle notifications and requires physical checks per release.",
+    "The live memory improvement requires a longer controlled camera run; short samples cannot prove leak elimination.",
+    "The outgoing network client entitlement is required for WebKit helper startup; CSP blocks network connections and navigation accepts only the bundled main file."
   ]
 }
