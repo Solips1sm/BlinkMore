@@ -1,0 +1,98 @@
+{
+  "judge": "Judge 2, native scale",
+  "model": "gpt-6-luna",
+  "reasoningEffort": "max",
+  "inspectedImages": [
+    "families-1-light.png",
+    "families-2-light.png",
+    "families-3-light.png",
+    "families-1-dark.png",
+    "families-2-dark.png",
+    "families-3-dark.png"
+  ],
+  "ranking": [
+    "12b",
+    "01b",
+    "01a",
+    "08a",
+    "13",
+    "10a",
+    "01",
+    "06a",
+    "08",
+    "10",
+    "12",
+    "14a",
+    "13a",
+    "06",
+    "14",
+    "10b",
+    "04a",
+    "05a",
+    "08b",
+    "02a",
+    "12a",
+    "02b",
+    "13b",
+    "05",
+    "09a",
+    "03b",
+    "06b",
+    "04",
+    "02",
+    "05b",
+    "03",
+    "07a",
+    "09",
+    "14b",
+    "11b",
+    "11",
+    "11a",
+    "09b",
+    "03a",
+    "04b",
+    "07",
+    "15b",
+    "15a",
+    "07b",
+    "15"
+  ],
+  "winner": "12b",
+  "summary": "12b is the strongest balance: its almond contour reads immediately as an eye, and its eight-dot iris keeps the clearest link to the reference while preserving open space at 16 px. 01b and 01a are close, while 08a and 13 offer sturdy small marks with more familiar or asymmetric character. These are subjective visual judgments from the supplied 16, 20 and 24 CSS pixel SVG previews. Static screenshots cannot reproduce operating-system menu antialiasing.",
+  "topFive": [
+    {
+      "id": "12b",
+      "reason": "Clean eye silhouette and reference-like eight-dot iris remain distinct without crowding the center at small scale."
+    },
+    {
+      "id": "01b",
+      "reason": "The fuller contour and larger dots hold together strongly in the 16 px preview, though the stroke is slightly heavy."
+    },
+    {
+      "id": "01a",
+      "reason": "A balanced almond and tidy dot ring preserve the reference with a calmer, more refined weight."
+    },
+    {
+      "id": "08a",
+      "reason": "Its bolder outline and centered iris stay legible at small size, with a compact native-menu shape."
+    },
+    {
+      "id": "13",
+      "reason": "The offset iris gives the mark a clear gaze and distinct character while keeping the eight-circle motif visible."
+    }
+  ],
+  "rejectionNotes": [
+    {
+      "id": "15",
+      "reason": "The separated dots suggest a loose constellation more than an eye, especially at 16 px."
+    },
+    {
+      "id": "07b",
+      "reason": "The disconnected corner strokes leave too little continuous eye contour to read cleanly at small size."
+    },
+    {
+      "id": "09b",
+      "reason": "The two overlapping eyes make a busy binocular-like shape and weaken the negative space."
+    }
+  ]
+}

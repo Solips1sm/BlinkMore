@@ -1,0 +1,528 @@
+/*
+ * File Charter
+ * Role: Component-level surface tokens shared by universal, site, and chat owners.
+ * Workflow position: Loaded after foundations and before all surface implementations.
+ * Primary exports: Elevation, interaction-ring, field, search, tooltip, and dialog custom properties.
+ * Non-goals: Element selectors, route layout, or animation choreography.
+ */
+
+:root {
+  /* Sketchpad also opens on public routes. The drawing paper is opaque white in
+   * BOTH themes, so everything that sits on it is a fixed material instead of a
+   * theme-following pair: the control is the near-solid dark slab under light
+   * ink, and the card is the plain white sheet. A grey mix on white read as a
+   * smudge and inverted to white-on-white under `.dark`, which is why neither
+   * family is restated in the dark block.
+   *
+   * Depth comes from the shadow, not from the fill: the control carries a rim
+   * light at the top, an inner shade at the bottom, and a tight dark drop, so it
+   * reads as a physical key set into the sheet. Shadow ink is black rather than
+   * the slab colour, which is what used to leave a grey halo around every
+   * control instead of grounding it. */
+  --sk-bdr: rgb(var(--white) / 60%);
+  --sk-trk: rgb(var(--black) / 10%);
+  --sk-pre: rgb(var(--black) / 10%);
+  --sk-mda: rgb(var(--white));
+  --sk-inb: var(--sf-edge-control);
+  --sk-inf: rgb(var(--black) / 5%);
+  --sk-ctl-ink: var(--glass-gray-rgb);
+  --sk-ctl-fill: rgb(var(--sk-ctl-ink));
+  --sk-ctl-fill-hover: rgb(var(--sk-ctl-ink));
+  --sk-ctl-bdr: rgb(var(--white) / 14%);
+  --sk-ctl-bdr-hover: rgb(var(--white) / 26%);
+  --sk-ctl-fg: rgb(var(--white) / 92%);
+  --sk-ctl-fg-hover: rgb(var(--white));
+  --sk-ctl-shadow:
+    inset 0 1px 0 rgb(var(--white) / 16%),
+    inset 0 -1px 0 rgb(var(--black) / 22%), 0 1px 2px rgb(var(--black) / 24%),
+    0 5px 12px -7px rgb(var(--black) / 30%);
+  --sk-ctl-shadow-hover:
+    inset 0 1px 0 rgb(var(--white) / 24%),
+    inset 0 -1px 0 rgb(var(--black) / 22%), 0 2px 4px rgb(var(--black) / 26%),
+    0 9px 20px -9px rgb(var(--black) / 34%);
+  --sk-card-fill: rgb(var(--white));
+  --sk-card-fg: rgb(var(--sk-ctl-ink));
+  --sk-card-bdr: rgb(var(--sk-ctl-ink) / 12%);
+  --sk-card-shadow:
+    0 1px 2px rgb(var(--black) / 10%), 0 12px 28px -20px rgb(var(--black) / 30%);
+
+  /*
+   * Neutral interaction boundaries are optical highlights, never gray
+   * outlines. Every edge is lighter than its paired fill in both themes;
+   * selected rows derive fill, stroke, and depth from this family.
+   */
+  --sf-edge-subtle: rgb(var(--white) / 24%);
+  --sf-edge-control: rgb(var(--white) / 56%);
+  --sf-edge-overlay: rgb(var(--white) / 72%);
+  --sf-edge-user-message: color-mix(
+    in srgb,
+    rgb(var(--accent)) 84%,
+    rgb(var(--white)) 16%
+  );
+  --sf-child-fill: rgb(var(--white) / 14%);
+  --sf-child-fill-hover: rgb(var(--white) / 38%);
+  --sf-child-fill-selected: rgb(var(--white) / 72%);
+  --sf-child-stroke-hover: rgb(var(--white) / 72%);
+  --sf-child-stroke-selected: rgb(var(--white));
+  --sf-child-shadow-hover:
+    inset 0 1px 0 rgb(var(--white) / 68%),
+    0 6px 14px -12px rgb(var(--white) / 42%);
+  --sf-child-shadow-selected:
+    inset 0 1px 0 rgb(var(--white) / 94%),
+    0 8px 18px -15px rgb(var(--white) / 68%);
+  --sf-notification-smoked-fill: rgb(var(--background) / 48%);
+  --sf-search-highlight-fill: rgb(var(--accent) / 24%);
+  --sf-search-highlight-outline: rgb(var(--accent) / 48%);
+  --slider-rail-fill: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 8%,
+    rgb(var(--background))
+  );
+  --slider-rail-shadow:
+    inset 0 1px 1px rgb(var(--foreground) / 14%),
+    inset 0 -1px 0 rgb(var(--white) / 36%);
+  --slider-progress-fill: linear-gradient(
+    90deg,
+    rgb(var(--accent)),
+    color-mix(in oklab, rgb(var(--accent)) 88%, rgb(var(--white)) 12%)
+  );
+  --slider-progress-cap: color-mix(
+    in oklab,
+    rgb(var(--accent)) 88%,
+    rgb(var(--white)) 12%
+  );
+  --slider-progress-shadow: none;
+  --gauge-track-fill: var(--slider-rail-fill);
+  --gauge-progress-light: color-mix(
+    in oklab,
+    rgb(var(--accent)) 76%,
+    rgb(var(--white)) 24%
+  );
+  --gauge-depth-shadow: 0 3px 2px rgb(var(--foreground) / 18%);
+  --slider-thumb-fill: rgb(242 246 250 / 88%);
+  --slider-thumb-stroke: rgb(var(--white) / 68%);
+  --slider-thumb-shadow: 0 1px 2px rgb(var(--foreground) / 12%);
+  --loading-rail-fill: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 8%,
+    transparent
+  );
+  --loading-rail-stroke: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 14%,
+    transparent
+  );
+
+  /* Edge/inset law: the rail's top highlight is the rail's own stroke, so the
+   * two can never drift. Authored at `foreground 20%` it out-shone the 14%
+   * stroke in both themes. */
+  --loading-rail-shadow:
+    inset 0 1px 0 var(--loading-rail-stroke), inset 0 -1px 0 rgb(0 0 0 / 6%);
+  --toggle-rail-fill: var(--slider-rail-fill);
+  --toggle-rail-stroke: color-mix(
+    in srgb,
+    var(--sf-edge-subtle) 70%,
+    var(--sf-edge-control) 30%
+  );
+  --toggle-rail-shadow:
+    inset 0 1px 1px rgb(var(--foreground) / 10%),
+    inset 0 -1px 0 rgb(var(--white) / 28%), var(--sf-shd-floa-isl);
+
+  /*
+   * Canonical elevation ladder.
+   *
+   * Contact is for chips and inset content, control for persistent chrome,
+   * popover for spatial aids, panel for working context, and overlay for
+   * transient surfaces. Rings remain separate so selection never changes the
+   * perceived physical height of a component.
+   *
+   * THE EDGE/INSET LAW (see docs/design-system-edges.md)
+   *
+   * Every rung's top inset highlight is capped at the edge tier it is paired
+   * with, so a rim can never out-shine the boundary that contains it:
+   *
+   *   inner / micro  ->  --sf-edge-subtle   (24% light / 6% dark)
+   *   ctl / raise    ->  --sf-edge-control  (56% light / 10% dark)
+   *   popover / panel / ovr  ->  --sf-edge-overlay (72% light / 14% dark)
+   *
+   * The inset is authored as a literal only where it is already at or below
+   * its tier; where it exceeded the tier it now derives from the tier token.
+   * Never raise a rung's inset above its tier to "match" a brighter stroke —
+   * raise the stroke instead, or lower the inset.
+   */
+  --sf-shd-contact:
+    0 6px 14px -12px rgb(15 23 42 / 18%), 0 1px 4px -2px rgb(15 23 42 / 8%);
+  --sf-shd-inner:
+    inset 0 1px 0 var(--sf-edge-subtle), 0 5px 12px -10px rgb(15 23 42 / 16%);
+  --sf-shd-micro:
+    inset 0 1px 0 var(--sf-edge-subtle), 0 4px 9px -7px rgb(15 23 42 / 20%);
+  --sf-shd-ctl:
+    inset 0 1px 0 var(--sf-edge-control), 0 1px 2px rgb(15 23 42 / 3.5%),
+    0 12px 30px -22px rgb(15 23 42 / 18%);
+  --sf-shd-raise:
+    inset 0 1px 0 var(--sf-edge-control), 0 2px 5px -3px rgb(15 23 42 / 7%),
+    0 14px 28px -16px rgb(15 23 42 / 26%);
+  --sf-shd-popover:
+    inset 0 1px 0 rgb(255 255 255 / 50%), 0 2px 5px -4px rgb(15 23 42 / 8%),
+    0 18px 42px -28px rgb(15 23 42 / 24%);
+  --sf-shd-panel:
+    inset 0 1px 0 rgb(255 255 255 / 58%), 0 2px 6px -4px rgb(15 23 42 / 10%),
+    0 22px 54px -30px rgb(15 23 42 / 28%);
+  --sf-shd-ovr:
+    inset 0 1px 0 rgb(255 255 255 / 62%), 0 4px 10px -7px rgb(15 23 42 / 12%),
+    0 28px 64px -34px rgb(15 23 42 / 34%);
+  --sf-shd-deep:
+    0 14px 30px -18px rgb(15 23 42 / 42%), 0 10px 18px -14px rgb(15 23 42 / 18%);
+  --sf-shd-cine: 0 60px 100px -10px rgb(15 23 42 / 40%);
+  --sf-shd-acc-soft:
+    0 14px 28px -16px color-mix(in srgb, rgb(var(--accent)) 38%, transparent),
+    0 4px 10px -8px color-mix(in srgb, rgb(var(--accent)) 16%, transparent);
+  --sf-shd-acc-rais:
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    0 18px 34px -16px color-mix(in srgb, rgb(var(--accent)) 46%, transparent);
+  --sf-shd-acc-sel: 0 0 10px
+    color-mix(in srgb, rgb(var(--accent)) 34%, transparent);
+  --sf-shd-info:
+    0 14px 28px -16px rgb(10 132 255 / 38%),
+    0 4px 10px -8px rgb(10 132 255 / 18%);
+  --sf-shd-warn:
+    0 14px 28px -16px rgb(245 158 11 / 34%),
+    0 4px 10px -8px rgb(245 158 11 / 18%);
+  --sf-shd-bad:
+    inset 0 1px 0 rgb(255 255 255 / 24%),
+    0 16px 32px -20px
+    color-mix(in srgb, rgb(var(--destructive)) 30%, transparent),
+    0 4px 10px -8px rgb(15 23 42 / 12%);
+  --sf-shd-in-soft: inset 0 1px 0 rgb(255 255 255 / 16%);
+  --sf-shd-in-subt: inset 0 1px 0 rgb(255 255 255 / 10%);
+  --sf-ring-shd-acc: 0 0 0 2px rgb(var(--accent) / 22%);
+  --sf-focus-outline: rgb(var(--accent) / 82%);
+  --sf-focus-outline-offset: 2px;
+  --sf-rsa-sub: 0 0 0 1px rgb(var(--accent) / 25%);
+  --sf-rsn-in: inset 0 0 0 1px var(--bd2);
+  --sf-rsi-str: inset 0 0 0 2px
+    color-mix(in srgb, var(--hdr-fg) 85%, transparent);
+  --sf-rsc-in: inset 0 0 0 1.5px var(--scrl-ring);
+  --sf-ring-shd-bad: 0 0 0 1px var(--field-bad-ring);
+  --sf-shd-ctl-foc: var(--sf-rsa-sub), var(--sf-shd-ctl);
+  --sf-shd-in-ctl: var(--shd-md), inset 0 1px 0 var(--shlb);
+  --sf-sic-rai: var(--shd-md), inset 0 1px 0 var(--bd5);
+  --sf-sic-foc: var(--shd-md), inset 0 1px 0 var(--bd5), var(--sf-rsa-sub);
+  --sf-shd-floa-isl: var(--sf-shd-in-ctl);
+  --sf-sfi-rai: var(--sf-sic-rai);
+  --sf-sfi-foc: var(--sf-sic-foc);
+  --sf-shd-acc-btn:
+    0 10px 22px -18px rgb(var(--accent) / 24%),
+    0 3px 8px -8px rgb(var(--accent) / 14%),
+    inset 0 1px 0 rgb(255 255 255 / 14%);
+  --sf-sab-rai:
+    0 14px 26px -16px rgb(var(--accent) / 34%),
+    0 6px 14px -10px rgb(var(--accent) / 22%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+  --sf-sab-pre:
+    0 14px 28px -18px rgb(var(--accent) / 32%),
+    0 6px 16px -12px rgb(var(--accent) / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 18%);
+  --sf-rso-sta: 0 0 0 3px color-mix(in srgb, rgb(52 211 153) 14%, transparent);
+  --sf-rsw-sta: 0 0 0 3px color-mix(in srgb, rgb(251 191 36) 14%, transparent);
+  --sf-rsb-sta: 0 0 0 3px color-mix(in srgb, rgb(251 113 133) 14%, transparent);
+  --sf-shd-cit-hig:
+    0 0 0 1px color-mix(in srgb, var(--bg0) 72%, transparent),
+    0 0 22px -8px color-mix(in srgb, rgb(var(--accent)) 72%, transparent);
+  --sf-sto-fx: drop-shadow(0 0 9px rgb(255 255 255 / 72%));
+  --sf-sic-fx: drop-shadow(0 1px 3px rgb(0 0 0 / 35%));
+
+  /* Avatar consumes the same ladder through domain-semantic aliases. */
+  --avatar-shd-ctl: var(--sf-shd-ctl);
+  --avatar-shd-view: var(--sf-shd-popover);
+  --avat-shd-pane: var(--sf-shd-panel);
+  --avatar-shd-ovr: var(--sf-shd-ovr);
+  --ava-shd-nod-res:
+    inset 0 1px 0 rgb(255 255 255 / 56%), 0 1px 2px rgb(15 23 42 / 4.5%),
+    0 8px 18px -12px rgb(15 23 42 / 20%);
+  --ava-shd-nod-rai: var(--sf-shd-raise);
+  --avat-shd-inne: var(--sf-shd-inner);
+  --avat-shd-micr: var(--sf-shd-micro);
+  --avatar-shd-bad: var(--sf-shd-bad);
+  --ava-nod-rin-idl: 0 0 0 0 transparent;
+  --ava-nod-rin-pin: 0 0 0 2px
+    color-mix(in srgb, rgb(var(--accent)) 10%, transparent);
+  --ava-nod-rin-sel: 0 0 0 3px
+    color-mix(in srgb, rgb(var(--accent)) 12%, transparent);
+  --ava-nod-rin-foc: 0 0 0 4px
+    color-mix(in srgb, rgb(var(--accent)) 18%, transparent);
+
+  /* Shared interaction timing and field geometry. */
+  --bub-tiw-bas: 120ms;
+  --bub-tiwi-btn: 720ms;
+  --bub-tiwm-sid: 1000ms;
+  --bub-tiw-que: 240ms;
+  --bub-tiw-cmp: 480ms;
+  --bub-tiwv-str: 120ms;
+  --bub-tiw-now: 0ms;
+  --search-gap: 0.375rem;
+  --search-pad: 0.375rem;
+  --search-edge: 0.375rem;
+  --search-slot: 1.875rem;
+  --search-rad: 9999px;
+  --search-fill: rgb(255 255 255 / 9%);
+  --search-fill-f: rgb(255 255 255 / 14%);
+  --search-bdr: rgb(255 255 255 / 18%);
+  --search-bdr-f: rgb(255 255 255 / 26%);
+  --search-inset: transparent;
+  --search-shd: 0 10px 18px -18px rgb(15 23 42 / 16%);
+  --search-shd-f: 0 12px 22px -20px rgb(15 23 42 / 18%);
+  --search-icon: rgb(var(--foreground) / 42%);
+  --search-place: rgb(var(--foreground) / 42%);
+  --search-clear: rgb(var(--foreground) / 55%);
+  --clear-dur: 1000ms;
+  --clear-out-dur: 400ms;
+  --clear-in-dur: 400ms;
+  --clear-out-fly: 12px;
+  --clear-in-fly: 12px;
+  --clear-out-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --clear-in-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --clear-blur: 2px;
+  --glow-delay: 50ms;
+  --glow-peak-at: 0.15;
+  --glow-opacity: 0.85;
+  --glow-spread: 1.5;
+  --field-danger: color-mix(
+    in srgb,
+    rgb(var(--destructive)) 86%,
+    rgb(var(--foreground)) 14%
+  );
+  --field-bad-bg: color-mix(in srgb, rgb(var(--destructive)) 10%, transparent);
+  --field-bad-bdr: color-mix(in srgb, rgb(var(--destructive)) 34%, transparent);
+  --field-bad-ring: color-mix(
+    in srgb,
+    rgb(var(--destructive)) 24%,
+    transparent
+  );
+  --field-bad-shd: var(--sf-ring-shd-bad), var(--search-shd-f);
+  --field-bad-foc:
+    0 0 0 1px var(--field-bad-bdr),
+    0 0 0 4px color-mix(in srgb, var(--field-danger) 12%, transparent),
+    var(--search-shd-f);
+  --field-bad-text: color-mix(
+    in srgb,
+    rgb(var(--destructive)) 88%,
+    rgb(var(--foreground)) 12%
+  );
+  --field-warning: color-mix(
+    in srgb,
+    rgb(245 158 11) 88%,
+    rgb(var(--foreground)) 12%
+  );
+  --field-warn-bg: color-mix(in srgb, rgb(245 158 11) 10%, transparent);
+  --field-warn-bdr: color-mix(in srgb, rgb(245 158 11) 34%, transparent);
+  --field-success: var(--success-glass);
+  --field-ok-bg: color-mix(in srgb, rgb(16 185 129) 10%, transparent);
+  --field-ok-bdr: color-mix(in srgb, rgb(16 185 129) 34%, transparent);
+  --field-move: 180ms var(--ease-std);
+  --field-emph: 340ms cubic-bezier(0.2, 0.85, 0.25, 1);
+
+  /* Dialog surface tokens — global fallbacks so dialogs render correctly on every
+     route (shop, notes, chat). Previously mirrored in chat.css; removed duplicate
+     to keep a single source of truth. */
+  --dprm-shell-bg: rgb(var(--background) / 74%);
+  --dprm-bdr: var(--sf-edge-overlay);
+  --dsec-bg: color-mix(in srgb, var(--bg2) 82%, transparent);
+  --dsec-bdr: var(--bd0);
+
+  /* Dialog shells and their decision panels.
+   *
+   * A dialog opens over whatever surface asked for it, so it cannot inherit that
+   * surface's contrast. The older recipe sampled the backdrop (`--bg1`, ~8% white)
+   * and washed out wherever the page behind it was bright — the plan chooser over
+   * the home hero, the sign-in dialog over the plans page. The shell is built from
+   * the opaque page color instead, holding its own contrast wherever it opens and
+   * still passing the backdrop through far enough to read as glass rather than as
+   * a painted rectangle. This is the default for every `DialogShell` rather than an
+   * opt-in: an opt-in arrives through `innerClassName`, which the shell skips on
+   * its mobile sheet presentations, so the same dialog silently changed material
+   * on a phone.
+   *
+   * The stroke is white, not ink. Light-theme edges in this system are white —
+   * `--sf-edge-subtle`/`control`/`overlay` run 24/56/72% in light against
+   * 6/10/14% in dark — because on a light surface a lift reads as a rim of light,
+   * not as a drawn boundary. An ink stroke here painted `rgb(194 195 196)` and read
+   * as a grey outline on a card that is meant to look lit, so the shell takes the
+   * control tier's 56% and a decision panel the overlay tier's 72%.
+   *
+   * A decision panel is the raised surface a reader compares — the plan cards, the
+   * external-navigation destination card. It steps off the shell by a gentle veil:
+   * the light page color is already near-white, so a heavy white card on it
+   * flattened the two surfaces into one. */
+  --dprm-pnl-bg: rgb(var(--white) / 34%);
+  --dprm-pnl-bdr: rgb(var(--white) / 72%);
+}
+
+.dark {
+  /* Only the `--sk-*` values consumed INSIDE a glass popover follow the theme.
+   * The `--sk-ctl-*` and `--sk-card-*` families are deliberately absent here:
+   * they paint the paper, which stays white in both themes, so re-declaring them
+   * for dark is what turns an on-paper control into white-on-white. */
+  --sk-bdr: rgb(var(--white) / 20%);
+  --sk-trk: rgb(var(--white) / 10%);
+  --sk-pre: rgb(var(--white) / 20%);
+  --sk-mda: rgb(var(--white) / 10%);
+  --sk-inb: rgb(var(--white) / 8%);
+  --sk-inf: rgb(var(--white) / 5%);
+  --sf-edge-subtle: rgb(var(--white) / 6%);
+  --sf-edge-control: rgb(var(--white) / 10%);
+  --sf-edge-overlay: rgb(var(--white) / 14%);
+  --sf-edge-user-message: color-mix(
+    in srgb,
+    rgb(var(--accent)) 84%,
+    rgb(var(--white)) 16%
+  );
+  --sf-child-fill: rgb(var(--white) / 3.5%);
+  --sf-child-fill-hover: rgb(var(--white) / 7%);
+  --sf-child-fill-selected: rgb(var(--white) / 10%);
+  --sf-child-stroke-hover: rgb(var(--white) / 10%);
+  --sf-child-stroke-selected: rgb(var(--white) / 15%);
+  --sf-child-shadow-hover: inset 0 1px 0 rgb(var(--white) / 10%);
+  --sf-child-shadow-selected: inset 0 1px 0 rgb(var(--white) / 15%);
+
+  /* Dialog shell and panel — see the light block. Only the stroke strength
+     differs, because a white rim is a lift on the light page color and a bright
+     edge on the dark one. It is deliberately weaker than its light counterpart:
+     a white hairline on a near-black field reads far stronger than the same line
+     on a near-white one — measured, 14% painted `rgb(60 60 61)` against a base of
+     `rgb(16 16 18)`, which read as a lit outline rather than an edge. The shell
+     fill needs no override: it derives from `--background`, already theme-aware. */
+  --dprm-bdr: var(--sf-edge-overlay);
+  --dprm-pnl-bg: rgb(var(--white) / 7%);
+  --dprm-pnl-bdr: rgb(var(--white) / 8%);
+  --sf-notification-smoked-fill: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 9%,
+    rgb(var(--black))
+  );
+  --sf-search-highlight-fill: rgb(var(--accent) / 20%);
+  --sf-search-highlight-outline: rgb(var(--accent) / 34%);
+  --slider-rail-fill: color-mix(
+    in srgb,
+    rgb(var(--white)) 8%,
+    rgb(var(--black))
+  );
+  --slider-rail-shadow:
+    inset 0 1px 1px rgb(var(--black) / 34%),
+    inset 0 -1px 0 rgb(var(--white) / 6%);
+  --slider-progress-fill: linear-gradient(
+    90deg,
+    rgb(var(--accent)),
+    color-mix(in oklab, rgb(var(--accent)) 90%, rgb(var(--white)) 10%)
+  );
+  --slider-progress-cap: color-mix(
+    in oklab,
+    rgb(var(--accent)) 90%,
+    rgb(var(--white)) 10%
+  );
+  --slider-progress-shadow: none;
+  --slider-thumb-fill: rgb(38 45 56 / 90%);
+  --slider-thumb-stroke: rgb(var(--white) / 18%);
+  --slider-thumb-shadow: 0 1px 2px rgb(var(--black) / 26%);
+  --loading-rail-fill: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 8%,
+    transparent
+  );
+  --loading-rail-stroke: color-mix(
+    in srgb,
+    rgb(var(--foreground)) 14%,
+    transparent
+  );
+  --loading-rail-shadow:
+    inset 0 1px 0 var(--loading-rail-stroke), inset 0 -1px 0 rgb(0 0 0 / 18%);
+  --toggle-rail-fill: var(--slider-rail-fill);
+  --toggle-rail-shadow:
+    inset 0 1px 1px rgb(var(--black) / 26%),
+    inset 0 -1px 0 rgb(var(--white) / 5%), var(--sf-shd-floa-isl);
+  --sf-shd-contact:
+    0 10px 22px -16px rgb(0 0 0 / 52%), 0 2px 6px -4px rgb(0 0 0 / 32%);
+  --sf-shd-inner:
+    inset 0 1px 0 var(--sf-edge-subtle), 0 7px 16px -11px rgb(0 0 0 / 50%);
+  --sf-shd-micro:
+    inset 0 1px 0 var(--sf-edge-subtle), 0 5px 11px -8px rgb(0 0 0 / 58%);
+  --sf-shd-ctl:
+    inset 0 1px 0 rgb(255 255 255 / 7.5%), 0 1px 2px rgb(0 0 0 / 28%),
+    0 14px 32px -20px rgb(0 0 0 / 58%);
+  --sf-shd-raise:
+    inset 0 1px 0 var(--sf-edge-control), 0 2px 5px -2px rgb(0 0 0 / 40%),
+    0 16px 32px -16px rgb(0 0 0 / 74%);
+  --sf-shd-popover:
+    inset 0 1px 0 rgb(255 255 255 / 8.5%), 0 2px 6px -3px rgb(0 0 0 / 36%),
+    0 20px 46px -24px rgb(0 0 0 / 66%);
+  --sf-shd-panel:
+    inset 0 1px 0 rgb(255 255 255 / 9.5%), 0 3px 8px -4px rgb(0 0 0 / 44%),
+    0 26px 60px -28px rgb(0 0 0 / 76%);
+  --sf-shd-ovr:
+    inset 0 1px 0 rgb(255 255 255 / 10%), 0 4px 10px -5px rgb(0 0 0 / 50%),
+    0 30px 68px -30px rgb(0 0 0 / 84%);
+  --sf-shd-deep:
+    0 16px 34px -18px rgb(0 0 0 / 78%), 0 10px 20px -14px rgb(0 0 0 / 50%);
+  --sf-shd-cine: 0 60px 100px -10px rgb(0 0 0 / 64%);
+  --sf-shd-acc-soft:
+    0 16px 32px -18px
+    color-mix(in srgb, rgb(var(--accent)) 24%, rgb(0 0 0 / 24%)),
+    0 4px 10px -8px color-mix(in srgb, rgb(var(--accent)) 12%, rgb(0 0 0 / 18%));
+  --sf-shd-acc-rais:
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    0 20px 38px -18px
+    color-mix(in srgb, rgb(var(--accent)) 30%, rgb(0 0 0 / 36%));
+  --sf-shd-acc-sel: 0 0 14px
+    color-mix(in srgb, rgb(var(--accent)) 42%, transparent);
+  --sf-shd-info:
+    0 16px 32px -18px rgb(10 132 255 / 22%),
+    0 4px 10px -8px rgb(10 132 255 / 12%);
+  --sf-shd-warn:
+    0 16px 32px -18px rgb(245 158 11 / 24%),
+    0 4px 10px -8px rgb(245 158 11 / 14%);
+  --sf-shd-bad:
+    inset 0 1px 0 rgb(255 255 255 / 7%),
+    0 18px 36px -20px
+    color-mix(in srgb, rgb(var(--destructive)) 20%, rgb(0 0 0 / 42%)),
+    0 5px 12px -8px rgb(0 0 0 / 50%);
+  --sf-shd-in-soft: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --sf-shd-in-subt: inset 0 1px 0 rgb(255 255 255 / 6%);
+  --sf-ring-shd-acc: 0 0 0 2px rgb(var(--accent) / 26%);
+  --sf-focus-outline: rgb(var(--accent) / 90%);
+  --sf-rsa-sub: 0 0 0 1px rgb(var(--accent) / 28%);
+  --sf-shd-in-ctl: var(--shd-md), inset 0 1px 0 var(--shlb-d);
+  --sf-shd-acc-btn:
+    0 12px 24px -18px rgb(var(--accent) / 30%),
+    0 4px 12px -10px rgb(var(--accent) / 18%),
+    inset 0 1px 0 rgb(255 255 255 / 12%);
+  --sf-sab-rai:
+    0 16px 30px -16px rgb(var(--accent) / 42%),
+    0 8px 18px -10px rgb(var(--accent) / 26%),
+    inset 0 1px 0 rgb(255 255 255 / 15%);
+
+  /* Pressed accent pill. The dark accent pill's resting stroke is white/16%,
+     so the pressed inset must stay at or below it — the light value (18%)
+     would out-shine the boundary in dark. */
+  --sf-sab-pre:
+    0 14px 28px -18px rgb(var(--accent) / 32%),
+    0 6px 16px -12px rgb(var(--accent) / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 16%);
+  --sf-sto-fx: drop-shadow(0 0 5px rgb(255 255 255 / 27%));
+  --ava-shd-nod-res:
+    inset 0 1px 0 rgb(255 255 255 / 8.5%), 0 1px 2px rgb(0 0 0 / 32%),
+    0 9px 20px -11px rgb(0 0 0 / 62%);
+  --search-fill: rgb(255 255 255 / 4%);
+  --search-fill-f: rgb(255 255 255 / 6.5%);
+  --search-bdr: rgb(255 255 255 / 6%);
+  --search-bdr-f: rgb(255 255 255 / 9%);
+  --search-inset: transparent;
+  --search-shd: 0 12px 22px -20px rgb(0 0 0 / 40%);
+  --search-shd-f: 0 14px 26px -22px rgb(0 0 0 / 48%);
+  --search-icon: rgb(var(--white) / 68%);
+  --search-place: rgb(var(--white) / 48%);
+  --search-clear: rgb(var(--white) / 72%);
+  --field-danger: color-mix(in srgb, rgb(248 113 113) 90%, white 10%);
+  --field-bad-text: color-mix(in srgb, rgb(248 113 113) 92%, white 8%);
+  --field-warning: color-mix(in srgb, rgb(251 191 36) 88%, white 12%);
+  --field-success: var(--success-glass);
+}

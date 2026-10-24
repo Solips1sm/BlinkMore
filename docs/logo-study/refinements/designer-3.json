@@ -1,0 +1,50 @@
+[
+  {
+    "id": "07a",
+    "parent": "07",
+    "name": "Soft parenthesis",
+    "file": "refinements/07a.svg",
+    "rationale": "Thicker rounded parentheses give the open lens brackets a friendlier silhouette while the eight-dot iris stays centered and clear.",
+    "tradeoff": "The compact iris detail may still soften at 16 px."
+  },
+  {
+    "id": "07b",
+    "parent": "07",
+    "name": "Four soft corners",
+    "file": "refinements/07b.svg",
+    "rationale": "Splitting each bracket into upper and lower arcs adds breathing room around the same eight-dot iris and makes the gaze feel lighter.",
+    "tradeoff": "The extra gaps weaken the eye outline at very small sizes."
+  },
+  {
+    "id": "08a",
+    "parent": "08",
+    "name": "Resting capsule",
+    "file": "refinements/08a.svg",
+    "rationale": "A flatter, rounder shell keeps the shallow eye compact while a low eight-dot iris preserves the resting gaze.",
+    "tradeoff": "The capsule silhouette can read as a control without the iris."
+  },
+  {
+    "id": "08b",
+    "parent": "08",
+    "name": "Resting open lids",
+    "file": "refinements/08b.svg",
+    "rationale": "Separate shallow lid arcs leave the corners open and keep the lowered eight-dot iris visible in a calm, horizontal mark.",
+    "tradeoff": "The open corners may close up visually at 16 px."
+  },
+  {
+    "id": "09a",
+    "parent": "09",
+    "name": "Paired pearls",
+    "file": "refinements/09a.svg",
+    "rationale": "Rounder paired eyes hold four iris dots and a small pupil each, splitting the eight-circle motif evenly across both sides.",
+    "tradeoff": "The two pupils add detail to an already dense small mark."
+  },
+  {
+    "id": "09b",
+    "parent": "09",
+    "name": "Converging pair",
+    "file": "refinements/09b.svg",
+    "rationale": "A larger iris group in each rounded eye turns the paired gaze gently inward while preserving four company dots per side.",
+    "tradeoff": "The shared inward direction can make the pair feel more intent than relaxed."
+  }
+]

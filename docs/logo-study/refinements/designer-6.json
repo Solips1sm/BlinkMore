@@ -1,0 +1,34 @@
+[
+  {
+    "id": "14a",
+    "parent": "14",
+    "name": "Almond Ribbon",
+    "file": "refinements/14a.svg",
+    "rationale": "The steeper opposing arcs restore a readable eye silhouette while keeping eight iris dots open between the rounded offset ends.",
+    "tradeoff": "The fuller almond tension feels more expressive and less like a pill control."
+  },
+  {
+    "id": "14b",
+    "parent": "14",
+    "name": "Pill Fold",
+    "file": "refinements/14b.svg",
+    "rationale": "Flatter curves carry the pill control language into both lids around a centered eight dot iris.",
+    "tradeoff": "The shallow upper lid leaves less clearance above the iris and can suggest a switch."
+  },
+  {
+    "id": "15a",
+    "parent": "15",
+    "name": "Even Constellation",
+    "file": "refinements/15a.svg",
+    "rationale": "Eight equally weighted circles form the eye boundary while a larger center dot establishes the pupil.",
+    "tradeoff": "Even spacing gives the small mark rhythm but leaves larger gaps in the eye contour."
+  },
+  {
+    "id": "15b",
+    "parent": "15",
+    "name": "Anchored Constellation",
+    "file": "refinements/15b.svg",
+    "rationale": "Larger corner circles anchor the eye while six smaller arc points retain the eight circle company motif.",
+    "tradeoff": "Varied circle sizes soften the rhythm and make the boundary more decorative."
+  }
+]

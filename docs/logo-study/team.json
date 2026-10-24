@@ -1,0 +1,67 @@
+{
+  "initialConcepts": "Authored by the parent agent",
+  "designers": [
+    {
+      "task": "logo_designer_1",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-1.json"
+    },
+    {
+      "task": "logo_designer_2",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-2.json"
+    },
+    {
+      "task": "logo_designer_3",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-3.json"
+    },
+    {
+      "task": "logo_designer_4",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-4.json"
+    },
+    {
+      "task": "logo_designer_5",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-5.json"
+    },
+    {
+      "task": "logo_designer_6",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "metadata": "refinements/designer-6.json"
+    }
+  ],
+  "judges": [
+    {
+      "task": "logo_vision_judge_1",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "review": "reviews/judge-1.json"
+    },
+    {
+      "task": "logo_vision_judge_2",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "review": "reviews/judge-2.json"
+    },
+    {
+      "task": "logo_vision_judge_3",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "review": "reviews/judge-3.json"
+    },
+    {
+      "task": "logo_vision_judge_4",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "review": "reviews/judge-4.json"
+    }
+  ]
+}

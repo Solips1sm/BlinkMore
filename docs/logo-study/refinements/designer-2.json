@@ -1,0 +1,50 @@
+[
+  {
+    "id": "04a",
+    "parent": "04",
+    "name": "Open lids, calm aperture",
+    "file": "refinements/04a.svg",
+    "rationale": "The rounded upper arc and closer lower lid make the two open strokes more deliberate while the tighter eight circle iris retains the company motif.",
+    "tradeoff": "The heavier lid reads clearly at small sizes, though the separated corners still depend on a crisp silhouette."
+  },
+  {
+    "id": "04b",
+    "parent": "04",
+    "name": "Open lids, relaxed slit",
+    "file": "refinements/04b.svg",
+    "rationale": "A shallow upper lid and a gently rising lower curve create a calm narrow aperture with the iris visibly centered between them.",
+    "tradeoff": "The open corners stay expressive, while the smaller aperture places the iris closer to the upper lid."
+  },
+  {
+    "id": "05a",
+    "parent": "05",
+    "name": "Sculpted lens, tapered lid",
+    "file": "refinements/05a.svg",
+    "rationale": "The filled upper lid tapers from a broad center into fine corners, leaving a spacious lower aperture and an intact eight circle iris.",
+    "tradeoff": "The wide negative space feels light, while the narrower lid carries less app icon weight."
+  },
+  {
+    "id": "05b",
+    "parent": "05",
+    "name": "Sculpted lens, bold lid",
+    "file": "refinements/05b.svg",
+    "rationale": "A taller filled canopy and deeper lower curve turn the eye into a more sculptural mark while keeping the pupil and eight circles legible.",
+    "tradeoff": "The strong upper mass holds at menu size, though it may feel heavier beside Comfortaa."
+  },
+  {
+    "id": "06a",
+    "parent": "06",
+    "name": "Soft capsule orbit",
+    "file": "refinements/06a.svg",
+    "rationale": "Flatter crown and base curves evolve the ellipse into a soft capsule orbit, preserving continuous enclosure around the eight circle iris.",
+    "tradeoff": "The compact contour is steady at small sizes, with less natural almond character than a curved eye."
+  },
+  {
+    "id": "06b",
+    "parent": "06",
+    "name": "Open orbit",
+    "file": "refinements/06b.svg",
+    "rationale": "A small opening on the right turns the closed ellipse into an orbit path that suggests observation in motion while retaining the central motif.",
+    "tradeoff": "The gap adds direction, though it can read as a tracking symbol at a glance."
+  }
+]

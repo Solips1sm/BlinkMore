@@ -1,0 +1,4 @@
+.DS_Store
+/core/target/
+/dist/
+/test-results/

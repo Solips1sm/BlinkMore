@@ -1,0 +1,347 @@
+[
+  {
+    "id": "01",
+    "name": "Soft almond",
+    "logic": "A calm, continuous almond with softened joins. The original eight dot iris remains the clearest link to the company.",
+    "caution": "The closest evolution of the supplied mark. Fine dots need a small size check.",
+    "file": "concepts/01.svg"
+  },
+  {
+    "id": "02",
+    "name": "Pill lens",
+    "logic": "A capsule turns the familiar button pill into an eye. Straight upper and lower spans make the mark compact and steady.",
+    "caution": "Strong family resemblance to the controls. Can read as a switch without the iris.",
+    "file": "concepts/02.svg"
+  },
+  {
+    "id": "03",
+    "name": "Soft rectangle",
+    "logic": "A continuous rounded enclosure gives the eye a device like frame while retaining a living iris.",
+    "caution": "More architectural than organic. Avoid letting the outline resemble a camera housing.",
+    "file": "concepts/03.svg"
+  },
+  {
+    "id": "04",
+    "name": "Open lids",
+    "logic": "Two separate arcs leave the corners open, suggesting a relaxed blink rather than an enclosing shield.",
+    "caution": "Airy and responsive. Open corners may weaken the silhouette at small sizes.",
+    "file": "concepts/04.svg"
+  },
+  {
+    "id": "05",
+    "name": "Sculpted lens",
+    "logic": "A heavier upper lid and a quiet lower curve create a filled, sculptural eye with a clear aperture.",
+    "caution": "A stronger app icon shape. The weighted upper lid needs balance beside Comfortaa.",
+    "file": "concepts/05.svg"
+  },
+  {
+    "id": "06",
+    "name": "Ellipse orbit",
+    "logic": "An elliptical eye emphasizes continuous observation and a generous aperture without sharp corners.",
+    "caution": "Soft and simple, with less explicit eye character than the almond.",
+    "file": "concepts/06.svg"
+  },
+  {
+    "id": "07",
+    "name": "Lens brackets",
+    "logic": "Two curved brackets frame the iris. The missing top and bottom strokes make the eye feel open and light.",
+    "caution": "Distinct and spacious. Brackets can imply scanning rather than comfort.",
+    "file": "concepts/07.svg"
+  },
+  {
+    "id": "08",
+    "name": "Resting blink",
+    "logic": "A shallow eye and low iris describe a relaxed eyelid with less vertical occupation.",
+    "caution": "Efficient in a menu bar. The compressed eye can look sleepy.",
+    "file": "concepts/08.svg"
+  },
+  {
+    "id": "09",
+    "name": "Paired gaze",
+    "logic": "Two separate eyes distribute the company\u2019s eight circles equally across both sides, making bilateral movement part of the identity.",
+    "caution": "Directly expresses two eyes. Both small irises compete for limited menu bar pixels.",
+    "file": "concepts/09.svg"
+  },
+  {
+    "id": "10",
+    "name": "Living seed",
+    "logic": "An asymmetric upper lid suggests movement while the iris holds a stable central anchor.",
+    "caution": "Memorable organic tension. It must remain neutral rather than suggest unequal eye health.",
+    "file": "concepts/10.svg"
+  },
+  {
+    "id": "11",
+    "name": "Round aperture",
+    "logic": "A circular outer frame contains a simple eye cut and the eight circle iris, joining observation with a focus dial.",
+    "caution": "Robust circular icon, with a risk of unnecessary nested boundaries.",
+    "file": "concepts/11.svg"
+  },
+  {
+    "id": "12",
+    "name": "Petal iris",
+    "logic": "Eight rounded radial strokes reinterpret the company\u2019s circles as a soft iris inside the eye.",
+    "caution": "More legible strokes at small sizes. It can resemble a loading spinner if animated continuously.",
+    "file": "concepts/12.svg"
+  },
+  {
+    "id": "13",
+    "name": "Forward gaze",
+    "logic": "The iris moves gently to one side inside a generous almond, suggesting attention shifting beyond the screen.",
+    "caution": "A clear eye with directional character. The resting logo should not appear to watch a particular person.",
+    "file": "concepts/13.svg"
+  },
+  {
+    "id": "14",
+    "name": "Ribbon fold",
+    "logic": "A pair of offset lid ribbons shares rounded endings with the pill controls. The iris sits in their open overlap.",
+    "caution": "Dynamic without arrows. Heavy terminals can crowd the iris.",
+    "file": "concepts/14.svg"
+  },
+  {
+    "id": "15",
+    "name": "Constellation eye",
+    "logic": "Eight dots form the eye boundary itself, letting the company motif become the whole silhouette. A pupil makes the eye reading explicit.",
+    "caution": "The strongest departure from a conventional eye icon. Sparse dots need careful spacing at 16 pixels.",
+    "file": "concepts/15.svg"
+  },
+  {
+    "id": "01a",
+    "parent": "01",
+    "name": "Quiet almond",
+    "file": "refinements/01a.svg",
+    "rationale": "A flatter upper and lower curve gives the eight circle iris more room while keeping the original almond calm.",
+    "tradeoff": "The low profile feels relaxed, though the outline takes less height in a menu bar."
+  },
+  {
+    "id": "01b",
+    "parent": "01",
+    "name": "Full aperture",
+    "file": "refinements/01b.svg",
+    "rationale": "A fuller almond and larger iris use more of the canvas and keep the eight circles distinct at small sizes.",
+    "tradeoff": "The taller gaze feels more alert and may carry less of the original mark\u2019s quiet mood."
+  },
+  {
+    "id": "02a",
+    "parent": "02",
+    "name": "Bold capsule",
+    "file": "refinements/02a.svg",
+    "rationale": "A thicker capsule outline and a wider iris make the button pill read as an eye at menu size.",
+    "tradeoff": "The stronger border can still suggest a control when shown without the wordmark."
+  },
+  {
+    "id": "02b",
+    "parent": "02",
+    "name": "Aperture capsule",
+    "file": "refinements/02b.svg",
+    "rationale": "A transparent almond cut through a solid capsule turns the pill into a lens while retaining the circle motif.",
+    "tradeoff": "The dense silhouette depends on the background showing clearly through the aperture."
+  },
+  {
+    "id": "03a",
+    "parent": "03",
+    "name": "Lidded frame",
+    "file": "refinements/03a.svg",
+    "rationale": "Shallow inward bends along the frame\u2019s top and bottom edges give the rounded rectangle a softer eye shape.",
+    "tradeoff": "The bent edges make the frame less literal as a device window."
+  },
+  {
+    "id": "03b",
+    "parent": "03",
+    "name": "Bold frame",
+    "file": "refinements/03b.svg",
+    "rationale": "A heavier soft rectangle and larger radial iris keep the eight circle motif centered and defined at small sizes.",
+    "tradeoff": "The horizontal sides can still read as a screen around the eye."
+  },
+  {
+    "id": "04a",
+    "parent": "04",
+    "name": "Open lids, calm aperture",
+    "file": "refinements/04a.svg",
+    "rationale": "The rounded upper arc and closer lower lid make the two open strokes more deliberate while the tighter eight circle iris retains the company motif.",
+    "tradeoff": "The heavier lid reads clearly at small sizes, though the separated corners still depend on a crisp silhouette."
+  },
+  {
+    "id": "04b",
+    "parent": "04",
+    "name": "Open lids, relaxed slit",
+    "file": "refinements/04b.svg",
+    "rationale": "A shallow upper lid and a gently rising lower curve create a calm narrow aperture with the iris visibly centered between them.",
+    "tradeoff": "The open corners stay expressive, while the smaller aperture places the iris closer to the upper lid."
+  },
+  {
+    "id": "05a",
+    "parent": "05",
+    "name": "Sculpted lens, tapered lid",
+    "file": "refinements/05a.svg",
+    "rationale": "The filled upper lid tapers from a broad center into fine corners, leaving a spacious lower aperture and an intact eight circle iris.",
+    "tradeoff": "The wide negative space feels light, while the narrower lid carries less app icon weight."
+  },
+  {
+    "id": "05b",
+    "parent": "05",
+    "name": "Sculpted lens, bold lid",
+    "file": "refinements/05b.svg",
+    "rationale": "A taller filled canopy and deeper lower curve turn the eye into a more sculptural mark while keeping the pupil and eight circles legible.",
+    "tradeoff": "The strong upper mass holds at menu size, though it may feel heavier beside Comfortaa."
+  },
+  {
+    "id": "06a",
+    "parent": "06",
+    "name": "Soft capsule orbit",
+    "file": "refinements/06a.svg",
+    "rationale": "Flatter crown and base curves evolve the ellipse into a soft capsule orbit, preserving continuous enclosure around the eight circle iris.",
+    "tradeoff": "The compact contour is steady at small sizes, with less natural almond character than a curved eye."
+  },
+  {
+    "id": "06b",
+    "parent": "06",
+    "name": "Open orbit",
+    "file": "refinements/06b.svg",
+    "rationale": "A small opening on the right turns the closed ellipse into an orbit path that suggests observation in motion while retaining the central motif.",
+    "tradeoff": "The gap adds direction, though it can read as a tracking symbol at a glance."
+  },
+  {
+    "id": "07a",
+    "parent": "07",
+    "name": "Soft parenthesis",
+    "file": "refinements/07a.svg",
+    "rationale": "Thicker rounded parentheses give the open lens brackets a friendlier silhouette while the eight-dot iris stays centered and clear.",
+    "tradeoff": "The compact iris detail may still soften at 16 px."
+  },
+  {
+    "id": "07b",
+    "parent": "07",
+    "name": "Four soft corners",
+    "file": "refinements/07b.svg",
+    "rationale": "Splitting each bracket into upper and lower arcs adds breathing room around the same eight-dot iris and makes the gaze feel lighter.",
+    "tradeoff": "The extra gaps weaken the eye outline at very small sizes."
+  },
+  {
+    "id": "08a",
+    "parent": "08",
+    "name": "Resting capsule",
+    "file": "refinements/08a.svg",
+    "rationale": "A flatter, rounder shell keeps the shallow eye compact while a low eight-dot iris preserves the resting gaze.",
+    "tradeoff": "The capsule silhouette can read as a control without the iris."
+  },
+  {
+    "id": "08b",
+    "parent": "08",
+    "name": "Resting open lids",
+    "file": "refinements/08b.svg",
+    "rationale": "Separate shallow lid arcs leave the corners open and keep the lowered eight-dot iris visible in a calm, horizontal mark.",
+    "tradeoff": "The open corners may close up visually at 16 px."
+  },
+  {
+    "id": "09a",
+    "parent": "09",
+    "name": "Paired pearls",
+    "file": "refinements/09a.svg",
+    "rationale": "Rounder paired eyes hold four iris dots and a small pupil each, splitting the eight-circle motif evenly across both sides.",
+    "tradeoff": "The two pupils add detail to an already dense small mark."
+  },
+  {
+    "id": "09b",
+    "parent": "09",
+    "name": "Converging pair",
+    "file": "refinements/09b.svg",
+    "rationale": "A larger iris group in each rounded eye turns the paired gaze gently inward while preserving four company dots per side.",
+    "tradeoff": "The shared inward direction can make the pair feel more intent than relaxed."
+  },
+  {
+    "id": "10a",
+    "parent": "10",
+    "name": "Seed sweep",
+    "file": "refinements/10a.svg",
+    "rationale": "The asymmetric seed becomes two rounded lid strokes, with a heavier upper sweep and the eight circle iris held at center.",
+    "tradeoff": "Open terminals feel light and comfortable, though the isolated arcs rely on their separation to read as an eye at menu size."
+  },
+  {
+    "id": "10b",
+    "parent": "10",
+    "name": "Seed cutout",
+    "file": "refinements/10b.svg",
+    "rationale": "A solid asymmetric seed uses an eye shaped negative space for its aperture, giving the organic concept a compact filled silhouette.",
+    "tradeoff": "The stronger body holds up when small, though it has more visual weight beside Comfortaa."
+  },
+  {
+    "id": "11a",
+    "parent": "11",
+    "name": "Aperture disc",
+    "file": "refinements/11a.svg",
+    "rationale": "The circular frame becomes a filled disc with an eye shaped opening, leaving the eight circle iris floating cleanly in the aperture.",
+    "tradeoff": "The simple outer silhouette suits an app mark, though the negative opening needs contrast from its background."
+  },
+  {
+    "id": "11b",
+    "parent": "11",
+    "name": "Orbit iris",
+    "file": "refinements/11b.svg",
+    "rationale": "Eight circles move from the iris to a rounded perimeter dial while a simple stroked eye keeps the gaze explicit.",
+    "tradeoff": "The perimeter carries the company motif clearly, though its dotted circle feels more like a focus dial than a continuous frame."
+  },
+  {
+    "id": "12a",
+    "parent": "12",
+    "name": "Capsule bloom",
+    "file": "refinements/12a.svg",
+    "rationale": "Eight short rounded capsules turn the radial strokes into soft petals while keeping the pupil and almond immediately legible.",
+    "tradeoff": "The repeated petals may feel more floral or animated than a quiet iris."
+  },
+  {
+    "id": "12b",
+    "parent": "12",
+    "name": "Eight circle iris",
+    "file": "refinements/12b.svg",
+    "rationale": "Eight separate circles make the company motif explicit and keep the iris construction simple at small sizes.",
+    "tradeoff": "The dot ring is less distinctive than radial petals and can read as an aperture."
+  },
+  {
+    "id": "13a",
+    "parent": "13",
+    "name": "Soft directional almond",
+    "file": "refinements/13a.svg",
+    "rationale": "A rounder right lid gives the almond a gentle forward lean, with the eight circle iris shifted just enough to suggest attention moving outward.",
+    "tradeoff": "The softened right corner reduces the crispness of the eye silhouette."
+  },
+  {
+    "id": "13b",
+    "parent": "13",
+    "name": "Cutout gaze",
+    "file": "refinements/13b.svg",
+    "rationale": "A solid almond rim carved around a clear aperture makes a bolder app mark while the offset eight circle iris preserves the forward gaze.",
+    "tradeoff": "The heavier rim can dominate the small iris beside Comfortaa."
+  },
+  {
+    "id": "14a",
+    "parent": "14",
+    "name": "Almond Ribbon",
+    "file": "refinements/14a.svg",
+    "rationale": "The steeper opposing arcs restore a readable eye silhouette while keeping eight iris dots open between the rounded offset ends.",
+    "tradeoff": "The fuller almond tension feels more expressive and less like a pill control."
+  },
+  {
+    "id": "14b",
+    "parent": "14",
+    "name": "Pill Fold",
+    "file": "refinements/14b.svg",
+    "rationale": "Flatter curves carry the pill control language into both lids around a centered eight dot iris.",
+    "tradeoff": "The shallow upper lid leaves less clearance above the iris and can suggest a switch."
+  },
+  {
+    "id": "15a",
+    "parent": "15",
+    "name": "Even Constellation",
+    "file": "refinements/15a.svg",
+    "rationale": "Eight equally weighted circles form the eye boundary while a larger center dot establishes the pupil.",
+    "tradeoff": "Even spacing gives the small mark rhythm but leaves larger gaps in the eye contour."
+  },
+  {
+    "id": "15b",
+    "parent": "15",
+    "name": "Anchored Constellation",
+    "file": "refinements/15b.svg",
+    "rationale": "Larger corner circles anchor the eye while six smaller arc points retain the eight circle company motif.",
+    "tradeoff": "Varied circle sizes soften the rhythm and make the boundary more decorative."
+  }
+]

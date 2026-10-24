@@ -1,0 +1,45 @@
+{
+  "repository": "Anistratenco/anistratenco-ui",
+  "files": {
+    "foundations.css": {
+      "source": "src/platform/ui/styles/foundations.css",
+      "sha256": "3ab980bae9719ee98e9d0ebe98313c10bbb706699fc236a8bfa6011a257b6474"
+    },
+    "surface-tokens.css": {
+      "source": "src/platform/ui/styles/surface-tokens.css",
+      "sha256": "4920ba113b50677128b2da5d9cda79fd4808f224f14318f5a2c9577eaf9b2ab6"
+    },
+    "surfaces.css": {
+      "source": "src/platform/ui/styles/surfaces.css",
+      "sha256": "bff9fd5130f348c378acbbd4685f5adbc016f0aa0f10cb6d67ce79bd7f01c9c4"
+    },
+    "checkbox.css": {
+      "source": "src/platform/ui/controls/checkbox.css",
+      "sha256": "4c09424aa6664c8ff22d4d92a3599720fc769696ea6616aed242be2f08e45e5f"
+    }
+  },
+  "recipes": [
+    "src/platform/ui/glass-surface.ts",
+    "src/platform/ui/control-recipe.ts",
+    "src/assistant/conversation/styles/chat.tokens.css",
+    "src/platform/ui/loading/LogoBreathingRail.tsx",
+    "src/site/chrome/navbar/NavbarThemeToggle.tsx"
+  ],
+  "note": "Bundled CSS and Comfortaa assets are unchanged. Product roles reuse the shared surface and pill recipes. The local loading rail adapts LogoBreathingRail.tsx with determinate calibration and exercise progress. The eye SVG is independently authored around the eight circle motif.",
+  "assets": {
+    "fonts/Comfortaa-Variable.woff2": {
+      "source": "src/app/fonts/Comfortaa-Variable.woff2",
+      "sha256": "4c53d8e2a813441bf080c4c50f68d5d104f211063f16994cc79df3d40bce50b5"
+    },
+    "fonts/Comfortaa-OFL.txt": {
+      "source": "src/app/fonts/Comfortaa-OFL.txt",
+      "sha256": "c89ab37b152eaa07dc5e8d100d6ffb968226a0c4988bdff16a97e73174e9c77c"
+    }
+  },
+  "themeIcons": {
+    "source": "lucide-react 1.27.0, main project NavbarThemeToggle.tsx",
+    "geometry": "Exact Sun and Moon icon nodes, inline SVG without React runtime",
+    "license": "UI/vendor/LUCIDE-LICENSE.txt",
+    "motion": "16px stacked icons, 90 degree rotation and scale, reduced motion honored"
+  }
+}

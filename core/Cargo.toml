@@ -1,0 +1,13 @@
+[package]
+name = "blinkmore-core"
+version = "2.0.0"
+edition = "2024"
+license = "MIT"
+
+[lib]
+crate-type = ["staticlib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

@@ -1,0 +1,98 @@
+{
+  "judge": "Judge 1, brand geometry",
+  "model": "gpt-6-luna",
+  "reasoningEffort": "max",
+  "inspectedImages": [
+    "families-1-light.png",
+    "families-2-light.png",
+    "families-3-light.png",
+    "families-1-dark.png",
+    "families-2-dark.png",
+    "families-3-dark.png"
+  ],
+  "ranking": [
+    "01b",
+    "12b",
+    "01",
+    "04a",
+    "08a",
+    "05a",
+    "06",
+    "13",
+    "12a",
+    "05",
+    "01a",
+    "04",
+    "06a",
+    "13b",
+    "10a",
+    "10b",
+    "14a",
+    "05b",
+    "08",
+    "09b",
+    "15b",
+    "09a",
+    "15",
+    "02b",
+    "09",
+    "14",
+    "11a",
+    "14b",
+    "12",
+    "03b",
+    "02a",
+    "03",
+    "11",
+    "08b",
+    "06b",
+    "02",
+    "07a",
+    "03a",
+    "10",
+    "13a",
+    "07",
+    "04b",
+    "11b",
+    "07b",
+    "15a"
+  ],
+  "winner": "01b",
+  "summary": "01b is my pick because its almond contour reads immediately as an eye, while the larger, evenly spaced circles stay distinct in the 16 pixel sample. Its continuous outline has enough weight beside the rounded lowercase wordmark and comes closest to the supplied reference. This is a subjective visual opinion, not a measure of user preference or medical efficacy. The sheets show 24, 20 and 16 CSS pixel samples in original resolution, but cannot confirm optical results on a physical device or across rasterization pipelines.",
+  "topFive": [
+    {
+      "id": "01b",
+      "reason": "The fuller almond and larger circle iris give the clearest, most balanced eye at small size and match the reference's simple geometry."
+    },
+    {
+      "id": "12b",
+      "reason": "A clean almond and well-spaced circle iris preserve the company motif with very little visual clutter."
+    },
+    {
+      "id": "01",
+      "reason": "Its calm continuous contour sits naturally beside the rounded wordmark and keeps the reference's familiar eye silhouette."
+    },
+    {
+      "id": "04a",
+      "reason": "The open, curved lids feel relaxed while the iris remains legible; the broken corners make it slightly less robust than the leaders."
+    },
+    {
+      "id": "08a",
+      "reason": "The compact eye feels restful and holds its circle detail at small size, though its capsule proportions are less distinctive."
+    }
+  ],
+  "rejectionNotes": [
+    {
+      "id": "03a",
+      "reason": "The inward bends make the enclosure look more like a bandage or device frame than a comfortable eye."
+    },
+    {
+      "id": "07b",
+      "reason": "Four separated corner strokes leave a fragmented silhouette, and the small floating iris does not restore an immediate eye read."
+    },
+    {
+      "id": "11b",
+      "reason": "The loose outer dots turn the mark toward a targeting dial, adding visual noise around a very small eye."
+    }
+  ]
+}

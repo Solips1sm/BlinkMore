@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "generator": "built-in image_gen",
+  "source_catalog": "image-gen-icon-glassmorphic/references/catalog.json",
+  "shared_prompt": "Use case: stylized-concept. Asset type: small Account settings illustration, not an interface screenshot. Create a refined minimal 3D glass object, compact centered composition, one clear silhouette, front three-quarter view. Pearl frosted glass with restrained clear edges and a tiny neutral silver detail. Colorless material so it works beside any app accent color and in both light and dark themes. Soft ambient lighting, subtle internal shading, crisp shape readable at 48-64 pixels. Genuine transparent background. No text, no UI frame, no floor, no cast shadow, no glow, no particles, no rings, no orbit, no decorative background. Subject: {prompt_subject}",
+  "assets": [
+    {
+      "subject": "passkey",
+      "aliases": ["fingerprint", "shield", "biometrics"],
+      "prompt_subject": "an upright rounded glass shield with a single embossed fingerprint. No extra objects.",
+      "prompt": "Use case: stylized-concept. Asset type: small Account settings illustration, not an interface screenshot. Create a refined minimal 3D glass object, compact centered composition, one clear silhouette, front three-quarter view. Pearl frosted glass with restrained clear edges and a tiny neutral silver detail. Colorless material so it works beside any app accent color and in both light and dark themes. Soft ambient lighting, subtle internal shading, crisp shape readable at 48-64 pixels. Genuine transparent background. No text, no UI frame, no floor, no cast shadow, no glow, no particles, no rings, no orbit, no decorative background. Subject: an upright rounded glass shield with a single embossed fingerprint. No extra objects.",
+      "suggested_placement": {
+        "page": "Settings",
+        "section": "On this Mac",
+        "display_size_px": "48-64"
+      },
+      "project_copy": "BlinkMore/Resources/UI/assets/passkey-glass-v2.webp",
+      "files": {
+        "optimized": {
+          "path": "passkey-glass-v2.webp",
+          "width": 256,
+          "height": 256,
+          "has_alpha": true,
+          "bytes": 19754,
+          "sha256": "c961536f38d838522e7ee7f9dd6ba78d3968adf42de94739d6a988705965fa8f"
+        },
+        "original": {
+          "path": "sources/passkey-glass-v2.png",
+          "width": 1305,
+          "height": 1206,
+          "has_alpha": true,
+          "bytes": 1196648,
+          "sha256": "6d9c4b0323cdf32a53d0e47e2ebb7006fe07e34b7118fa2b56ee3189a0a70bc0"
+        }
+      }
+    }
+  ]
+}

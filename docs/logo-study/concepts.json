@@ -1,0 +1,107 @@
+[
+  {
+    "id": "01",
+    "name": "Soft almond",
+    "logic": "A calm, continuous almond with softened joins. The original eight dot iris remains the clearest link to the company.",
+    "caution": "The closest evolution of the supplied mark. Fine dots need a small size check.",
+    "file": "concepts/01.svg"
+  },
+  {
+    "id": "02",
+    "name": "Pill lens",
+    "logic": "A capsule turns the familiar button pill into an eye. Straight upper and lower spans make the mark compact and steady.",
+    "caution": "Strong family resemblance to the controls. Can read as a switch without the iris.",
+    "file": "concepts/02.svg"
+  },
+  {
+    "id": "03",
+    "name": "Soft rectangle",
+    "logic": "A continuous rounded enclosure gives the eye a device like frame while retaining a living iris.",
+    "caution": "More architectural than organic. Avoid letting the outline resemble a camera housing.",
+    "file": "concepts/03.svg"
+  },
+  {
+    "id": "04",
+    "name": "Open lids",
+    "logic": "Two separate arcs leave the corners open, suggesting a relaxed blink rather than an enclosing shield.",
+    "caution": "Airy and responsive. Open corners may weaken the silhouette at small sizes.",
+    "file": "concepts/04.svg"
+  },
+  {
+    "id": "05",
+    "name": "Sculpted lens",
+    "logic": "A heavier upper lid and a quiet lower curve create a filled, sculptural eye with a clear aperture.",
+    "caution": "A stronger app icon shape. The weighted upper lid needs balance beside Comfortaa.",
+    "file": "concepts/05.svg"
+  },
+  {
+    "id": "06",
+    "name": "Ellipse orbit",
+    "logic": "An elliptical eye emphasizes continuous observation and a generous aperture without sharp corners.",
+    "caution": "Soft and simple, with less explicit eye character than the almond.",
+    "file": "concepts/06.svg"
+  },
+  {
+    "id": "07",
+    "name": "Lens brackets",
+    "logic": "Two curved brackets frame the iris. The missing top and bottom strokes make the eye feel open and light.",
+    "caution": "Distinct and spacious. Brackets can imply scanning rather than comfort.",
+    "file": "concepts/07.svg"
+  },
+  {
+    "id": "08",
+    "name": "Resting blink",
+    "logic": "A shallow eye and low iris describe a relaxed eyelid with less vertical occupation.",
+    "caution": "Efficient in a menu bar. The compressed eye can look sleepy.",
+    "file": "concepts/08.svg"
+  },
+  {
+    "id": "09",
+    "name": "Paired gaze",
+    "logic": "Two separate eyes distribute the company\u2019s eight circles equally across both sides, making bilateral movement part of the identity.",
+    "caution": "Directly expresses two eyes. Both small irises compete for limited menu bar pixels.",
+    "file": "concepts/09.svg"
+  },
+  {
+    "id": "10",
+    "name": "Living seed",
+    "logic": "An asymmetric upper lid suggests movement while the iris holds a stable central anchor.",
+    "caution": "Memorable organic tension. It must remain neutral rather than suggest unequal eye health.",
+    "file": "concepts/10.svg"
+  },
+  {
+    "id": "11",
+    "name": "Round aperture",
+    "logic": "A circular outer frame contains a simple eye cut and the eight circle iris, joining observation with a focus dial.",
+    "caution": "Robust circular icon, with a risk of unnecessary nested boundaries.",
+    "file": "concepts/11.svg"
+  },
+  {
+    "id": "12",
+    "name": "Petal iris",
+    "logic": "Eight rounded radial strokes reinterpret the company\u2019s circles as a soft iris inside the eye.",
+    "caution": "More legible strokes at small sizes. It can resemble a loading spinner if animated continuously.",
+    "file": "concepts/12.svg"
+  },
+  {
+    "id": "13",
+    "name": "Forward gaze",
+    "logic": "The iris moves gently to one side inside a generous almond, suggesting attention shifting beyond the screen.",
+    "caution": "A clear eye with directional character. The resting logo should not appear to watch a particular person.",
+    "file": "concepts/13.svg"
+  },
+  {
+    "id": "14",
+    "name": "Ribbon fold",
+    "logic": "A pair of offset lid ribbons shares rounded endings with the pill controls. The iris sits in their open overlap.",
+    "caution": "Dynamic without arrows. Heavy terminals can crowd the iris.",
+    "file": "concepts/14.svg"
+  },
+  {
+    "id": "15",
+    "name": "Constellation eye",
+    "logic": "Eight dots form the eye boundary itself, letting the company motif become the whole silhouette. A pupil makes the eye reading explicit.",
+    "caution": "The strongest departure from a conventional eye icon. Sparse dots need careful spacing at 16 pixels.",
+    "file": "concepts/15.svg"
+  }
+]

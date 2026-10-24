@@ -1,0 +1,28 @@
+{
+  "concepts": 15,
+  "refinements": 30,
+  "judges": 4,
+  "model": "gpt-6-luna",
+  "reasoningEffort": "max",
+  "winner": "01b",
+  "meanRank": 2.0,
+  "ranks": [
+    1,
+    2,
+    2,
+    3
+  ],
+  "pluralityFirstChoice": "12b",
+  "firstChoiceVotes": 2,
+  "checks": [
+    "45 unique valid SVG sources",
+    "exactly two refinements per concept",
+    "four full unique rankings",
+    "immutable reviewed SVG and screenshot hashes",
+    "eight complete light and dark WebKit sheets without clipping",
+    "local Comfortaa loaded",
+    "gallery filters, theme and all 45 downloads",
+    "recommended SVG rasterized at 1024 pixels"
+  ],
+  "limitation": "Static model visual reviews, not human preference or physical menu bar tests."
+}
