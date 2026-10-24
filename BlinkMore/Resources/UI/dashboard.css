@@ -36,8 +36,8 @@ nav button[aria-selected="true"] { color: rgb(var(--foreground)); border-bottom-
 main { min-height: 0; flex: 1; overflow: auto; scrollbar-width: thin; padding: 1px 3px 6px; }
 .section-title { justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .instrument { border: 1px solid var(--edge); border-radius: var(--rad-chat-stage); background: var(--field); box-shadow: var(--sf-shd-inner); padding: 3px 18px 12px; }
-.optical { display: flex; align-items: center; gap: 24px; height: 140px; }
-.eye-pair { flex: 1; min-width: 0; height: 126px; overflow: hidden; }
+.optical { display: flex; align-items: center; gap: 24px; height: 118px; }
+.eye-pair { flex: 1; min-width: 0; height: 110px; overflow: hidden; }
 .live-lid { stroke: var(--optical-ink); stroke-width: 1.5; fill: url(#aperture-fill); vector-effect: non-scaling-stroke; }
 .reference-lids { stroke: var(--rhythm-ink); stroke-width: 1; opacity: .35; fill: none; }.eye-axis { stroke: var(--rhythm-ink); stroke-width: .6; opacity: .45; }.eye-centers { fill: var(--rhythm-ink); }
 .violet-stop { stop-color: rgb(var(--series-5)); }.teal-stop { stop-color: rgb(var(--series-6)); }
@@ -90,3 +90,21 @@ html.reduce-motion *,html.reduce-motion *::before,html.reduce-motion *::after { 
 
 html.reduce-motion #tracking-rail>span { transform: none; }
 @media(prefers-reduced-motion:reduce) { #tracking-rail>span { transform: none; } }
+/* Shared house materials, with a compact intention row and dedicated live workspace. */
+.daily-intentions { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 12px; }
+.intention { display: flex; align-items: center; gap: 9px; text-align: left; border: 0; background: none; color: inherit; padding: 0; min-width: 0; }
+.intention>svg { width: 36px; height: 36px; flex: none; }.intention>span>span,.intention strong { display: block; font-size: 14px; font-weight: 400; }.intention strong { font-variant-numeric: tabular-nums; }
+.intention-track,.intention-value { stroke-width: 3; fill: none; }.intention-track { stroke: var(--edge); }.intention-value { stroke: var(--rhythm-ink); stroke-dasharray: 100; stroke-dashoffset: 100; stroke-linecap: round; transform: rotate(-90deg); transform-origin: center; }.intention-value.days-tone { stroke: var(--optical-ink); }.intention-value.resets-tone { stroke: var(--link-ink); }
+.gauge-row { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-bottom: 16px; }.gauge-card { padding: 12px; gap: 10px; }.arc-gauge { width: 64px; height: 62px; }.gauge-number { font-size: 20px; }.reset-gauge .gauge-value { stroke: var(--link-ink); }
+.next-milestone { margin-bottom: 12px; }.achievement-grid { row-gap: 20px; }.achievement-track { height: 4px; }.achievement-track>span { background: var(--optical-ink); width: 100%; }.achievement p { min-height: 20px; }
+.live-heading { align-items: center; margin-bottom: 14px; }.live-heading h2 { font-size: 21px; font-weight: 400; }.live-heading p { margin-top: 3px; }.live-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 14px; margin: 12px 0; }.live-summary span,.live-summary strong { display: block; font-weight: 400; }.live-summary strong { font-size: 23px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+#examine .scan-grid { margin-top: 12px; }#examine .scan-panel { padding: 12px 14px; }#examine .scan-canvas>svg { height: 104px; }.scan-panel .section-title h2 { font-size: 14px; font-weight: 400; }.scan-panel .section-title { margin-bottom: 0; }.scan-panel .scan-values dd { font-size: 14px; }
+.motion-panel { border-top: 1px solid var(--edge); padding-top: 14px; margin-top: 16px; }.motion-key { display: flex; gap: 14px; }.left-key { color: var(--optical-ink); }.right-key { color: var(--rhythm-ink); }#motion-chart { width: 100%; height: 104px; overflow: hidden; }.motion-left,.motion-right { fill: none; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }.motion-left { stroke: var(--optical-ink); }.motion-right { stroke: var(--rhythm-ink); }.motion-reference { fill: none; stroke: rgb(var(--muted-fg)); stroke-width: .6; stroke-dasharray: 3 4; }
+.check-session { border: 1px solid var(--edge); border-radius: var(--rad-chat-card); padding: 14px; background: var(--field); box-shadow: var(--sf-shd-inner); margin: 12px 0 18px; }.check-results { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 12px; }.check-results span,.check-results strong { display: block; }.check-results strong { font-size: 21px; font-weight: 400; margin-top: 3px; }#check-progress { transform: scaleX(0); }
+@media(max-width:720px) { nav { gap: 22px; }.daily-intentions { gap: 6px; }.intention { gap: 6px; }.intention>svg { width: 30px; height: 30px; }.gauge-card { padding: 10px 8px; gap: 7px; }.arc-gauge { width: 52px; height: 54px; }.gauge-number { font-size: 18px; } }
+@media(max-height:550px) { .daily-intentions { margin-bottom: 8px; }.optical { height: 96px; }.eye-pair { height: 90px; }#rhythm-chart { height: 32px; }.session-invitation { padding-top: 8px; }.today-footer { margin-top: 6px; } }
+.privacy-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.live-heading { gap: 12px; }.live-heading>div:first-child { margin-right: auto; }#check-remaining:empty { display: none; }
+.live-lab { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }.live-analysis { min-width: 0; }#examine .live-lab>.scan-grid { grid-template-columns: 1fr; margin-top: 0; gap: 12px; }#examine .live-lab .scan-canvas { margin: 6px 0; }#examine .live-lab .scan-canvas>svg { height: 62px; }#examine .live-lab .scan-values>div { display: flex; gap: 7px; align-items: baseline; }#examine .live-lab .scan-values dd { margin: 0; }
+.live-summary { grid-template-columns: 1fr 1fr; gap: 12px; margin: 0 0 12px; }.live-summary strong { font-size: 21px; }.live-analysis .motion-panel { margin-top: 14px; padding-top: 12px; }.live-analysis #motion-chart { height: 94px; }.live-analysis .axis-labels { flex-wrap: wrap; gap: 4px; }.live-analysis .axis-labels>span:nth-child(2) { display: none; }
+@media(max-width:720px) { .live-heading p { max-width: 260px; }.live-summary strong { font-size: 20px; }.live-heading h2 { font-size: 19px; }#examine .live-lab .scan-panel { padding: 10px; } }

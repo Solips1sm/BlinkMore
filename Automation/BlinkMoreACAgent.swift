@@ -3,7 +3,10 @@ import IOKit.ps
 import Darwin
 
 final class BlinkMoreACAgent {
-    private let appURL = URL(fileURLWithPath: "/Applications/Eyesight.app")
+    private var appURL: URL? {
+        ["/Applications/Eyesight.app", "/Applications/BlinkMore.app"].map { URL(fileURLWithPath: $0) }
+            .first { Bundle(url: $0)?.bundleIdentifier == "com.oxremy.blinkmorefree" }
+    }
     private var opening = false
 
     func onACPower() -> Bool {
@@ -30,7 +33,7 @@ final class BlinkMoreACAgent {
             }
             return
         }
-        guard apps.isEmpty, !opening else { return }
+        guard apps.isEmpty, !opening, let appURL = appURL else { return }
         opening = true
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = false

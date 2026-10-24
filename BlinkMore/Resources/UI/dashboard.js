@@ -5,8 +5,9 @@
   const fmt = (n, digits = 0, suffix = "") => finite(n) ? new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n) + suffix : "Collecting";
   const text = (id, value) => { const el = $(id); if (el && el.textContent !== String(value)) el.textContent = String(value); };
   const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
-  const pages = ["activity", "practice", "history", "settings-page"];
-  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", historySelection = null;
+  const pages = ["activity", "practice", "history", "settings-page", "examine"], tabOrder = [0, 4, 1, 2, 3];
+  let motionSamples = [], lastMotionTime = null;
+  let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", lastCheck = "idle", historySelection = null;
   function svg(name, attributes = {}) {
     const node = document.createElementNS(svgNS, name);
     Object.entries(attributes).forEach(([key, value]) => node.setAttribute(key, String(value))); return node;
@@ -14,6 +15,12 @@
   function selectTab(index, focus = false) {
     if (!Number.isInteger(index) || index < 0 || index >= pages.length) return;
     if (selected === 1 && index !== 1 && ["running", "paused", "completed"].includes(current?.exercise?.phase)) send({ action: "exercise", command: "end" });
+    if (selected === 4 && index !== 4) {
+      if (current?.eyeCheck?.phase === "running") send({ action: "cancelCheck" });
+      motionSamples = []; lastMotionTime = null;
+    }
+    if (selected !== index) document.querySelector("main").scrollTop = 0;
+    window.scrollTo(0, 0);
     selected = index; document.body.dataset.page = String(index);
     document.querySelectorAll("[data-tab]").forEach(button => {
       const active = Number(button.dataset.tab) === index;
@@ -23,13 +30,13 @@
     pages.forEach((page, i) => $(page).hidden = i !== index);
     if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
     if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); }
-    if (current && index === 3 && $("measurement-details").open) geometry(current);
+    if (current && index === 4) { geometry(current); liveView(current); }
   }
   document.querySelectorAll("[data-tab]").forEach(button => {
     button.addEventListener("click", () => selectTab(Number(button.dataset.tab)));
     button.addEventListener("keydown", event => {
-      const i = Number(button.dataset.tab);
-      const next = event.key === "ArrowRight" ? (i + 1) % 4 : event.key === "ArrowLeft" ? (i + 3) % 4 : event.key === "Home" ? 0 : event.key === "End" ? 3 : null;
+      const i = tabOrder.indexOf(Number(button.dataset.tab));
+      const next = event.key === "ArrowRight" ? tabOrder[(i + 1) % 5] : event.key === "ArrowLeft" ? tabOrder[(i + 4) % 5] : event.key === "Home" ? 0 : event.key === "End" ? 3 : null;
       if (next === null) return; event.preventDefault(); selectTab(next, true);
     });
   });
@@ -37,8 +44,9 @@
   document.querySelectorAll("[data-exercise]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: button.dataset.exercise })));
   document.querySelectorAll("[data-routine]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: "start", routine: button.dataset.routine })));
   document.querySelectorAll("[data-history]").forEach(button => button.addEventListener("click", () => selectTab(2)));
-  document.querySelectorAll("[data-inspect]").forEach(button => button.addEventListener("click", () => { selectTab(3); $("measurement-details").open = true; if (current) geometry(current); }));
+  document.querySelectorAll("[data-inspect]").forEach(button => button.addEventListener("click", () => { selectTab(4); $("measurement-details").open = true; if (current) geometry(current); }));
   $("measurement-details").addEventListener("toggle", () => { if (current && $("measurement-details").open) geometry(current); });
+  $("review-check").addEventListener("click", () => $("check-session").scrollIntoView({ block: "nearest" }));
   $("theme-cycle").addEventListener("click", () => {
     const choices = ["system", "light", "dark"]; send({ action: "set", key: "theme", value: choices[(choices.indexOf(current?.preferences?.theme ?? "system") + 1) % 3] });
   });
@@ -83,18 +91,26 @@
     moment: "M7 29h34M13 28a11 11 0 0 1 22 0M24 9v5M10 15l4 4M38 15l-4 4M13 36h22",
     petals: "M24 24C2 4 2 44 24 24C44 2 4 2 24 24C46 44 46 4 24 24C4 46 44 46 24 24ZM20 24h8M24 20v8",
     orbit: "M11 35A17 17 0 1 1 37 35M24 3v6M3 24h6M39 24h6M24 15v9l8 6M16 42h16",
-    days: "M6 33V24M12 33V16M18 33V20M24 33V10M30 33V17M36 33V13M42 33V22M6 39h36"
+    days: "M6 33V24M12 33V16M18 33V20M24 33V10M30 33V17M36 33V13M42 33V22M6 39h36",
+    hour: "M24 5a19 19 0 1 0 0 38a19 19 0 1 0 0-38M24 12v13l9 5M24 5v3M5 24h3M40 24h3",
+    bloom: "M24 24C4 0 0 24 24 24C0 44 24 48 24 24C44 48 48 24 24 24C48 4 24 0 24 24ZM24 19v10M19 24h10",
+    sun: "M12 28a12 12 0 0 1 24 0M5 29h38M24 5v7M8 11l5 5M40 11l-5 5M8 36h32M15 42h18",
+    calendar: "M10 10h28v30H10ZM16 5v10M32 5v10M10 20h28M16 27h2M23 27h2M30 27h2M16 33h2M23 33h2M30 33h2"
   };
   function progress(state) {
     const stats = state.statistics, model = BlinkMetrics.activity(stats.today, stats.week, stats.lifetime, state.preferences);
     model.gauges.forEach((g, i) => {
-      const name = i === 0 ? "minutes" : "days", unit = i === 0 ? "min" : "days";
+      const name = ["minutes", "days", "resets"][i], unit = ["min", "days", "resets"][i];
       $("gauge-" + name).style.strokeDashoffset = String(100 * (1 - g.progress));
       text("goal-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} ${unit}`);
-      text(i === 0 ? "time-goal-note" : "day-goal-note", `Goal ${fmt(g.goal)} ${unit}${i === 1 ? " in seven" : ""}`);
+      text(["time-goal-note", "day-goal-note", "reset-goal-note"][i], `Goal ${fmt(g.goal)} ${unit}${i === 1 ? " in seven" : ""}`);
+      $("today-goal-" + name).style.strokeDashoffset = String(100 * (1 - g.progress));
+      text("today-value-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} / ${fmt(g.goal)} ${unit}`);
       $(name + "-gauge").setAttribute("aria-label", `${fmt(g.current, i === 0 ? 1 : 0)} of ${fmt(g.goal)} ${unit}, personal observation goal`);
     });
     const earned = model.achievements.filter(a => a.earned).length;
+    const next = model.achievements.filter(a => !a.earned).sort((a, b) => b.progress - a.progress)[0];
+    text("next-milestone", next ? `${next.name}: ${fmt(Math.floor(next.progress * 100), 0, "% recorded")}` : "All milestones earned");
     text("earned-count", `${earned} of ${model.achievements.length} earned`);
     text("goals-summary", `${fmt(stats.today?.resets ?? 0)} resets today`);
     text("today-achievement", earned ? `${earned} milestones earned` : "View progress");
@@ -105,8 +121,8 @@
       const card = document.createElement("article"); card.className = `achievement${a.earned ? " earned" : ""}`;
       const drawing = svg("svg", { viewBox: "0 0 48 48", "aria-hidden": "true" }); drawing.append(svg("path", { d: medal[a.glyph] }));
       const title = document.createElement("h3"), detail = document.createElement("p"), track = document.createElement("div"), fill = document.createElement("span");
-      title.textContent = a.name; detail.textContent = a.earned ? "Earned" : fmt(Math.floor(a.progress * 100), 0, "% recorded");
-      track.className = "achievement-track"; fill.style.width = `${a.progress * 100}%`; track.append(fill);
+      title.textContent = a.name; detail.textContent = a.earned ? "Earned" : `${fmt(a.current, a.unit === "min" ? 1 : 0)} of ${fmt(a.target)} ${a.unit}`;
+      track.className = "achievement-track house-rail"; fill.style.transform = `scaleX(${a.progress})`; track.append(fill);
       card.title = a.detail; card.setAttribute("aria-label", `${a.name}. ${a.detail}. ${a.earned ? "Earned" : detail.textContent}`);
       card.append(drawing, title, detail, track); fragment.append(card);
     });
@@ -182,6 +198,40 @@
     $(`${side}-points`).replaceChildren(dots); $(`${side}-axes`).replaceChildren(axes);
     $(`${side}-scan`).setAttribute("aria-label", projection ? `${side} eyelid, ${projection.points.length} landmarks, aperture ${fmt(data[`${side}Aperture`], 3)}` : `${side} eyelid landmarks unavailable`);
   }
+  function liveView(state) {
+    const active = ["tracking", "eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500 && finite(state.left) && finite(state.right);
+    text("live-difference", active ? fmt(Math.abs(state.left - state.right) * 100, 1, "%") : "Waiting");
+    text("live-daily-difference", fmt(state.statistics.today?.asymmetry, 1, "%"));
+    text("live-age", active ? fmt(state.frameAgeMs, 0, "ms") : "Waiting");
+    text("live-fps", active && state.fps > 0 ? fmt(state.fps, 1) : "Waiting");
+    $("start-check").disabled = !active || (state.calibration ?? 0) < 1;
+    const time = state.sampleTime;
+    if (finite(time) && time > 0 && time !== lastMotionTime) {
+      if (lastMotionTime !== null && time < lastMotionTime) motionSamples = [];
+      motionSamples.push({ t: time, left: active ? state.left : null, right: active ? state.right : null });
+      motionSamples = motionSamples.filter(p => p.t >= time - 30).slice(-160); lastMotionTime = time;
+    }
+    const traceNow = finite(time) ? time + (finite(state.frameAgeMs) ? Math.max(0, state.frameAgeMs) / 1000 : 0) : 0;
+    const trace = BlinkMetrics.motion(motionSamples, traceNow);
+    $("motion-left").setAttribute("d", trace.left); $("motion-right").setAttribute("d", trace.right);
+    const check = state.eyeCheck ?? { phase: "idle" }, running = check.phase === "running", done = check.phase === "completed";
+    $("review-check").hidden = !["completed", "cancelled"].includes(check.phase);
+    $("check-session").hidden = check.phase === "idle"; $("start-check").hidden = running; $("cancel-check").hidden = !running;
+    text("check-status", running ? "Observing both eyes" : done ? "Observation complete" : "Observation ended");
+    text("check-remaining", running ? `${fmt(Math.ceil(check.remaining ?? 0))}s remaining` : "");
+    $("check-progress").style.transform = `scaleX(${finite(check.progress) ? Math.max(0, Math.min(1, check.progress)) : 0})`;
+    $("check-rail").setAttribute("aria-valuenow", String(Math.round((check.progress ?? 0) * 100)));
+    text("check-left", finite(check.left) ? fmt(check.left * 100, 1, "% ref") : "Collecting");
+    text("check-right", finite(check.right) ? fmt(check.right * 100, 1, "% ref") : "Collecting");
+    text("check-left-closures", fmt(check.leftClosures)); text("check-right-closures", fmt(check.rightClosures));
+    text("check-exposure", fmt(check.observedSeconds, 1, "s")); text("check-blinks", fmt(check.blinks)); text("check-difference", fmt(check.difference, 1, "%"));
+    if (check.phase !== lastCheck) {
+      if (running) $("cancel-check").focus();
+      if (["completed", "cancelled"].includes(check.phase)) $("review-check").focus();
+      lastCheck = check.phase;
+    }
+    text("check-description", running ? "Blink normally. Missing camera time stays unmeasured." : finite(check.difference) ? "Average opening difference during visible, calibrated open eye time. This result stays in memory." : "Not enough calibrated open eye time for a comparison. Try again when both eyes are visible.");
+  }
   function geometry(state) {
     const g = state.geometry ?? {}, active = ["tracking", "eyesClosed", "calibrating"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
     ["left", "right"].forEach(side => {
@@ -202,6 +252,7 @@
     text("color-gamut", "sRGB");
   }
   function reminderText(state) {
+    if (state.eyeCheck?.phase === "running") return "Reminders rest during the eye check.";
     if (["running", "paused"].includes(state.exercise?.phase)) return "Reminders rest during the reset.";
     if (!state.preferences.remindersEnabled) return "Screen reminders off";
     if (state.fading) return "Reminder active. Close your eyes to clear.";
@@ -256,7 +307,7 @@
       if (input.type === "range" && document.activeElement !== input) text(`label-${key}`, preferenceLabel(key, Number(input.value)));
     });
     text("footer-notice", state.notice || stats.warning || "");
-    if (selected === 3 && $("measurement-details").open) geometry(state);
+    if (selected === 4) { geometry(state); liveView(state); }
   } };
   send({ action: "ready" });
 })();

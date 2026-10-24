@@ -51,7 +51,7 @@ final class DashboardWindowController: NSWindowController, NSWindowDelegate, WKN
     }
 
     func selectTab(_ index: Int) {
-        guard (0...3).contains(index) else { return }; selectedTab = index
+        guard (0...4).contains(index) else { return }; selectedTab = index
         guard ready else { return }
         webView.callAsyncJavaScript("window.blinkmore.selectTab(tab)", arguments: ["tab": index], in: nil, in: .page, completionHandler: nil)
     }

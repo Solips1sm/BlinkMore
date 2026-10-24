@@ -54,6 +54,20 @@ import AppKit
         precondition(!DailyRecord(day: "----------").valid)
         precondition(!DailyRecord(day: "2026-10-25", asymmetryWeighted: 100, asymmetrySeconds: 1).valid)
         precondition(!DailyRecord(day: "2026-10-25", asymmetrySeconds: -1).valid)
+        let checkStats = DailyStatistics(url: root.appendingPathComponent("check-stats.json"), now: date)
+        checkStats.startCheck(now: 1000)
+        var checkFrame = TrackingFrame(phase: .tracking, left: 1, right: 0.9, trackedDelta: 0.1, events: 1, calibrated: true)
+        for i in 1...60 {
+            checkFrame.timestamp = 1000 + Double(i) / 10; checkFrame.events = i % 30 == 0 ? 5 : 1
+            checkStats.record(checkFrame, now: date)
+        }
+        let checkResult = checkStats.checkSnapshot(now: 1030)
+        precondition(checkResult["phase"] as! String == "completed" && checkResult["blinks"] as! Int == 2)
+        precondition(abs(checkResult["difference"] as! Double - 10) < 1e-6)
+        let checkExport = try checkStats.exportData()
+        precondition(!String(data: checkExport, encoding: .utf8)!.contains("observedSeconds"))
+        try checkStats.reset()
+        precondition(checkStats.checkSnapshot(now: 1030)["phase"] as! String == "idle")
         let suite = "BlinkMoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -62,6 +76,8 @@ import AppKit
         precondition(preferences.reminderSeconds == 3 && preferences.fadeSeconds == 1)
         preferences.reminderSeconds = 100; preferences.sensitivity = -1
         precondition(preferences.reminderSeconds == 30 && preferences.sensitivity == 0)
+        precondition(preferences.resetGoal == 1)
+        preferences.resetGoal = 100; precondition(preferences.resetGoal == 10)
         preferences.theme = "dark"; preferences.theme = "invalid"
         precondition(preferences.theme == "dark")
         precondition(!preferences.setColor(hex: "<script>"))

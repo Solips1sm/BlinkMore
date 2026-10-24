@@ -13,11 +13,16 @@ domain="gui/$(id -u)"
 staging="/Applications/.Eyesight-staging-$$.app"
 rollback="/Applications/.Eyesight-rollback-$$.app"
 legacy_rollback="/Applications/.BlinkMore-rollback-$$.app"
+target="/Applications/Eyesight.app"
+if [[ -e "$target" ]] && [[ $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$target/Contents/Info.plist") != com.oxremy.blinkmorefree ]]; then
+  target="/Applications/BlinkMore.app"
+fi
 installed=0
 success=0
 mkdir -p "$backup" "$agent_dir" "$HOME/Library/LaunchAgents" "$HOME/Library/Logs"
 for name in Eyesight BlinkMore; do
   current="/Applications/$name.app"
+  [[ "$current" != /Applications/Eyesight.app || "$target" == "$current" ]] || continue
   if [[ -e "$current" ]]; then
     identifier=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$current/Contents/Info.plist")
     [[ "$identifier" == com.oxremy.blinkmorefree ]] || { echo "Refusing to replace another app: $current" >&2; exit 1; }
@@ -33,9 +38,9 @@ cleanup() {
     launchctl bootout "$domain/$label" 2>/dev/null || true
     if [[ $installed == 1 ]]; then
       dist/BlinkMoreACAgent --stop
-      rm -rf /Applications/Eyesight.app
+      rm -rf "$target"
     fi
-    [[ ! -d "$rollback" ]] || mv "$rollback" /Applications/Eyesight.app
+    [[ ! -d "$rollback" ]] || mv "$rollback" "$target"
     [[ ! -d "$legacy_rollback" ]] || mv "$legacy_rollback" /Applications/BlinkMore.app
     if [[ -f "$backup/current-agent.plist" ]]; then
       cp "$backup/current-agent.plist" "$plist"
@@ -54,9 +59,11 @@ launchctl bootout "$domain/$label" 2>/dev/null || true
 dist/BlinkMoreACAgent --stop
 stats="$HOME/Library/Containers/com.oxremy.blinkmorefree/Data/Library/Application Support/BlinkMore/daily-statistics.json"
 [[ ! -f "$stats" ]] || cp "$stats" "$backup/daily-statistics.json"
-[[ ! -d /Applications/Eyesight.app ]] || mv /Applications/Eyesight.app "$rollback"
-[[ ! -d /Applications/BlinkMore.app ]] || mv /Applications/BlinkMore.app "$legacy_rollback"
-mv "$staging" /Applications/Eyesight.app
+[[ ! -d "$target" ]] || mv "$target" "$rollback"
+if [[ "$target" != /Applications/BlinkMore.app && -d /Applications/BlinkMore.app ]]; then
+  mv /Applications/BlinkMore.app "$legacy_rollback"
+fi
+mv "$staging" "$target"
 installed=1
 cp dist/BlinkMoreACAgent "$agent_dir/BlinkMoreACAgent"
 # PlistBuddy accepts paths as separate arguments, including spaces.
@@ -69,4 +76,4 @@ launchctl bootstrap "$domain" "$plist"
 success=1
 rm -rf "$rollback" "$legacy_rollback"
 [[ ! -f "$old_plist" ]] || rm "$old_plist"
-printf 'Installed Eyesight. Backup: %s\n' "$backup"
+printf 'Installed Eyesight at %s. Backup: %s\n' "$target" "$backup"

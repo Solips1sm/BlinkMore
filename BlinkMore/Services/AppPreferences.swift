@@ -48,6 +48,10 @@ final class AppPreferences {
         get { bounded("dailyMinuteGoal", fallback: 30, range: 1...720) }
         set { defaults.set(newValue.clamped(to: 1...720).rounded(), forKey: "dailyMinuteGoal"); onChange?() }
     }
+    var resetGoal: Double {
+        get { bounded("dailyResetGoal", fallback: 1, range: 1...10) }
+        set { defaults.set(newValue.clamped(to: 1...10).rounded(), forKey: "dailyResetGoal"); onChange?() }
+    }
     var dayGoal: Double {
         get { bounded("weeklyDayGoal", fallback: 3, range: 1...7) }
         set { defaults.set(newValue.clamped(to: 1...7).rounded(), forKey: "weeklyDayGoal"); onChange?() }
@@ -84,7 +88,7 @@ final class AppPreferences {
         ["reminderSeconds": reminderSeconds, "fadeSeconds": fadeSeconds, "intensity": intensity,
          "sensitivity": sensitivity, "remindersEnabled": remindersEnabled, "theme": theme,
          "cameraID": cameraID ?? "", "color": colorHex, "pauseUntil": pauseUntil?.timeIntervalSince1970 ?? 0,
-         "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "dayGoal": dayGoal]
+         "exercisesEnabled": exercisesEnabled, "exerciseMinutes": exerciseMinutes, "minuteGoal": minuteGoal, "resetGoal": resetGoal, "dayGoal": dayGoal]
     }
     private func bounded(_ key: String, fallback: Double, range: ClosedRange<Double>) -> Double {
         guard defaults.object(forKey: key) != nil else { return fallback }

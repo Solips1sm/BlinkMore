@@ -22,6 +22,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         add("Open Eyesight", "open")
         for key in ["status", "count", "rate", "relative"] { add("", key, enabled: false) }
         contextMenu.addItem(.separator())
+        add("Live eye check", "live")
         add("Start a reset", "startReset")
         add("Pause for 5 minutes", "pause")
         add("Screen reminders", "reminders")
@@ -71,6 +72,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         switch sender.representedObject as? String {
         case "open": onOpen?(0)
         case "settings": onOpen?(3)
+        case "live": onOpen?(4)
         case "reminders": onCommand?(["action": "set", "key": "remindersEnabled", "value": sender.state != .on])
         case .some(let action): onCommand?(["action": action])
         default: break

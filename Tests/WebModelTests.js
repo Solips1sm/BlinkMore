@@ -2,15 +2,16 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
-const { activity, ring, contour, aperture } = require("../BlinkMore/Resources/UI/metrics.js");
+const { activity, ring, contour, aperture, motion } = require("../BlinkMore/Resources/UI/metrics.js");
 assert.equal(ring(120, 100).progress, 1);
 assert.equal(ring(-10, 100).progress, 0);
 assert.equal(ring(10, 0).goal, null);
 assert.equal(ring(NaN, 10).current, 0);
 assert.equal(ring(10, Infinity).progress, 0);
 const progress = activity({ blinks: 240, trackedSeconds: 1200 }, [{ trackedSeconds: 30 }, { trackedSeconds: 29 }, { trackedSeconds: 60 }], { resets: 10, trackedSeconds: 1800, days: 7 }, { blinkGoal: 300, minuteGoal: 30, dayGoal: 3 });
-assert.deepEqual(progress.gauges.map(r => r.progress), [2 / 3, 2 / 3]);
-assert(progress.achievements.every(a => a.earned));
+assert.deepEqual(progress.gauges.map(r => r.progress), [2 / 3, 2 / 3, 0]);
+assert.equal(progress.achievements.filter(a => a.earned).length, 4);
+assert(activity({}, [], {resets:50,trackedSeconds:18000,days:14}).achievements.every(a => a.earned));
 assert(activity({}, [], {}, {}).achievements.every(a => !a.earned));
 assert.equal(aperture(NaN, 100, 60, 160), null);
 assert.equal(aperture(1, 100, 60, -1), null);
@@ -40,3 +41,10 @@ console.log("Web model tests passed: goal bounds, achievements, aspect correctio
 for (const [name, info] of Object.entries(manifest.assets)) {
   assert.equal(crypto.createHash("sha256").update(fs.readFileSync(`BlinkMore/Resources/UI/${name}`)).digest("hex"), info.sha256);
 }
+
+const trace = motion([{t:10,left:1,right:.8},{t:10.2,left:0,right:0},{t:11,left:1,right:1}], 12);
+assert.equal((trace.left.match(/M/g)||[]).length, 2);
+assert.equal((trace.left.match(/L/g)||[]).length, 1);
+assert.equal(motion([{t:12,left:1,right:1}], 11).left, "");
+assert.equal(motion([{t:1,left:1,right:1}], 40).left, "");
+assert.equal((motion([{t:10,left:1,right:1},{t:10.1,left:null,right:null},{t:10.2,left:1,right:1}],11).left.match(/M/g)||[]).length,2);

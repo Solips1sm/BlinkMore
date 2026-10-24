@@ -24,11 +24,11 @@ import WebKit
         }
         let bins: [[String: Any]] = (0..<60).map { i in ["tracked": (18...25).contains(i) ? 0.0 : 1.0, "blinks": [2,7,11,16,29,34,38,43,48,52,57].contains(i) ? 1 : 0] }
         let today: [String: Any] = ["blinks": 240, "trackedSeconds": 1200.0, "blinkRate": 12.0, "asymmetry": 3.7, "leftClosures": 2, "rightClosures": 1, "longClosures": 3, "closedPercent": 1.4, "reminders": 8, "resets": 2]
-        var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Both eyes visible.", "left": 1.0, "right": 0.93, "calibration": 1.0, "openSeconds": 2.4,
+        var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Both eyes visible.", "left": 1.0, "right": 0.93, "calibration": 1.0, "sampleTime": 100.0, "openSeconds": 2.4,
             "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0, "notice": "Synthetic QA data. No camera is used.", "actualTheme": "light",
             "exercise": ["phase": "idle", "step": "blink", "remaining": 10.0, "progress": 0.0, "due": false],
             "geometry": ["left": points, "right": points.map { [$0[0] + 0.35, $0[1]] }, "width": 210.0, "height": 310.0, "confidence": 0.98, "leftAperture": 0.258, "rightAperture": 0.248],
-            "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
+            "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "resetGoal": 2.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
             "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 12.7, "recentSeconds": 52.0, "recentBins": bins, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5, "resets": 6]],
             "cameras": [["id": "test-camera", "name": "QA camera"]]]
         var commands: [[String: Any]] = []
@@ -45,9 +45,9 @@ import WebKit
             try await Task.sleep(for: .milliseconds(100))
         }
         precondition(commands.contains { $0["action"] as? String == "ready" })
-        func js(_ source: String) async throws -> Any? {
+        func js(_ source: String, arguments: [String: Any] = [:]) async throws -> Any? {
             try await withCheckedThrowingContinuation { continuation in
-                view.callAsyncJavaScript(source, arguments: [:], in: nil, in: .page) { result in continuation.resume(with: result.map { Optional($0) }) }
+                view.callAsyncJavaScript(source, arguments: arguments, in: nil, in: .page) { result in continuation.resume(with: result.map { Optional($0) }) }
             }
         }
         func expect<T: Equatable>(_ source: String, _ expected: T) async throws {
@@ -72,7 +72,7 @@ import WebKit
         for theme in ["light", "dark"] {
             state["actualTheme"] = theme; controller.window?.appearance = NSAppearance(named: theme == "dark" ? .darkAqua : .aqua)
             try await refresh()
-            for tab in 0..<4 {
+            for tab in 0..<5 {
                 controller.selectTab(tab); try await refresh()
                 let minText = try await js("return Math.min(...[...document.querySelectorAll('main span,main p,main label,main button,main h2,main h3,main code,main dt,main dd,main summary')].filter(e=>e.getClientRects().length).map(e=>parseFloat(getComputedStyle(e).fontSize)))") as! Double
                 precondition(minText >= 14)
@@ -83,6 +83,10 @@ import WebKit
                     precondition(contrast >= 4.5, "Text contrast: \(contrast), \(String(describing: colors))")
                 }
                 if tab < 2 { try await expect("const main=document.querySelector('main'); return main.scrollHeight <= main.clientHeight+1", true) }
+                if tab == 4 {
+                    try await expect("return window.scrollY", 0)
+                    _ = try await js("const original=state.sampleTime;for(let i=0;i<=150;i++){const s={...state,sampleTime:original-30+i/5,left:i%23===0?.16:1+Math.sin(i/9)*.05,right:i%23===0?.18:.93+Math.sin(i/9)*.04};window.blinkmore.update(s)};window.blinkmore.update(state)", arguments: ["state": state])
+                }
                 try await screenshot("dashboard-\(theme)-\(tab)")
             }
         }
@@ -92,7 +96,7 @@ import WebKit
         try await expect("return document.querySelectorAll('#rhythm-chart .rhythm-gap').length", 8)
         try await expect("return document.querySelector('header').textContent.includes('AC only')", false)
         controller.selectTab(2); try await refresh()
-        try await expect("return document.querySelectorAll('.achievement.earned').length", 2)
+        try await expect("return document.querySelectorAll('.achievement.earned').length", 3)
         let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
         precondition(abs(offset - 100.0 / 3) < 0.01)
         _ = try await js("document.querySelector('#week-days button').focus(); document.querySelector('#week-days button').click()")
@@ -117,6 +121,24 @@ import WebKit
         try await refresh()
         try await expect("return document.querySelectorAll('#left-points circle').length", 8)
         try await expect("return document.getElementById('left-aperture').textContent", "0.258")
+        try await expect("return document.body.dataset.page", "4")
+        try await expect("return document.getElementById('live-difference').textContent", "7%")
+        _ = try await js("document.getElementById('start-check').click()")
+        try await Task.sleep(for: .milliseconds(100))
+        precondition(commands.contains { $0["action"] as? String == "startCheck" })
+        state["eyeCheck"] = ["phase":"running", "remaining": 20.0, "progress": 1.0/3, "observedSeconds":8.0, "blinks":2, "difference":4.5]
+        state["sampleTime"] = 100.2; try await refresh()
+        try await expect("return !document.getElementById('check-session').hidden && !document.getElementById('cancel-check').hidden", true)
+        try await expect("return document.activeElement.id", "cancel-check")
+        try await expect("return document.getElementById('motion-left').getAttribute('d').includes('L')", true)
+        _ = try await js("document.getElementById('cancel-check').click()")
+        try await Task.sleep(for: .milliseconds(100))
+        precondition(commands.contains { $0["action"] as? String == "cancelCheck" })
+        try await screenshot("dashboard-live-check")
+        state["eyeCheck"] = ["phase":"completed", "remaining":0.0, "progress":1.0, "observedSeconds":24.0, "blinks":7, "difference":4.1]
+        try await refresh()
+        try await expect("return document.getElementById('check-status').textContent", "Observation complete")
+        try await expect("return document.activeElement.id", "review-check")
         state["frameAgeMs"] = 900.0; try await refresh()
         try await expect("return document.querySelectorAll('#left-points circle').length", 0)
         controller.selectTab(0); try await refresh()
@@ -158,7 +180,7 @@ import WebKit
         precondition(commands.contains { $0["key"] as? String == "exercisesEnabled" && $0["value"] as? Bool == true })
         controller.window?.setContentSize(NSSize(width: 680, height: 520))
         state["phase"] = "tracking"
-        for tab in 0..<4 {
+        for tab in 0..<5 {
             controller.selectTab(tab); try await refresh()
             try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
             if tab < 2 { try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true) }

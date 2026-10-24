@@ -60,6 +60,7 @@ final class DailyStatistics {
     private var nextMidnight: Date
     private let formatter: DateFormatter
     private var recent: [(second: Int, tracked: Double, blinks: Int)] = []
+    private var eyeCheck = EyeCheck()
     private var lifetimeBlinks = 0
     private var lifetimeSeconds: Double = 0
     private var lifetimeDays = 0
@@ -104,6 +105,7 @@ final class DailyStatistics {
     func record(_ frame: TrackingFrame, now: Date = Date()) {
         guard frame.events & 1 != 0, frame.trackedDelta.isFinite, (0...0.25).contains(frame.trackedDelta) else { return }
         lock.lock(); defer { lock.unlock() }
+        eyeCheck.record(frame)
         rollDay(now)
         var value = records[day] ?? DailyRecord(day: day)
         let wasTrackedDay = value.trackedSeconds + 0.000001 >= 30
@@ -129,6 +131,15 @@ final class DailyStatistics {
         if recent.last?.second != second { recent.append((second, 0, 0)) }
         recent[recent.count - 1].tracked += frame.trackedDelta
         recent[recent.count - 1].blinks += frame.events & 4 != 0 ? 1 : 0
+    }
+
+    func startCheck(now: Double) { lock.lock(); defer { lock.unlock() }; eyeCheck.start(now: now) }
+    func cancelCheck(now: Double) { lock.lock(); defer { lock.unlock() }; eyeCheck.cancel(now: now) }
+    func checkRunning(now: Double) -> Bool {
+        lock.lock(); defer { lock.unlock() }; eyeCheck.tick(now: now); return eyeCheck.phase == .running
+    }
+    func checkSnapshot(now: Double) -> [String: Any] {
+        lock.lock(); defer { lock.unlock() }; eyeCheck.tick(now: now); return eyeCheck.snapshot()
     }
 
     func completedReset(seconds: Double, now: Date = Date()) {
@@ -214,7 +225,7 @@ final class DailyStatistics {
                 guard try url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true else { throw CocoaError(.fileWriteInvalidFileName) }
                 try FileManager.default.removeItem(at: url)
             }
-            records.removeAll(); recent.removeAll(); dirty = false; warning = nil; saveAllowed = true
+            records.removeAll(); recent.removeAll(); eyeCheck = EyeCheck(); dirty = false; warning = nil; saveAllowed = true
             lifetimeBlinks = 0; lifetimeSeconds = 0; lifetimeDays = 0; lifetimeResets = 0
         }
     }

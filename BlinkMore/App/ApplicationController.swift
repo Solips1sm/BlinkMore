@@ -22,6 +22,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var previewUntil: Double = 0
     private var reminderPolicy = ReminderPolicy()
     private var exercise = ExercisePolicy()
+    private var checking = false
     private var sleeping = false
     private var locked = false
     private var inactiveSession = false
@@ -167,6 +168,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     private func stopCamera() {
         guard let service = tracker else { return }
+        statistics.cancelCheck(now: EyeTrackingService.clock())
         sessionID = UUID(); tracker = nil; stoppingCamera = true
         service.stop { [weak self] in
             self?.stoppingCamera = false; self?.statistics.flush()
@@ -178,6 +180,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private func updateFade() {
         let now = EyeTrackingService.clock()
         menu?.update(effectivePhase)
+        let wasChecking = checking
+        checking = statistics.checkRunning(now: now)
+        if wasChecking && !checking { reminderPolicy.waitForBlink() }
         let wasActive = exercise.active
         if exercise.tick(now: now, eligible: !systemSuspended && !userIdle && preferences.pauseUntil == nil,
                          enabled: preferences.exercisesEnabled, minutes: preferences.exerciseMinutes) {
@@ -186,8 +191,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         if wasActive && !exercise.active { reminderPolicy.waitForBlink(); previewUntil = 0 }
         let preview = now < previewUntil
         let decision = reminderPolicy.update(now: now, frame: frame,
-            enabled: !systemSuspended && !exercise.active && preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
-        let visible = !systemSuspended && !exercise.active && preferences.pauseUntil == nil && (preview || decision.visible)
+            enabled: !systemSuspended && !exercise.active && !checking && preferences.pauseUntil == nil && preferences.remindersEnabled, threshold: preferences.reminderSeconds)
+        let visible = !systemSuspended && !exercise.active && !checking && preferences.pauseUntil == nil && (preview || decision.visible)
         if decision.triggered && !preview { statistics.reminder() }
         fade.setVisible(visible, color: preferences.fadeColor, intensity: preferences.intensity,
                         duration: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : preview ? min(0.25, preferences.fadeSeconds) : preferences.fadeSeconds)
@@ -224,6 +229,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             dashboard?.onClose = { [weak self] in
                 guard let self = self else { return }
                 if self.exercise.phase != .idle { self.exercise.end(now: EyeTrackingService.clock()); self.reminderPolicy.waitForBlink() }
+                self.statistics.cancelCheck(now: EyeTrackingService.clock()); self.reminderPolicy.waitForBlink()
                 self.dashboard = nil
             }
         }
@@ -242,6 +248,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         let phase = effectivePhase
         var result: [String: Any] = ["phase": phase.rawValue, "title": phase.title, "detail": phase.detail]
         result["exercise"] = exercise.snapshot(now: EyeTrackingService.clock())
+        result["eyeCheck"] = statistics.checkSnapshot(now: EyeTrackingService.clock())
+        result["sampleTime"] = frame.timestamp
         result["closedMask"] = frame.closedMask
         result["left"] = frame.left; result["right"] = frame.right
         result["geometry"] = ["left": frame.leftContour.map { [$0.x, $0.y] },
@@ -266,6 +274,16 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         switch action {
         case "ready": dashboard?.refresh()
         case "startReset": startExercise(.reset)
+        case "startCheck":
+            guard tracker != nil, [.tracking, .eyesClosed].contains(effectivePhase), frame.calibrated,
+                  EyeTrackingService.clock() - frame.timestamp < 0.35 else {
+                notify("Face the camera and finish calibration before starting a check."); return
+            }
+            let now = EyeTrackingService.clock()
+            exercise.end(now: now); statistics.startCheck(now: now)
+            previewUntil = 0; reminderPolicy.waitForBlink(); updateFade(); openDashboard(tab: 4)
+        case "cancelCheck":
+            statistics.cancelCheck(now: EyeTrackingService.clock()); reminderPolicy.waitForBlink(); updateFade()
         case "exercise":
             guard let value = message["command"] as? String else { return }
             let now = EyeTrackingService.clock()
@@ -281,8 +299,12 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             }
             updateFade()
         case "pause": togglePause()
-        case "calibrate": tracker?.recalibrate(); notify("Calibration restarted. Look toward the camera and blink normally.")
-        case "preview": exercise.end(now: EyeTrackingService.clock()); reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
+        case "calibrate":
+            guard let tracker = tracker else { return }
+            statistics.cancelCheck(now: EyeTrackingService.clock()); tracker.recalibrate()
+            frame = TrackingFrame(phase: .calibrating); reminderPolicy.reset(); previewUntil = 0; updateFade()
+            notify("Calibration restarted. Look toward the camera and blink normally.")
+        case "preview": statistics.cancelCheck(now: EyeTrackingService.clock()); exercise.end(now: EyeTrackingService.clock()); reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
         case "retry": stopCamera(); DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.reconcile() }
         case "cameraSettings":
             if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera") { NSWorkspace.shared.open(url) }
@@ -296,6 +318,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     private func startExercise(_ routine: ExercisePolicy.Routine) {
         guard preferences.pauseUntil == nil, !systemSuspended else { return }
+        statistics.cancelCheck(now: EyeTrackingService.clock())
         userIdle = false; exercise.start(routine, now: EyeTrackingService.clock())
         previewUntil = 0; reminderPolicy.reset(); updateFade(); openDashboard(tab: 1)
     }
@@ -315,7 +338,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             if let v = value as? String, v.isEmpty || cameras.contains(where: { $0["id"] == v }) {
                 stopCamera(); preferences.cameraID = v.isEmpty ? nil : v
             }
-        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "exerciseMinutes", "minuteGoal", "dayGoal":
+        case "reminderSeconds", "fadeSeconds", "intensity", "sensitivity", "exerciseMinutes", "minuteGoal", "dayGoal", "resetGoal":
             guard let v = value as? NSNumber, CFGetTypeID(v) != CFBooleanGetTypeID(), v.doubleValue.isFinite else { return }
             switch key {
             case "reminderSeconds": preferences.reminderSeconds = v.doubleValue
@@ -324,7 +347,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             case "exerciseMinutes": preferences.exerciseMinutes = v.doubleValue
             case "minuteGoal": preferences.minuteGoal = v.doubleValue
             case "dayGoal": preferences.dayGoal = v.doubleValue
-            default: preferences.sensitivity = v.doubleValue
+            case "resetGoal": preferences.resetGoal = v.doubleValue
+            default: statistics.cancelCheck(now: EyeTrackingService.clock()); preferences.sensitivity = v.doubleValue
             }
         default: notify("That preference is not available.")
         }
