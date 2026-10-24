@@ -13,7 +13,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private var inferenceScheduled = false
     private var captureDrops = 0
     private var delivery = TrackingDelivery()
-    let motion = MotionTrace()
+    let motion: MotionTrace
     private var faceCount = 0
     private var sceneTimestamp = 0.0
     private var ownerBox: CGRect?
@@ -36,10 +36,10 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private var fps: Double = 0
     private var dropped = 0
 
-    init(cameraID: String?, sensitivity: Double, statistics: DailyStatistics,
+    init(cameraID: String?, sensitivity: Double, statistics: DailyStatistics, history: MotionTrace = MotionTrace(),
          onFrame: @escaping (TrackingFrame) -> Void) {
         self.cameraID = cameraID; self.sensitivity = sensitivity
-        self.statistics = statistics; self.onFrame = onFrame
+        self.statistics = statistics; self.onFrame = onFrame; self.motion = history
         guard let core = bm_tracker_new() else { fatalError("Unable to allocate tracking core") }
         self.core = core
         super.init()
@@ -189,7 +189,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                         faceTracker = nil; resetOwner(timestamp: timestamp); missing(.multipleFaces, timestamp: timestamp); return
                     case .selected(let found):
                         if let previous = ownerBox, !FaceSelection.continuous(previous, found.boundingBox) {
-                            bm_tracker_reset(core); statistics.cancelCheck(now: timestamp)
+                            bm_tracker_reset(core); statistics.cancelCheck(now: timestamp); motion.updateMirror(phase: "cancelled")
                         }
                         face = found; ownerBox = found.boundingBox
                     }
@@ -257,7 +257,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 frame.leftAperture = result.left_ratio; frame.rightAperture = result.right_ratio
                 frame.faceWidth = box.width * Double(CVPixelBufferGetWidth(image))
                 frame.faceHeight = box.height * Double(CVPixelBufferGetHeight(image))
-                frame.faceConfidence = Double(measured.confidence)
+                frame.faceConfidence = Double(measured.confidence); frame.faceBox = box
                 frame.calibration = result.calibration; frame.openSeconds = result.open_seconds
                 frame.trackedDelta = result.tracked_delta; frame.asymmetry = result.asymmetry
                 frame.closedMask = result.closed_mask; frame.events = result.flags; frame.calibrated = result.flags & 2 != 0
@@ -275,7 +275,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
 
     private func resetOwner(timestamp: Double) {
         guard ownerBox != nil else { return }
-        bm_tracker_reset(core); ownerBox = nil; statistics.cancelCheck(now: timestamp)
+        bm_tracker_reset(core); ownerBox = nil; statistics.cancelCheck(now: timestamp); motion.updateMirror(phase: "cancelled")
     }
 
     private func missing(_ phase: TrackingPhase, timestamp: Double, note: String = "") {
@@ -291,9 +291,10 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
     private func deliver(_ input: TrackingFrame) {
         var frame = input
         frame.faceCount = faceCount; frame.sceneTimestamp = sceneTimestamp
-        motion.record(frame)
+        if frame.timestamp <= 0 { frame.timestamp = Self.clock() }
         lock.lock()
         guard !stopped else { lock.unlock(); return }
+        motion.record(frame)
         delivery.replace(frame)
         guard !deliveryPending else { lock.unlock(); return }
         deliveryPending = true; lock.unlock()

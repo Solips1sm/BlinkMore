@@ -5,10 +5,12 @@ import UniformTypeIdentifiers
 import CoreGraphics
 
 final class ApplicationController: NSObject, NSApplicationDelegate {
-    let preferences = AppPreferences()
-    let statistics = DailyStatistics()
+    let preferences: AppPreferences
+    let statistics: DailyStatistics
+    private let observation = MotionTrace()
+    private let dashboardResources: URL?
     private let fade = OverlayFade()
-    private var menu: MenuBarController!
+    private(set) var menu: MenuBarController!
     private var tracker: EyeTrackingService?
     private var sessionID = UUID()
     private var lastCameraStart: Double = 0
@@ -19,7 +21,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var powerTimer: Timer?
     private var fadeTimer: Timer?
     private var saveTimer: Timer?
-    private var dashboard: DashboardWindowController?
+    private(set) var dashboard: DashboardWindowController?
     private var previewUntil: Double = 0
     private var reminderPolicy = ReminderPolicy()
     private var exercise = ExercisePolicy()
@@ -34,11 +36,20 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     private var notice = ""
     private var noticeUntil = Date.distantPast
 
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        menu = MenuBarController()
+    init(preferences: AppPreferences = AppPreferences(), statistics: DailyStatistics = DailyStatistics(), resources: URL? = nil) {
+        self.preferences = preferences; self.statistics = statistics; self.dashboardResources = resources
+        super.init()
+    }
+
+    func installMenu() {
+        menu = MenuBarController(resources: dashboardResources?.deletingLastPathComponent())
         menu.onOpen = { [weak self] tab in self?.openDashboard(tab: tab) }
         menu.onCommand = { [weak self] message in self?.command(message) }
         menu.snapshot = { [weak self] in self?.snapshot() ?? [:] }
+    }
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        installMenu()
         let mainMenu = NSMenu()
         let appMenu = NSMenu()
         let appItem = NSMenuItem(); appItem.submenu = appMenu; mainMenu.addItem(appItem)
@@ -125,6 +136,9 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     private func reconcile() {
+        defer {
+            if tracker == nil { observation.record(TrackingFrame(phase: frame.phase, timestamp: EyeTrackingService.clock())) }
+        }
         guard onACPower() else { NSApplication.shared.terminate(nil); return }
         userIdle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!) >= 60
         if systemSuspended || preferences.pauseUntil != nil {
@@ -153,7 +167,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         lastCameraStart = EyeTrackingService.clock()
         let token = UUID(); sessionID = token; frame = TrackingFrame()
         menu.update(.starting)
-        let service = EyeTrackingService(cameraID: preferences.cameraID, sensitivity: preferences.sensitivity, statistics: statistics) { [weak self] value in
+        let service = EyeTrackingService(cameraID: preferences.cameraID, sensitivity: preferences.sensitivity, statistics: statistics, history: observation) { [weak self] value in
             guard let self = self, self.sessionID == token else { return }
             self.frame = value
             if value.latencyMs.isFinite && value.latencyMs > 0 {
@@ -168,12 +182,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
     }
 
     private func stopCamera() {
+        observation.updateMirror(phase: "cancelled")
         guard let service = tracker else { return }
         statistics.cancelCheck(now: EyeTrackingService.clock())
         sessionID = UUID(); tracker = nil; stoppingCamera = true
+        frame = TrackingFrame(phase: .starting)
         service.stop { [weak self] in
             self?.stoppingCamera = false; self?.statistics.flush()
         }
+        observation.record(TrackingFrame(phase: .starting, timestamp: EyeTrackingService.clock()))
         previewUntil = 0; reminderPolicy.reset()
         fade.setVisible(false, color: preferences.fadeColor, intensity: preferences.intensity, duration: 0)
     }
@@ -189,6 +206,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
                          enabled: preferences.exercisesEnabled, minutes: preferences.exerciseMinutes) {
             statistics.completedReset(seconds: exercise.routine.duration); statistics.flush()
         }
+        observation.updateMirror(phase: exercise.routine == .blink ? exercise.phase.rawValue : "idle")
         if wasActive && !exercise.active { reminderPolicy.waitForBlink(); previewUntil = 0 }
         let preview = now < previewUntil
         let decision = reminderPolicy.update(now: now, frame: frame,
@@ -232,7 +250,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
 
     func openDashboard(tab: Int? = nil) {
         if dashboard == nil {
-            dashboard = DashboardWindowController(snapshot: { [weak self] in self?.snapshot(includeMotion: self?.dashboard?.showsLive == true) ?? [:] }, command: { [weak self] in self?.command($0) })
+            dashboard = DashboardWindowController(resources: dashboardResources, snapshot: { [weak self] in self?.snapshot(includeMotion: self?.dashboard?.showsLive == true, includeMirror: self?.dashboard?.showsPractice == true, includeCoverage: self?.dashboard?.showsProgress == true) ?? [:] }, command: { [weak self] in self?.command($0) })
             dashboard?.onClose = { [weak self] in
                 guard let self = self else { return }
                 if self.exercise.phase != .idle { self.exercise.end(now: EyeTrackingService.clock()); self.reminderPolicy.waitForBlink() }
@@ -241,15 +259,14 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             }
         }
         if let tab = tab { dashboard?.selectTab(tab) }
-        dashboard?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        dashboard?.present()
     }
 
     private func togglePause() {
         preferences.pauseUntil = preferences.pauseUntil == nil ? Date().addingTimeInterval(300) : nil
     }
 
-    func snapshot(includeMotion: Bool = false) -> [String: Any] {
+    func snapshot(includeMotion: Bool = false, includeMirror: Bool = false, includeCoverage: Bool = false) -> [String: Any] {
         let ordered = latency.sorted()
         let actualTheme = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? "dark" : "light"
         let phase = effectivePhase
@@ -260,12 +277,15 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         result["closedMask"] = frame.closedMask
         result["attention"] = attention.message
         result["scene"] = ["count": frame.faceCount, "ageMs": frame.sceneTimestamp > 0 ? max(0, EyeTrackingService.clock() - frame.sceneTimestamp) * 1000 : -1]
-        if includeMotion { result["motion"] = tracker?.motion.snapshot() ?? [] }
+        if includeMotion { result["motion"] = observation.snapshot() }
+        if includeMirror { result["mirror"] = observation.mirrorSnapshot() }
+        if includeCoverage { result["coverage"] = observation.coverageSnapshot(now: EyeTrackingService.clock()) }
         result["left"] = frame.left; result["right"] = frame.right
         result["geometry"] = ["left": frame.leftContour.map { [$0.x, $0.y] },
             "right": frame.rightContour.map { [$0.x, $0.y] },
             "leftAperture": frame.leftAperture, "rightAperture": frame.rightAperture,
-            "width": frame.faceWidth, "height": frame.faceHeight, "confidence": frame.faceConfidence]
+            "width": frame.faceWidth, "height": frame.faceHeight, "confidence": frame.faceConfidence,
+            "box": [frame.faceBox.minX, frame.faceBox.minY, frame.faceBox.width, frame.faceBox.height]]
         result["frameAgeMs"] = frame.timestamp > 0 ? max(0, EyeTrackingService.clock() - frame.timestamp) * 1000 : NSNull()
         result["reducedMotion"] = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         result["calibration"] = frame.calibration; result["openSeconds"] = frame.openSeconds
@@ -284,6 +304,8 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         switch action {
         case "ready": dashboard?.refresh()
         case "startReset": startExercise(.reset)
+        case "blinkMirror": startExercise(.blink)
+        case "setup": openDashboard(tab: 4); dashboard?.showSetup()
         case "startCheck":
             guard tracker != nil, [.tracking, .eyesClosed].contains(effectivePhase), frame.calibrated,
                   EyeTrackingService.clock() - frame.timestamp < 0.35 else {
@@ -311,7 +333,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         case "pause": togglePause()
         case "calibrate":
             guard let tracker = tracker else { return }
-            statistics.cancelCheck(now: EyeTrackingService.clock()); tracker.recalibrate()
+            statistics.cancelCheck(now: EyeTrackingService.clock()); observation.updateMirror(phase: "cancelled"); tracker.recalibrate()
             frame = TrackingFrame(phase: .calibrating); reminderPolicy.reset(); previewUntil = 0; updateFade()
             notify("Calibration restarted. Look toward the camera and blink normally.")
         case "preview": statistics.cancelCheck(now: EyeTrackingService.clock()); exercise.end(now: EyeTrackingService.clock()); reminderPolicy.waitForBlink(); previewUntil = EyeTrackingService.clock() + 2; updateFade()
@@ -330,6 +352,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         guard preferences.pauseUntil == nil, !systemSuspended else { return }
         statistics.cancelCheck(now: EyeTrackingService.clock())
         userIdle = false; exercise.start(routine, now: EyeTrackingService.clock())
+        if routine == .blink { observation.startMirror(now: EyeTrackingService.clock()) }
         previewUntil = 0; reminderPolicy.reset(); updateFade(); openDashboard(tab: 1)
     }
 
@@ -360,7 +383,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
             case "minuteGoal": preferences.minuteGoal = v.doubleValue
             case "dayGoal": preferences.dayGoal = v.doubleValue
             case "resetGoal": preferences.resetGoal = v.doubleValue
-            default: statistics.cancelCheck(now: EyeTrackingService.clock()); preferences.sensitivity = v.doubleValue
+            default: statistics.cancelCheck(now: EyeTrackingService.clock()); observation.updateMirror(phase: "cancelled"); preferences.sensitivity = v.doubleValue
             }
         default: notify("That preference is not available.")
         }
@@ -382,7 +405,7 @@ final class ApplicationController: NSObject, NSApplicationDelegate {
         alert.informativeText = "Your tracking preferences and calibration are kept. Recovery copies are not deleted. This cannot be undone."
         alert.addButton(withTitle: "Cancel"); alert.addButton(withTitle: "Delete statistics")
         if alert.runModal() == .alertSecondButtonReturn {
-            do { try statistics.reset(); notify("Daily statistics deleted.") }
+            do { try statistics.reset(); observation.clear(); notify("Daily statistics deleted.") }
             catch { notify("Statistics could not be deleted. Your data is still available.") }
         }
     }

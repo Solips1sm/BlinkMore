@@ -27,7 +27,7 @@ import WebKit
         var state: [String: Any] = ["phase": "tracking", "title": "Tracking", "detail": "Both eyes visible.", "left": 1.0, "right": 0.93, "calibration": 1.0, "sampleTime": 100.0, "openSeconds": 2.4,
             "latencyMs": 35.2, "p95Ms": 55.0, "fps": 12.5, "dropped": 0, "fading": false, "frameAgeMs": 76.0, "notice": "Synthetic QA data. No camera is used.", "actualTheme": "light",
             "exercise": ["phase": "idle", "step": "blink", "remaining": 10.0, "progress": 0.0, "due": false],
-            "geometry": ["left": points, "right": points.map { [$0[0] + 0.35, $0[1]] }, "width": 210.0, "height": 310.0, "confidence": 0.98, "leftAperture": 0.258, "rightAperture": 0.248],
+            "geometry": ["left": points, "right": points.map { [$0[0] + 0.35, $0[1]] }, "width": 210.0, "height": 310.0, "box": [0.3,0.2,0.328125,0.645833], "confidence": 0.98, "leftAperture": 0.258, "rightAperture": 0.248],
             "preferences": ["reminderSeconds": 6.0, "fadeSeconds": 1.5, "intensity": 0.65, "sensitivity": 0.5, "remindersEnabled": true, "theme": "system", "cameraID": "", "color": "#006fe6", "minuteGoal": 30.0, "resetGoal": 2.0, "dayGoal": 3.0, "exerciseMinutes": 20.0, "exercisesEnabled": false],
             "statistics": ["today": today, "week": week, "warning": "", "baselineRate": 10.0, "relativePercent": 20.0, "recentRate": 12.7, "recentSeconds": 52.0, "recentBins": bins, "lifetime": ["blinks": 1900, "trackedSeconds": 9200.0, "days": 5, "resets": 6]],
             "cameras": [["id": "test-camera", "name": "QA camera"]]]
@@ -36,6 +36,11 @@ import WebKit
             let close = i % 69 == 0
             return ["t":70.0+Double(i)/15,"left":close ? 0.16 : 1.0+sin(Double(i)/27)*0.05,"right":close ? 0.18 : 0.93+sin(Double(i)/27)*0.04,"events":i % 69 == 1 ? 4 : 0]
         }
+        state["coverage"] = ["observedSeconds":195.0,"span":300,"segments":[
+            ["start":0,"end":40,"phase":"paused"],["start":40,"end":60,"phase":"calibrating"],
+            ["start":60,"end":180,"phase":"tracking"],["start":180,"end":190,"phase":"multipleFaces"],
+            ["start":190,"end":200,"phase":"calibrating"],["start":200,"end":265,"phase":"tracking"],
+            ["start":265,"end":290,"phase":"delayed"],["start":290,"end":300,"phase":"tracking"]]]
         var commands: [[String: Any]] = []
         let controller = DashboardWindowController(resources: root.appendingPathComponent("BlinkMore/Resources/UI"), snapshot: { state }, command: { message in
             commands.append(message)
@@ -44,7 +49,7 @@ import WebKit
             }
         })
         controller.selectTab(3); controller.showWindow(nil)
-        let view = controller.window!.contentView as! WKWebView
+        let view = controller.webView
         for _ in 0..<100 {
             if commands.contains(where: { $0["action"] as? String == "ready" }) { break }
             try await Task.sleep(for: .milliseconds(100))
@@ -110,6 +115,10 @@ import WebKit
         try await expect("return document.querySelector('header').textContent.includes('AC only')", false)
         controller.selectTab(2); try await refresh()
         try await expect("return document.querySelectorAll('.achievement.earned').length", 3)
+        try await expect("return document.getElementById('coverage-total').textContent","195s valid exposure")
+        try await expect("return document.querySelectorAll('#coverage-segments rect').length",8)
+        _ = try await js("document.getElementById('coverage-section').scrollIntoView({block:'start'})")
+        try await screenshot("dashboard-coverage")
         let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
         precondition(abs(offset - 100.0 / 3) < 0.01)
         _ = try await js("document.querySelector('#week-days button').focus(); document.querySelector('#week-days button').click()")
@@ -170,6 +179,7 @@ import WebKit
         try await expect("return document.getElementById('left-tilt').textContent", "0°")
         _ = try await js("document.getElementById('overlay-points').click()")
         try await expect("return getComputedStyle(document.getElementById('left-points')).display", "none")
+        try await expect("return document.querySelector('button[data-studio=\"geometry\"]').getAttribute('aria-pressed')","true")
         _ = try await js("document.getElementById('overlay-points').click();document.querySelector('.anatomy').open=true")
         _ = try await js("document.getElementById('geometry-workspace').scrollIntoView({block:'start'})")
         try await screenshot("dashboard-live-geometry")
@@ -213,6 +223,57 @@ import WebKit
         try await refresh()
         try await expect("return document.activeElement.id", "exercise-end")
         try await screenshot("dashboard-practice-completed")
+        state["phase"] = "tracking"; state["title"] = "Tracking"; state["frameAgeMs"] = 76.0; state["calibration"] = 1.0
+        state["exercise"] = ["phase":"idle"]
+        controller.showSetup(); try await refresh()
+        try await expect("return document.getElementById('setup-workspace').hidden",false)
+        try await expect("return document.querySelectorAll('.setup-check[data-ready=true]').length",5)
+        try await expect("return document.getElementById('setup-summary').textContent","Ready for observation")
+        for theme in ["light","dark"] {
+            state["actualTheme"] = theme; try await refresh()
+            try await expect("const action=document.getElementById('setup-calibrate').getBoundingClientRect(),main=document.querySelector('main').getBoundingClientRect();return action.bottom<=main.bottom+1",true)
+            try await screenshot("dashboard-setup-\(theme)")
+        }
+        try await screenshot("dashboard-setup")
+        state["phase"] = "cameraDenied"; state["frameAgeMs"] = 800.0; try await refresh()
+        try await expect("return document.getElementById('setup-allow').hidden",false)
+        try await expect("return document.getElementById('setup-face').hasAttribute('hidden')",true)
+        try await expect("return document.getElementById('setup-calibrate').disabled",true)
+        state["phase"] = "tracking"; state["frameAgeMs"] = 76.0
+        controller.selectTab(1)
+        state["exercise"] = ["phase":"running","routine":"blink","step":"blink","remaining":5.0,"progress":0.5]
+        var clip: [[String:Any]] = []
+        for i in 0..<13 {
+            let left: Double = i == 6 ? 0.1 : 1.0
+            let right: Double = i == 6 ? 0.12 : 0.95
+            let events: Int = i == 8 ? 4 : 0
+            clip.append(["t":Double(i)/15.0,"left":left,"right":right,"events":events])
+        }
+        state["mirror"] = ["phase":"running","observedSeconds":4.6,"blinks":1,"clip":clip]
+        try await refresh()
+        try await expect("return document.getElementById('mirror-panel').hidden",false)
+        try await expect("return document.getElementById('mirror-replay').disabled",true)
+        state["exercise"] = ["phase":"completed","routine":"blink","step":"blink","remaining":0.0,"progress":1.0]
+        state["mirror"] = ["phase":"completed","observedSeconds":9.4,"blinks":3,"clip":clip]
+        state["reducedMotion"] = false; try await refresh()
+        try await expect("return document.getElementById('mirror-replay').disabled",false)
+        try await expect("return document.getElementById('mirror-totals').textContent","3 blinks, 9.4s observed")
+        _ = try await js("document.getElementById('mirror-replay').click()")
+        try await Task.sleep(for:.milliseconds(100))
+        try await expect("return document.getElementById('mirror-source').textContent","Recorded blink")
+        try await screenshot("dashboard-mirror")
+        for theme in ["light","dark"] {
+            state["actualTheme"] = theme; try await refresh()
+            try await expect("const m=document.querySelector('main');return m.scrollHeight<=m.clientHeight+1",true)
+            try await screenshot("dashboard-mirror-\(theme)")
+        }
+        state["mirror"] = ["phase":"completed","observedSeconds":0.0,"blinks":0,"clip":[]]
+        try await refresh()
+        try await expect("return document.getElementById('mirror-replay').disabled",true)
+        state["mirror"] = ["phase":"completed","observedSeconds":9.4,"blinks":3,"clip":clip]
+        state["reducedMotion"] = true; try await refresh()
+        _ = try await js("document.getElementById('mirror-replay').click()")
+        try await expect("return document.activeElement.id","mirror-trace")
         controller.selectTab(3); state["exercise"] = ["phase": "idle"]; try await refresh()
         _ = try await js("const s=document.getElementById('setting-sensitivity');s.value='0.8';s.dispatchEvent(new Event('change'));const c=document.getElementById('exercises-enabled');c.checked=true;c.dispatchEvent(new Event('change'))")
         try await Task.sleep(for: .milliseconds(100))
@@ -225,6 +286,10 @@ import WebKit
             try await expect("return document.documentElement.scrollWidth <= innerWidth+1", true)
             if tab < 2 { try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true) }
         }
+        controller.showSetup(); try await refresh()
+        try await expect("const b=document.getElementById('setup-calibrate').getBoundingClientRect(),m=document.querySelector('main').getBoundingClientRect();return b.bottom<=m.bottom+1",true)
+        controller.selectTab(1); state["exercise"] = ["phase":"completed","routine":"blink","step":"blink","remaining":0.0,"progress":1.0]; try await refresh()
+        try await expect("const m=document.querySelector('main');return m.scrollHeight<=m.clientHeight+1",true)
         controller.selectTab(1); state["exercise"] = ["phase": "running", "routine": "look", "step": "look", "remaining": 12.0, "progress": 0.4]; try await refresh()
         try await expect("const m=document.querySelector('main');return m.scrollHeight <= m.clientHeight+1", true)
         try await screenshot("dashboard-practice-minimum")

@@ -6,7 +6,7 @@
   const text = (id, value) => { const el = $(id); if (el && el.textContent !== String(value)) el.textContent = String(value); };
   const send = value => window.webkit?.messageHandlers?.blinkmore?.postMessage(value);
   const pages = ["activity", "practice", "history", "settings-page", "examine"], tabOrder = [0, 4, 1, 2, 3];
-  let motionSpan = 30, studio = "motion", practiceBlinks = 0;
+  let motionSpan = 30, studio = "motion", practiceBlinks = 0, replayFrame = null, replayClip = null;
   let current = null, selected = 0, historyKey = "", achievementKey = "", cameraKey = "", rhythmKey = "", lastBlinks = null, lastExercise = "idle", lastCheck = "idle", historySelection = null;
   function svg(name, attributes = {}) {
     const node = document.createElementNS(svgNS, name);
@@ -14,6 +14,7 @@
   }
   function selectTab(index, focus = false) {
     if (!Number.isInteger(index) || index < 0 || index >= pages.length) return;
+    if (index !== 1) stopReplay();
     if (selected === 1 && index !== 1 && ["running", "paused", "completed"].includes(current?.exercise?.phase)) send({ action: "exercise", command: "end" });
     if (selected === 4 && index !== 4) {
       if (current?.eyeCheck?.phase === "running") send({ action: "cancelCheck" });
@@ -39,7 +40,7 @@
       }
     }
     if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
-    if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); }
+    if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); coverageView(current.coverage); }
     if (current && index === 4) { geometry(current); liveView(current); }
   }
   document.querySelectorAll("[data-tab]").forEach(button => {
@@ -52,7 +53,7 @@
   });
   document.querySelectorAll("[data-action]").forEach(button => button.addEventListener("click", () => send({ action: button.dataset.action })));
   document.querySelectorAll("[data-exercise]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: button.dataset.exercise })));
-  document.querySelectorAll("[data-routine]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: "start", routine: button.dataset.routine })));
+  document.querySelectorAll("button[data-routine]").forEach(button => button.addEventListener("click", () => send({ action: "exercise", command: "start", routine: button.dataset.routine })));
   document.querySelectorAll("[data-history]").forEach(button => button.addEventListener("click", () => selectTab(2)));
   document.querySelectorAll("[data-inspect]").forEach(button => button.addEventListener("click", () => { selectTab(4); $("measurement-details").open = true; if (current) geometry(current); }));
   new ResizeObserver(() => {
@@ -64,15 +65,45 @@
     document.querySelectorAll("[data-span]").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
     if (current) liveView(current);
   }));
-  document.querySelectorAll("[data-studio]").forEach(button => button.addEventListener("click", () => {
-    studio = button.dataset.studio; $("examine").dataset.studio = studio;
-    document.querySelectorAll("[data-studio]").forEach(b => b.setAttribute("aria-pressed", String(b === button)));
+  function selectStudio(next) {
+    if (!["motion","difference","geometry","setup"].includes(next)) return;
+    if (studio !== next && current?.eyeCheck?.phase === "running") send({action:"cancelCheck"});
+    if (studio !== next) document.querySelector("main").scrollTop = 0;
+    studio = next; $("examine").dataset.studio = studio;
+    document.querySelectorAll("button[data-studio]").forEach(b => b.setAttribute("aria-pressed",String(b.dataset.studio === studio)));
     $("geometry-workspace").hidden = studio !== "geometry";
-    text("scan-reference", studio === "geometry" ? "Pixel geometry" : studio === "difference" ? "Difference in percentage points" : "Own reference for each eye");
-    document.querySelector(".motion-panel").hidden = studio === "geometry";
-    if (current) liveView(current);
-    if (current) geometry(current);
-  }));
+    $("setup-workspace").hidden = studio !== "setup";
+    document.querySelector(".motion-panel").hidden = !["motion","difference"].includes(studio);
+    if (current) { liveView(current); geometry(current); setupView(current); }
+  }
+  document.querySelectorAll("button[data-studio]").forEach(button => button.addEventListener("click", () => selectStudio(button.dataset.studio)));
+  function showSetup() { selectTab(4); selectStudio("setup"); document.querySelector("main").scrollTop = 0; }
+  document.querySelectorAll("[data-setup]").forEach(button => button.addEventListener("click", showSetup));
+  $("setup-settings").addEventListener("click",()=>selectTab(3));
+  function stopReplay() { if (replayFrame !== null) cancelAnimationFrame(replayFrame); replayFrame = null; replayClip = null; }
+  function mirrorEyes(left,right) {
+    [["left",left,112],["right",right,328]].forEach(([side,value,cx])=>$("mirror-"+side).setAttribute("d",finite(value) ? BlinkMetrics.aperture(value,cx,50,176) ?? "" : ""));
+  }
+  $("mirror-replay").addEventListener("click",()=>{
+    const clip = current?.mirror?.clip ?? [], trace = BlinkMetrics.replay(clip);
+    if (!trace.left || current?.mirror?.phase === "running") return;
+    stopReplay();
+    if (current.reducedMotion || matchMedia("(prefers-reduced-motion:reduce)").matches) {
+      text("mirror-source","Recorded trace"); text("mirror-description","Playback animation is off with reduced motion."); $("mirror-trace").focus(); return;
+    }
+    replayClip = clip.map(p=>({...p}));
+    const start = performance.now(), first = replayClip[0].t;
+    const play = now => {
+      if (!replayClip || selected !== 1) { stopReplay(); return; }
+      const elapsed = (now-start)/1000, time = first+elapsed;
+      const sample = [...replayClip].reverse().find(p=>p.t<=time);
+      mirrorEyes(sample && time-sample.t<=.25 ? sample.left : null,sample && time-sample.t<=.25 ? sample.right : null);
+      text("mirror-source","Recorded blink");
+      if (elapsed < trace.duration) replayFrame = requestAnimationFrame(play);
+      else { replayFrame = null; replayClip = null; text("mirror-source","Replay complete"); }
+    };
+    replayFrame = requestAnimationFrame(play);
+  });
   ["points", "axes"].forEach(overlay => $("overlay-" + overlay).addEventListener("click", event => {
     const button = event.currentTarget, visible = button.getAttribute("aria-pressed") !== "true";
     button.setAttribute("aria-pressed", String(visible));
@@ -199,14 +230,16 @@
   }
   function exerciseView(state) {
     const e = state.exercise ?? { phase: "idle", step: "blink", remaining: 10, progress: 0 }, phase = e.phase;
-    document.body.dataset.exercise = phase;
+    document.body.dataset.exercise = phase; document.body.dataset.practiceRoutine = e.routine ?? "reset";
+    $("mirror-panel").hidden = e.routine !== "blink";
+    if (e.routine !== "blink" || phase === "idle") stopReplay();
     $("practice-ready").hidden = phase !== "idle"; $("practice-session").hidden = phase === "idle";
     const running = phase === "running", paused = phase === "paused", done = phase === "completed", look = e.step === "look";
     $("blink-scene").toggleAttribute("hidden", look); $("look-scene").toggleAttribute("hidden", !look);
-    text("exercise-kind", e.routine === "blink" ? "Blink play" : e.routine === "look" ? "Look away" : "Full reset");
+    text("exercise-kind", e.routine === "blink" ? "Blink mirror" : e.routine === "look" ? "Look away" : "Full reset");
     text("exercise-state", paused ? "Paused" : done ? "Complete" : look ? "Look away" : "Blink play");
-    text("exercise-heading", done ? "A moment taken" : paused ? "Reset paused" : look ? "Look beyond the screen" : "Blink naturally");
-    text("exercise-instruction", done ? "Return at your own pace." : paused ? "Resume when you are ready." : look ? "Choose a distant real object." : "Let the drawing follow your blinks.");
+    text("exercise-heading", done ? e.routine === "blink" ? "Your blink, reflected" : "A moment taken" : paused ? "Reset paused" : look ? "Look beyond the screen" : "Blink naturally");
+    text("exercise-instruction", done ? e.routine === "blink" ? "Captured locally, ready to replay." : "Return at your own pace." : paused ? "Resume when you are ready." : look ? "Choose a distant real object." : "Let the drawing follow your blinks.");
     text("exercise-remaining", done ? "Done" : fmt(Math.ceil(finite(e.remaining) ? e.remaining : 0)));
     document.querySelector(".exercise-clock .muted").hidden = done;
     const progress = finite(e.progress) ? Math.max(0, Math.min(1, e.progress)) : 0;
@@ -219,12 +252,83 @@
     if (running && !look) $("practice-lid").setAttribute("d", BlinkMetrics.aperture(feedback ? (state.left + state.right) / 2 : 1, 300, 85, 230) ?? "");
     $("exercise-pause").hidden = !running; $("exercise-resume").hidden = !paused;
     $("exercise-end").textContent = done ? "Back to practice" : "End reset";
+    if (e.routine === "blink") mirrorView(state);
     if (phase !== lastExercise) {
       if (phase === "running" && lastExercise !== "paused") selectTab(1);
       if (paused) $("exercise-resume").focus();
       if (done) $("exercise-end").focus();
       lastExercise = phase;
     }
+  }
+  function mirrorView(state) {
+    const mirror = state.mirror ?? {phase:"idle",clip:[],blinks:0,observedSeconds:0}, trace = BlinkMetrics.replay(mirror.clip);
+    const active = ["tracking","eyesClosed"].includes(state.phase) && finite(state.frameAgeMs) && state.frameAgeMs <= 500;
+    $("mirror-trace-left").setAttribute("d",trace.left); $("mirror-trace-right").setAttribute("d",trace.right);
+    const recording = mirror.phase === "running", cancelled = mirror.phase === "cancelled";
+    if (recording || state.reducedMotion || !trace.left) stopReplay();
+    $("mirror-replay").textContent = state.reducedMotion ? "View trace" : "Replay blink";
+    $("mirror-replay").disabled = recording || !trace.left || !(mirror.blinks > 0);
+    text("mirror-totals",`${fmt(mirror.blinks ?? 0)} blinks, ${fmt(mirror.observedSeconds ?? 0,1)}s observed`);
+    if (replayFrame === null) {
+      text("mirror-source",recording ? active ? "Live capture" : "Waiting for tracking" : mirror.phase === "paused" ? "Capture paused" : cancelled ? "Capture ended" : "Captured blink");
+      const last = Array.isArray(mirror.clip) ? mirror.clip[mirror.clip.length-1] : null;
+      mirrorEyes(recording ? active ? state.left : null : last?.left,recording ? active ? state.right : null : last?.right);
+    }
+    text("mirror-description",cancelled ? "The person left view or tracking changed. Start a new mirror to capture again." : recording ? active ? "Blink naturally. Replay becomes available when capture ends or pauses." : "Waiting for visible, calibrated eyes. Missing time is not counted." : trace.left ? `Latest detected blink, ${fmt(trace.duration,2)}s of recorded movement. Left violet, right teal.` : "No blink captured. Start again when both eyes are visible.");
+    $("mirror-eyes").setAttribute("aria-label",replayFrame !== null ? "Playback of recorded eyelid openings" : recording && active ? "Live measured eyelid openings" : "Captured eyelid openings");
+  }
+  function setupView(state) {
+    if (studio !== "setup") return;
+    const model = BlinkMetrics.setup(state), g = state.geometry ?? {}, box = g.box;
+    text("setup-summary",model.ready ? "Ready for observation" : "Adjust the conditions below");
+    const fragment = document.createDocumentFragment();
+    for (const check of model.checks) {
+      const row = document.createElement("div"); row.className = "setup-check"; row.dataset.ready = String(check.ok);
+      const mark = svg("svg",{viewBox:"0 0 24 24","aria-hidden":"true"});
+      mark.append(svg("circle",{cx:12,cy:12,r:9}));
+      mark.append(svg("path",{d:check.ok ? "m7.5 12 3 3 6-6" : "M9 12h6"}));
+      const copy = document.createElement("div"), name = document.createElement("span"), detail = document.createElement("p");
+      name.textContent = check.name; detail.textContent = check.detail; copy.append(name,detail); row.append(mark,copy); fragment.append(row);
+    }
+    $("setup-checks").replaceChildren(fragment);
+    const framed = model.visible && Array.isArray(box) && box.length===4 && box.every(finite) && box[2]>0 && box[3]>0 && box.every(v=>v>=0 && v<=1);
+    $("setup-face").toggleAttribute("hidden",!framed);
+    if (framed) {
+      for (const [key,value] of Object.entries({x:box[0]*320,y:(1-box[1]-box[3])*240,width:box[2]*320,height:box[3]*240,rx:8})) $("setup-face").setAttribute(key,value);
+    }
+    for (const side of ["left","right"]) {
+      const points = g[side];
+      const d = framed && model.checks[2].ok && Array.isArray(points) ? points.map(([x,y],i)=>`${i ? "L" : "M"}${(box[0]+x*box[2])*320} ${(1-box[1]-y*box[3])*240}`).join("")+"Z" : "";
+      $("setup-"+side+"-eye").setAttribute("d",d);
+    }
+    text("setup-sample",model.visible ? `${fmt(g.width)} × ${fmt(g.height)} px face crop` : state.detail ?? "Waiting for a camera sample");
+    $("setup-calibrate").disabled = !model.visible;
+    $("setup-allow").hidden = state.phase !== "cameraDenied";
+    $("setup-retry").hidden = !["cameraMissing","cameraError","delayed"].includes(state.phase);
+  }
+  function coverageView(coverage) {
+    const segments = coverage?.segments ?? [], span = 300, fragment = document.createDocumentFragment();
+    const names = {tracking:"Eyes observed",eyesClosed:"Eye closure",calibrating:"Calibrating",noFace:"Face not visible",multipleFaces:"Multiple faces",lowQuality:"Camera angle",delayed:"Missing or delayed",paused:"Camera paused",cameraDenied:"Camera access blocked",cameraMissing:"Camera unavailable",cameraError:"Camera error",starting:"Starting camera"};
+    const interruptions = [];
+    for (const segment of segments) {
+      if (![segment.start,segment.end].every(finite) || segment.end<=segment.start || segment.start<0 || segment.end>span) continue;
+      const observed = ["tracking","eyesClosed"].includes(segment.phase), calibrating = segment.phase === "calibrating";
+      const rect = svg("rect",{x:segment.start/span*640,y:5,width:(segment.end-segment.start)/span*640,height:24,class:observed ? "coverage-observed" : calibrating ? "coverage-calibrating" : segment.phase === "delayed" ? "coverage-unknown" : "coverage-interrupted"});
+      const title = svg("title"); title.textContent = `${names[segment.phase] ?? "Unknown"}, ${fmt(segment.end-segment.start,1)}s`; rect.append(title); fragment.append(rect);
+      if (!observed && !calibrating) interruptions.push(segment);
+    }
+    $("coverage-segments").replaceChildren(fragment);
+    text("coverage-total",`${fmt(coverage?.observedSeconds ?? 0,1)}s valid exposure`);
+    text("coverage-summary",segments.length ? "Teal observed, violet calibration, stripes missing" : "Waiting for observations");
+    $("coverage-empty").hidden = segments.length>0;
+    const events = document.createDocumentFragment();
+    for (const segment of interruptions.slice(-4).reverse()) {
+      const row = document.createElement("div"), name = document.createElement("dt"), duration = document.createElement("dd");
+      name.textContent = names[segment.phase] ?? "Unknown"; duration.textContent = `${fmt(segment.end-segment.start,1)}s, ${fmt(span-segment.end)}s ago`;
+      row.append(name,duration); events.append(row);
+    }
+    $("coverage-events").replaceChildren(events);
+    $("coverage-chart").setAttribute("aria-label",`Last five minutes of camera states. ${fmt(coverage?.observedSeconds ?? 0,1)} seconds valid calibrated exposure. ${interruptions.length} interruptions. Unpainted time has no history. Recent interruptions are listed below; stripes mean missing or delayed data.`);
   }
   function scan(side, points, data, active) {
     const projection = active ? BlinkMetrics.contour(points, data.width, data.height) : null;
@@ -321,7 +425,7 @@
     if (["tracking", "eyesClosed"].includes(state.phase)) return `Next cue in ${fmt(Math.max(0, state.preferences.reminderSeconds - state.openSeconds), 1, "s")}`;
     return "Reminders wait for fresh eye data.";
   }
-  window.blinkmore = { selectTab, update(state) {
+  window.blinkmore = { selectTab, showSetup, update(state) {
     if (!state?.preferences || !state.statistics) return;
     current = state; const stats = state.statistics, today = stats.today ?? {}, prefs = state.preferences;
     document.documentElement.classList.toggle("dark", state.actualTheme === "dark");
@@ -345,7 +449,7 @@
     $("calibrate-button").disabled = unavailable; $("settings-calibrate").disabled = unavailable;
     $("camera-settings").hidden = state.phase !== "cameraDenied"; $("retry-button").hidden = !["cameraError", "cameraMissing", "delayed"].includes(state.phase);
     $("start-reset").disabled = state.phase === "paused";
-    document.querySelectorAll("[data-routine]").forEach(button => button.disabled = state.phase === "paused");
+    document.querySelectorAll("button[data-routine]").forEach(button => button.disabled = state.phase === "paused");
     text("recent-rate", fmt(stats.recentRate, 1)); $("recent-rate").classList.toggle("empty", !finite(stats.recentRate));
     text("recent-rate-detail", `${fmt(stats.recentSeconds ?? 0)}s observed`);
     text("relative-rate-detail", finite(stats.baselineRate) ? `Usual ${fmt(stats.baselineRate, 1)} / min` : "Building your baseline");
@@ -358,7 +462,7 @@
     text("invitation-detail", due ? "A quiet break is ready." : "Blink, then look away.");
     $("exercise-later").hidden = !due; $("exercise-skip").hidden = !due;
     if (selected === 0) { live(state); rhythm(stats.recentBins); }
-    blinkPulse(state); progress(state); if (selected === 2) history(stats.week, stats.baselineRate); exerciseView(state);
+    blinkPulse(state); progress(state); if (selected === 2) { history(stats.week, stats.baselineRate); coverageView(state.coverage); } exerciseView(state);
     const cameras = state.cameras ?? [], key = JSON.stringify(cameras);
     if (key !== cameraKey) {
       cameraKey = key; const fragment = document.createDocumentFragment();
@@ -372,7 +476,7 @@
       if (input.type === "range" && document.activeElement !== input) text(`label-${key}`, preferenceLabel(key, Number(input.value)));
     });
     text("footer-notice", state.notice || stats.warning || "");
-    if (selected === 4) { geometry(state); liveView(state); }
+    if (selected === 4) { geometry(state); liveView(state); setupView(state); }
   } };
   send({ action: "ready" });
 })();

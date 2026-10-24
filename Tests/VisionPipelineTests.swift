@@ -77,6 +77,10 @@ import Vision
         let today = statistics.snapshot()["today"] as! [String: Any]
         precondition(today["trackedSeconds"] as! Double == 0)
         await withCheckedContinuation { continuation in staleService.stop { continuation.resume() } }
+        let historyCount = staleService.motion.snapshot().count
+        staleService.enqueue(buffer!,timestamp:EyeTrackingService.clock())
+        try await Task.sleep(for:.milliseconds(150))
+        precondition(staleService.motion.snapshot().count == historyCount)
         print("Vision pipeline tests passed: actual no-face inference, bounded search rate, camera rate fallback, coalesced blink preservation and expiry, stale-frame rejection, no invented activity")
     }
 }

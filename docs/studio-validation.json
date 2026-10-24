@@ -1,36 +1,38 @@
 {
-  "version": "2.6.0",
+  "version": "2.7.0",
   "date": "2026-10-24",
-  "fixture": "Synthetic data only. No camera frames or identity data.",
+  "fixture": "Synthetic UI data. No camera frames, identity templates or personal observations.",
   "checks": {
     "rustTests": 11,
     "rustFmtClippy": "passed",
     "webModels": "passed",
     "swiftStatePoliciesABI": "passed",
-    "blankFrameVision": "passed",
-    "nativeWKWebView": "passed for five pages, two themes, small window fit, geometry overlays, studio windows, native menu and blink icon; unique SVG/DOM IDs, visible contour area and gradient integrity",
-    "hardware": "Pending new executable camera consent and human observation"
+    "blankFrameVision": "passed, including stopped pipeline guard",
+    "nativeWindow": "passed through actual status button wiring, minimize, hide, close and reopen, setup route, native image differences and accessibility, double reload and WebKit process recovery",
+    "nativeWKWebView": "passed for all five pages in both themes, default and minimum sizes, mirror capture/replay/empty states/reduced motion, camera setup conditions and native commands, coverage and missing intervals",
+    "historyModels": "passed for original blink capture, pause, resume, completion, cancellation, bounded storage, coverage exposure, missing gaps, camera off states and clear",
+    "hardware": "User allowed camera access for preceding build. Physical confirmation of the new installed executable remains pending."
   },
   "render": {
     "light": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 6.8,
+      "meanMs": 8.233333333333333,
       "p95Ms": 9,
       "samples": 30,
       "theme": "light"
     },
     "dark": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 6.566666666666666,
-      "p95Ms": 8,
+      "meanMs": 8.733333333333302,
+      "p95Ms": 10,
       "samples": 30,
       "theme": "dark"
     }
   },
   "limits": [
-    "Render timings measure synchronous JavaScript updates, not camera, inference or display latency.",
-    "Scene searches run at 0.7 second intervals while tracking; tiny or weak faces are not counted.",
-    "Geometric continuity cannot identify a person replacing another at the same position.",
-    "The webcam does not measure retinal anatomy, iris color, acuity or eye pressure."
+    "Render timings measure synchronous JavaScript updates, not capture, Vision or display latency.",
+    "Camera scene detection can take 0.7 seconds and does not identify people.",
+    "Mirror and coverage survive only within this process and are not exported.",
+    "Native click tests use AppKit programmatic button actions; final physical user interaction remains a separate check."
   ]
 }

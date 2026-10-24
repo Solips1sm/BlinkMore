@@ -8,7 +8,7 @@ This is a fork of [oxremy/BlinkMore](https://github.com/oxremy/BlinkMore), maint
 
 ![Light dashboard with synthetic QA data](docs/dashboard-light.png)
 
-The [Live studio](docs/dashboard-live.png) and [geometry view](docs/dashboard-geometry.png) show the measured contours and native motion history. The screenshots use explicit QA fixtures. They contain no real camera images or personal tracking data.
+The [Live studio](docs/dashboard-live.png) and [geometry view](docs/dashboard-geometry.png) show the measured contours and native motion history. The [blink mirror](docs/dashboard-mirror.png), [camera setup](docs/dashboard-setup.png) and [coverage timeline](docs/dashboard-coverage.png) use the same native observation stream. The screenshots use explicit QA fixtures. They contain no real camera images or personal tracking data.
 
 ## Build and install
 
@@ -99,3 +99,16 @@ The local scene count describes qualifying faces from the last full search. Face
 The theme control uses the main project's exact Sun and Moon SVG nodes, stacked sixteen pixel geometry, rotation and scale behavior, icon button recipe and reduced motion handling. The icon license ships with the UI. Custom navigation SVGs and the sliding pill indicator reuse the existing control and surface tokens. Shared CSS owners remain unchanged.
 
 The [fifteen next directions](docs/product/eyesight-next.md) cover guided practice, camera setup, comfort notes, manual profiles, coverage, closure timing and an examination companion. They remain proposals with their measurement dependencies stated explicitly.
+
+
+## Native window and practice tools
+
+Clicking the menu eye explicitly activates the app, restores a minimized window, moves it onto the active desktop and orders it to the front. Closing and reopening creates a fresh local interface. The window remembers its frame. A native loading screen remains visible until the script handshake completes. A failed update or stopped WebKit process exposes recovery controls; the first process termination reloads automatically. Native camera processing and reminders remain separate. The menu eye keeps the original open and closed artwork and adds distinct template badges and accessible labels for other tracking states. Camera setup and Blink mirror are also native menu actions.
+
+Blink mirror uses the existing ten second blink routine. A native locked observer records original calibrated measurements, counts bilateral events once and freezes the latest blink clip for explicit replay. Pausing stops capture; completion freezes it. Losing scene ownership, changing camera or sensitivity, recalibrating or stopping the camera ends capture. Missing observations stay empty. Replay uses recorded sample timing, remains separate from the live menu indicator and turns into a static trace with reduced motion. The mirror makes no treatment or blink quality claim.
+
+Camera setup is available through the status bar shortcut, Settings and the native menu. Five conditions cover an active stream, a single measurable face, both eyelid contours, fresh input and an independent reference for each eye. The framing graphic uses the actual face rectangle and landmarks without displaying a camera image. Sample age must remain within the native half second display limit and processing within the quarter second admission budget. The guide reports measurement conditions, not diagnostic accuracy or an eye health score.
+
+Progress includes a five minute camera state timeline. Native observations distinguish tracking, calibration, missing faces, multiple people, pose, delay and camera suspension. A streamed state is extended for at most half a second without another observation, after which the timeline marks missing time. Explicit camera off states persist until changed. Valid exposure comes from the native tracking deltas, not colored timeline lengths or dashboard polling. Native history is bounded to six thousand compact observations. Only the visible Progress page receives it. Coverage and replay remain in memory and never enter history exports; deleting history clears them too.
+
+Run Scripts/test-ui.sh in a macOS GUI session for the actual status button to window route, minimize and close recovery, accessible indicator images, WebKit recovery and rendered feature states. Scripts/test.sh continues the portable core, model, state, ABI and Vision checks. Synthetic UI screenshots contain no camera images or personal observations.

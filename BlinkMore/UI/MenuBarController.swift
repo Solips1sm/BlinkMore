@@ -3,26 +3,31 @@ import AppKit
 final class MenuBarController: NSObject, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     let contextMenu = NSMenu()
+    private let resources: URL?
     private var phase: TrackingPhase?
+    private var stateMarks: [String: NSImage] = [:]
     private var blinkUntil = Date.distantPast
     private lazy var openEye = eyeImage("OpenEye", symbol: "eye")
     private lazy var closedEye = eyeImage("ClosedEye", symbol: "eye.slash")
-    private lazy var idleMark = Self.mark(size: 20)
+    private lazy var idleMark = Self.mark(size: 20, source: resources?.appendingPathComponent("UI/eyesight.svg"))
     var onOpen: ((Int) -> Void)?
     var onCommand: (([String: Any]) -> Void)?
     var snapshot: (() -> [String: Any])?
 
-    override init() {
+    init(resources: URL? = nil) {
+        self.resources = resources ?? Bundle.main.resourceURL
         super.init()
-        item.button?.image = Self.mark(size: 22)
+        item.button?.image = Self.mark(size: 22, source: self.resources?.appendingPathComponent("UI/eyesight.svg"))
         item.button?.image?.isTemplate = true
         item.button?.target = self; item.button?.action = #selector(clicked)
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         contextMenu.delegate = self; contextMenu.autoenablesItems = false
         add("Open Eyesight", "open")
-        for key in ["status", "count", "rate", "relative"] { add("", key, enabled: false) }
+        for key in ["status", "detail", "count", "rate", "relative"] { add("", key, enabled: false) }
         contextMenu.addItem(.separator())
         add("Live eye check", "live")
+        add("Blink mirror", "blinkMirror")
+        add("Camera setup…", "setup")
         add("Start a reset", "startReset")
         add("Pause for 5 minutes", "pause")
         add("Screen reminders", "reminders")
@@ -34,12 +39,15 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     deinit { NSStatusBar.system.removeStatusItem(item) }
     func update(_ phase: TrackingPhase) {
         self.phase = phase
-        item.button?.toolTip = "Eyesight: \(phase.title)"
+        item.button?.toolTip = "Eyesight: \(phase.title). Click to open; Control click for the menu."
+        item.button?.setAccessibilityLabel("Eyesight, \(phase.title)")
+        item.button?.setAccessibilityHelp("Click to open the window. Control click for the native menu.")
+        if ![.tracking, .eyesClosed].contains(phase) { blinkUntil = .distantPast }
         let closed = phase == .eyesClosed || Date() < blinkUntil
-        let image = [.tracking, .eyesClosed].contains(phase) ? (closed ? closedEye : openEye) : idleMark
+        let image = [.tracking, .eyesClosed].contains(phase) ? (closed ? closedEye : openEye) : stateMark(phase)
         image.isTemplate = true
         if item.button?.image !== image { item.button?.image = image }
-        item.button?.appearsDisabled = ![.tracking, .eyesClosed, .calibrating].contains(phase)
+        item.button?.appearsDisabled = false
     }
     func blink() {
         blinkUntil = Date().addingTimeInterval(0.12)
@@ -48,8 +56,40 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             guard let self = self else { return }; self.update(self.phase ?? .starting)
         }
     }
+    private func stateMark(_ phase: TrackingPhase) -> NSImage {
+        if let image = stateMarks[phase.rawValue] { return image }
+        let image = NSImage(size: NSSize(width: 20, height: 20))
+        image.lockFocus()
+        idleMark.draw(in: NSRect(x: 0, y: 0, width: 20, height: 20))
+        NSColor.clear.setFill()
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.compositingOperation = .copy
+        NSBezierPath(ovalIn: NSRect(x: 12, y: 0, width: 8, height: 8)).fill()
+        NSGraphicsContext.restoreGraphicsState()
+        NSColor.labelColor.setStroke(); NSColor.labelColor.setFill()
+        let path = NSBezierPath(); path.lineWidth = 1.2; path.lineCapStyle = .round
+        switch phase {
+        case .paused:
+            path.move(to: NSPoint(x: 15, y: 1)); path.line(to: NSPoint(x: 15, y: 6))
+            path.move(to: NSPoint(x: 18, y: 1)); path.line(to: NSPoint(x: 18, y: 6))
+        case .cameraDenied, .cameraMissing, .cameraError:
+            path.move(to: NSPoint(x: 16, y: 7)); path.line(to: NSPoint(x: 13, y: 1)); path.line(to: NSPoint(x: 19, y: 1)); path.close()
+        case .multipleFaces:
+            path.appendOval(in: NSRect(x: 12.5, y: 1.5, width: 4, height: 4)); path.appendOval(in: NSRect(x: 16, y: 2.5, width: 3, height: 3))
+        case .delayed:
+            path.appendOval(in: NSRect(x: 13, y: 0.5, width: 6, height: 6)); path.move(to: NSPoint(x: 16, y: 5)); path.line(to: NSPoint(x: 16, y: 3)); path.line(to: NSPoint(x: 18, y: 3))
+        case .lowQuality:
+            path.move(to: NSPoint(x: 13, y: 1)); path.line(to: NSPoint(x: 19, y: 6))
+        case .starting, .calibrating:
+            path.appendArc(withCenter: NSPoint(x: 16, y: 3.5), radius: 3, startAngle: 20, endAngle: 300)
+        default: path.appendOval(in: NSRect(x: 13, y: 0.5, width: 6, height: 6))
+        }
+        path.stroke(); image.unlockFocus(); image.isTemplate = true
+        stateMarks[phase.rawValue] = image
+        return image
+    }
     private func eyeImage(_ name: String, symbol: String) -> NSImage {
-        let url = Bundle.main.resourceURL?.appendingPathComponent("Icons/\(name).png")
+        let url = resources?.appendingPathComponent("Icons/\(name).png")
         let image = url.flatMap { NSImage(contentsOf: $0) } ?? NSImage(systemSymbolName: symbol, accessibilityDescription: nil)!
         image.size = NSSize(width: 20, height: 20); image.isTemplate = true
         return image
@@ -86,6 +126,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         for entry in menu.items {
             switch entry.representedObject as? String {
             case "status": entry.title = phase?.title ?? "Starting camera"
+            case "detail": entry.title = phase?.detail ?? "Starting local camera processing."
             case "count": entry.title = "\(today["blinks"] as? Int ?? 0) blinks today"
             case "rate": entry.title = (stats["recentRate"] as? Double).map { String(format: "Recent rate: %.1f/min", $0) } ?? "Recent rate: collecting"
             case "relative": entry.title = (stats["relativePercent"] as? Double).map { String(format: "%+.0f%% vs your baseline", $0) } ?? "Baseline: collecting prior days"

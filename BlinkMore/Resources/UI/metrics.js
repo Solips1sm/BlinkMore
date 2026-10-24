@@ -74,6 +74,38 @@ const BlinkMetrics = (() => {
     closeArea();
     return { left: paths[0].join(""), right: paths[1].join(""), difference: difference.join(""), areas: areas.map(p=>p.join("")), events, observed };
   }
-  return { activity, ring, contour, aperture, motion };
+  function setup(state = {}) {
+    const fresh = finite(state.frameAgeMs) && state.frameAgeMs >= 0 && state.frameAgeMs <= 500;
+    const g = state.geometry ?? {}, scene = state.scene ?? {};
+    const visible = fresh && ["tracking","eyesClosed","calibrating"].includes(state.phase);
+    const camera = fresh && !["paused","starting","cameraDenied","cameraError","cameraMissing"].includes(state.phase);
+    const one = finite(scene.ageMs) && scene.ageMs >= 0 && scene.ageMs <= 1500 && scene.count === 1;
+    const lids = visible && contour(g.left,g.width,g.height) !== null && contour(g.right,g.width,g.height) !== null;
+    const reference = visible && state.calibration >= 1 && ["tracking","eyesClosed"].includes(state.phase);
+    const checks = [
+      {name:"Camera stream",ok:camera,detail:camera ? "Receiving frames" : state.phase === "cameraDenied" ? "Allow camera access" : state.phase === "paused" ? "Resume monitoring" : "Waiting for the camera"},
+      {name:"One person",ok:one,detail:one ? "Single measurable face" : scene.count > 1 ? "One person at a time" : "Move into view"},
+      {name:"Both eyelids",ok:lids,detail:lids ? "Both contours measured" : "Face the camera with both eyes visible"},
+      {name:"Fresh samples",ok:fresh && finite(state.latencyMs) && state.latencyMs <= 250,detail:fresh ? `${Math.round(state.frameAgeMs)}ms sample age` : "Waiting for recent measurements"},
+      {name:"Eye reference",ok:reference,detail:reference ? "Independent reference for each eye" : "Blink normally while calibration finishes"}
+    ];
+    return {checks,ready:checks.every(c=>c.ok),visible};
+  }
+  function replay(clip) {
+    const result = {left:"",right:"",duration:0};
+    if (!Array.isArray(clip) || clip.length < 2 || clip.length > 300) return result;
+    const start = clip[0].t, end = clip[clip.length-1].t;
+    if (![start,end].every(finite) || end <= start || end-start > 2) return result;
+    const paths = [[],[]]; let previous = null;
+    for (const p of clip) {
+      if (!finite(p.t) || (previous !== null && p.t <= previous)) continue;
+      if (!finite(p.left) || !finite(p.right)) { previous = null; continue; }
+      const command = previous === null || p.t-previous > .25 ? "M" : "L", x = 4+(p.t-start)/(end-start)*312;
+      [p.left,p.right].forEach((v,i)=>paths[i].push(`${command}${x.toFixed(2)} ${(32+i*36-Math.max(0,Math.min(1.5,v))*18).toFixed(2)}`));
+      previous = p.t;
+    }
+    return {left:paths[0].join(""),right:paths[1].join(""),duration:end-start};
+  }
+  return { activity, ring, contour, aperture, motion, setup, replay };
 })();
 if (typeof module !== "undefined") module.exports = BlinkMetrics;

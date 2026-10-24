@@ -63,3 +63,16 @@ assert(Math.abs(nativeTrace.observed-0.133)<1e-8);
 assert.equal(motion([{t:1,left:1,right:1}],2,9).left,"");
 assert.equal((motion([{t:10,left:1,right:1},{t:10.3,left:1,right:1}],11).left.match(/M/g)||[]).length,2);
 console.log("Studio model passed: pixel geometry, native brief closure, signed difference, filled segments, event ticks and missing intervals");
+
+const {setup,replay}=require("../BlinkMore/Resources/UI/metrics.js");
+const prepared={phase:"tracking",frameAgeMs:60,latencyMs:30,calibration:1,scene:{ageMs:300,count:1},geometry:{left:eye,right:eye,width:200,height:100}};
+assert.equal(setup(prepared).ready,true);
+assert.equal(setup({...prepared,frameAgeMs:800}).ready,false);
+assert.equal(setup({...prepared,scene:{ageMs:100,count:2}}).checks[1].ok,false);
+assert.equal(setup({...prepared,phase:"cameraDenied"}).checks[0].ok,false);
+assert.equal(setup({...prepared,calibration:.5}).checks[4].ok,false);
+assert.equal(setup({...prepared,geometry:{}}).checks[2].ok,false);
+const playback=replay([{t:0,left:1,right:1},{t:.1,left:.1,right:.1},{t:.2,left:1,right:1}]);
+assert.equal(playback.duration,.2);assert(playback.left.includes("L160.00"));
+assert.equal(replay([]).left,"");assert.equal(replay([{t:0,left:1,right:1},{t:3,left:1,right:1}]).left,"");
+assert.equal((replay([{t:0,left:1,right:1},{t:.1,left:null,right:null},{t:.2,left:1,right:1}]).left.match(/M/g)||[]).length,2);

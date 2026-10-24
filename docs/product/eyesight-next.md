@@ -1,8 +1,8 @@
 # Fifteen directions for Eyesight
 
-This iteration ships native motion history, a signed opening difference view, richer pixel geometry, a single person scene guard, calibration ownership, detection alerts, optional sound cues and live practice feedback. These fifteen directions describe the next product work. They are proposals, not claims that the webcam can diagnose dry eye, measure the retina or identify a person.
+This iteration ships native motion history, a signed opening difference view, richer pixel geometry, a single person scene guard, calibration ownership, detection alerts, optional sound cues and live practice feedback. Blink mirror, camera setup and coverage are now implemented in Eyesight 2.7. The remaining directions describe future work. They are proposals, not claims that the webcam can diagnose dry eye, measure the retina or identify a person.
 
-A blink mirror could invite a few natural blinks and replay their measured opening curves immediately. Feedback would describe what was observed, including incomplete coverage, without awarding points for blinking faster or squeezing harder.
+Blink mirror now records a ten second native observation and offers explicit replay of the latest detected bilateral blink. Counts and valid exposure use original measurements; missing time stays unmeasured and reduced motion shows a static trace.
 
 A near and far practice could alternate between a real nearby object and a distant object chosen by the user. The timer would guide the change while stating that eyelid landmarks cannot verify where someone focuses.
 
@@ -12,7 +12,7 @@ An optional quiet rest could guide a short, comfortable eyes closed pause. It wo
 
 A screen exit ritual could turn a completed work interval into a brief look away and movement break. The user would choose the interval, with Later and Skip preserved and no break debt after sleep or lock.
 
-A camera setup guide could explain contour size, pose and valid coverage while the user adjusts their camera. It would score the quality of the input, not the health of the eyes, and avoid inventing an accuracy percentage from Vision confidence.
+Camera setup now checks the camera stream, single person scene, both measured contours, fresh samples and eye reference. Its framing SVG uses measured geometry without exposing a camera image or claiming diagnostic accuracy.
 
 A glasses and lighting check could compare short observations under the user’s current lighting. It would report landmark loss and sample coverage; any reflection detection would need its own validated image measurement.
 
@@ -22,7 +22,7 @@ Manual local profiles could let household members explicitly choose their own hi
 
 Session context labels could distinguish reading, coding, calls and other work chosen by the user. Aggregate comparisons would expose observed time and missing coverage so short sessions do not appear more reliable than they are.
 
-A coverage timeline could show when observations were interrupted by multiple faces, pose, missing landmarks or processing delay. It would help explain gaps without storing images, bounding boxes or identity templates.
+Camera coverage now shows five minutes of native tracking states, interruptions and missing time with actual valid exposure. It remains bounded in memory and saves no images, face templates or identity data.
 
 A closure timing profile could summarize detected closure durations and bilateral versus unilateral events. It would show sample cadence and exclude long missing intervals rather than turn uncertainty into precise millisecond claims.
 

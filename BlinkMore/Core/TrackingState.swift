@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 
 enum TrackingPhase: String {
     case starting, calibrating, tracking, eyesClosed, noFace, multipleFaces
@@ -62,6 +63,7 @@ struct TrackingFrame {
     var faceWidth: Double = 0
     var faceHeight: Double = 0
     var faceConfidence: Double = 0
+    var faceBox: CGRect = .zero
     var faceCount = 0
     var sceneTimestamp = 0.0
 }
