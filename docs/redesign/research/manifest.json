@@ -1,0 +1,22 @@
+{
+  "purpose": "Planning only. No application changes.",
+  "planners": 12,
+  "screenblink_researchers": 4,
+  "screenblink_commit": "8b801ce1d43a285938f5fb07ca8bed7a20231080",
+  "blinkmore_source_commit": "91f832b4ad0aaf8e7e802c561a4881356a6b6674",
+  "reports": [
+    "01-screenblink-exercises.txt",
+    "02-screenblink-scheduler.txt",
+    "03-screenblink-interaction.txt",
+    "04-screenblink-integration.txt",
+    "05-design-primitives.txt",
+    "06-typography-copy.txt",
+    "07-gauges-visualization.txt",
+    "08-product-layout.txt",
+    "09-native-performance.txt",
+    "10-accessibility-states.txt",
+    "11-visual-composition.txt",
+    "12-evidence-product-scope.txt"
+  ],
+  "unresolved_reference": "Dolphin"
+}

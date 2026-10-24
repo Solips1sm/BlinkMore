@@ -1,0 +1,80 @@
+{
+  "scope": "Static proposal in Chromium IAB only. No native implementation or health validation.",
+  "default": {
+    "width": 820,
+    "height": 580,
+    "visibleWords": 41,
+    "textFloor": 14,
+    "weights": [
+      400,
+      500
+    ]
+  },
+  "contrast": [
+    {
+      "theme": "light",
+      "text": 13.223344102893728,
+      "muted": 7.091671245925593,
+      "eye": 4.9204458731786485,
+      "rhythm": 3.534178440907106
+    },
+    {
+      "theme": "dark",
+      "text": 17.03292195072193,
+      "muted": 5.82928269409915,
+      "eye": 7.245807937755709,
+      "rhythm": 9.735073446372313
+    }
+  ],
+  "minimum": [
+    {
+      "theme": "dark",
+      "view": "today",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 439.59375,
+      "overflow": false
+    },
+    {
+      "theme": "dark",
+      "view": "practice",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 456.59375,
+      "overflow": false
+    },
+    {
+      "theme": "dark",
+      "view": "history",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 442.2890625,
+      "overflow": false
+    },
+    {
+      "theme": "light",
+      "view": "today",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 439.59375,
+      "overflow": false
+    },
+    {
+      "theme": "light",
+      "view": "practice",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 456.59375,
+      "overflow": false
+    },
+    {
+      "theme": "light",
+      "view": "history",
+      "width": 680,
+      "height": 520,
+      "contentBottom": 442.2890625,
+      "overflow": false
+    }
+  ],
+  "blinkSceneSwitch": "passed"
+}
