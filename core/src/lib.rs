@@ -80,8 +80,20 @@ pub fn aperture(points: &[BMPoint], width: f64, height: f64) -> Option<f64> {
         xy += x * y;
         yy += y * y;
     }
-    let angle = 0.5 * (2.0 * xy).atan2(xx - yy);
-    let (s, c) = angle.sin_cos();
+    // The covariance half-angle gives the same axes without atan2 and sin/cos.
+    let spread = (xx - yy).hypot(2.0 * xy);
+    if !spread.is_finite() {
+        return None;
+    }
+    let (c, s) = if spread == 0.0 {
+        (1.0, 0.0)
+    } else if xx >= yy {
+        let c = ((1.0 + (xx - yy) / spread) * 0.5).sqrt();
+        (c, (xy / spread) / c)
+    } else {
+        let s = ((1.0 - (xx - yy) / spread) * 0.5).sqrt().copysign(xy);
+        ((xy / spread) / s, s)
+    };
     let (mut lo_x, mut hi_x, mut lo_y, mut hi_y) = (
         f64::INFINITY,
         f64::NEG_INFINITY,
@@ -116,12 +128,7 @@ struct Eye {
 }
 
 impl Eye {
-    fn update(&mut self, ratio: f64, dt: f64, reset: bool, close: f64) -> f64 {
-        let alpha = if reset {
-            1.0
-        } else {
-            1.0 - (-dt / 0.025).exp()
-        };
+    fn update(&mut self, ratio: f64, dt: f64, alpha: f64, close: f64) -> f64 {
         self.filtered += alpha * (ratio - self.filtered);
         let openness = (self.filtered / self.baseline).clamp(0.0, 1.5);
         if self.closed {
@@ -282,8 +289,13 @@ impl Tracker {
             0.5
         };
         let close = 0.38 + 0.28 * sensitivity;
-        let ln = self.left.update(l, tracked_delta, reset, close);
-        let rn = self.right.update(r, tracked_delta, reset, close);
+        let alpha = if reset {
+            1.0
+        } else {
+            1.0 - (-tracked_delta / 0.025).exp()
+        };
+        let ln = self.left.update(l, tracked_delta, alpha, close);
+        let rn = self.right.update(r, tracked_delta, alpha, close);
         let closed = u32::from(self.left.closed) | (u32::from(self.right.closed) << 1);
         let mut flags = VALID | CALIBRATED;
         if closed != 0 {
@@ -436,6 +448,56 @@ mod tests {
     }
 
     #[test]
+    fn covariance_axes_match_trigonometric_reference_for_irregular_contours() {
+        fn reference(points: &[BMPoint], width: f64, height: f64) -> f64 {
+            let cx = points.iter().map(|p| p.x * width).sum::<f64>() / points.len() as f64;
+            let cy = points.iter().map(|p| p.y * height).sum::<f64>() / points.len() as f64;
+            let (mut xx, mut xy, mut yy) = (0.0, 0.0, 0.0);
+            for p in points {
+                let (x, y) = (p.x * width - cx, p.y * height - cy);
+                xx += x * x;
+                xy += x * y;
+                yy += y * y;
+            }
+            let (s, c) = (0.5 * (2.0 * xy).atan2(xx - yy)).sin_cos();
+            let (mut low, mut high) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
+            for p in points {
+                let (x, y) = (p.x * width - cx, p.y * height - cy);
+                for (i, projected) in [x * c + y * s, -x * s + y * c].into_iter().enumerate() {
+                    low[i] = low[i].min(projected);
+                    high[i] = high[i].max(projected);
+                }
+            }
+            (high[1] - low[1]) / (high[0] - low[0])
+        }
+        for count in 4..=MAX_POINTS {
+            for angle in [0.0_f64, 1e-12, 1e-6, 0.25, 0.785, 1.57, -1.57, 2.9] {
+                for ratio in [0.02, 0.15, 0.3, 0.8] {
+                    let (s, c) = angle.sin_cos();
+                    let points: Vec<_> = (0..count)
+                        .map(|i| {
+                            let t = i as f64 * std::f64::consts::TAU / count as f64;
+                            let (x, y) = (
+                                20.0 * t.cos(),
+                                20.0 * ratio * t.sin() * (1.0 + 0.08 * (3.0 * t).cos()),
+                            );
+                            BMPoint {
+                                x: 0.5 + (x * c - y * s) / 160.0,
+                                y: 0.5 + (x * s + y * c) / 360.0,
+                            }
+                        })
+                        .collect();
+                    let actual = aperture(&points, 160.0, 360.0).unwrap();
+                    assert!(
+                        (actual - reference(&points, 160.0, 360.0)).abs() < 1e-10,
+                        "count={count}, angle={angle}, ratio={ratio}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
     fn rejects_invalid_geometry() {
         assert!(
             aperture(
@@ -450,6 +512,7 @@ mod tests {
         );
         assert!(aperture(&eye(0.3, 0.0, 200.0, 300.0), 0.0, 300.0).is_none());
         assert!(aperture(&[BMPoint { x: 0.5, y: 0.5 }; 8], 200.0, 300.0).is_none());
+        assert!(aperture(&eye(0.3, 0.0, 200.0, 300.0), f64::MAX, f64::MAX).is_none());
     }
 
     #[test]

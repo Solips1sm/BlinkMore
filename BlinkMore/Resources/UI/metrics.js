@@ -7,7 +7,7 @@ const BlinkMetrics = (() => {
   }
   function ring(current, goal) {
     const available = finite(goal) && goal > 0;
-    return { current: value(current), goal: available ? goal : null, progress: available ? Math.min(1, value(current) / goal) : 0 };
+    return { current: value(current), goal: available ? goal : null, progress: available ? Math.min(1, value(current) / goal) : 0, complete: available && finite(current) && current >= goal };
   }
   function activity(today = {}, week = [], lifetime = {}, goals = {}) {
     const days = week.filter(d => finite(d.trackedSeconds) && d.trackedSeconds + 1e-6 >= 30).length;

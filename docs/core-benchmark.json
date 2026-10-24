@@ -27,7 +27,10 @@
       "updates_per_run": 1000000,
       "input_rate_hz": 15,
       "landmarks_per_eye": 8,
-      "face_size_pixels": [200, 300],
+      "face_size_pixels": [
+        200,
+        300
+      ],
       "calibration_updates_before_timing": 30,
       "warmup_updates": 3000,
       "sample_every_updates": 97,
@@ -72,19 +75,56 @@
       "median_of_run_p95_ns": 863,
       "median_of_run_mean_ns_per_update": 610.948884,
       "run_ranges_ns": {
-        "median": [404, 510],
-        "p95": [669, 924],
-        "mean_ns_per_update": [541.124412, 670.149205]
+        "median": [
+          404,
+          510
+        ],
+        "p95": [
+          669,
+          924
+        ],
+        "mean_ns_per_update": [
+          541.124412,
+          670.149205
+        ]
       }
     },
     "temporary_candidate_comparison": {
       "change": "A fixed 32-point stack buffer cached pixel-scaled coordinates inside aperture().",
       "status": "reverted; not present in final source",
       "method": "Six baseline and six candidate binaries were run in alternating order with the same calibrated workload.",
-      "baseline_median_ns_by_pair": [497, 410, 407, 385, 415, 507],
-      "candidate_median_ns_by_pair": [642, 634, 591, 503, 478, 610],
-      "baseline_p95_ns_by_pair": [939, 703, 797, 677, 757, 960],
-      "candidate_p95_ns_by_pair": [1172, 1134, 1110, 893, 841, 1071],
+      "baseline_median_ns_by_pair": [
+        497,
+        410,
+        407,
+        385,
+        415,
+        507
+      ],
+      "candidate_median_ns_by_pair": [
+        642,
+        634,
+        591,
+        503,
+        478,
+        610
+      ],
+      "baseline_p95_ns_by_pair": [
+        939,
+        703,
+        797,
+        677,
+        757,
+        960
+      ],
+      "candidate_p95_ns_by_pair": [
+        1172,
+        1134,
+        1110,
+        893,
+        841,
+        1071
+      ],
       "result": "The candidate was slower in all six alternating pairs. Host load varied substantially, so no speedup claim is supported."
     },
     "limitations": [
@@ -92,5 +132,244 @@
       "Input timestamps advance at 15 Hz, but the benchmark does not sleep between updates; elapsed time is CPU benchmark time, not a 15 fps end-to-end camera run.",
       "Per-call samples include Instant timing overhead. The reported p95 is a sampled microbenchmark result, not a deadline guarantee under arbitrary load."
     ]
+  },
+  "covariance_axes_comparison": {
+    "date": "2026-10-24",
+    "baselineCommit": "cfbb25ba38495f3a2b58aa3dbf53cfe45de54ade",
+    "candidateCoreSHA256": "5615580c864d66116879034ecea1fc1be2aa67336388ca3e9a6dea91c7efb2c5",
+    "changes": "Covariance half-angle axes replace atan2 and sin_cos; the time-based filter coefficient is computed once for both eyes. ABI, calibration, sampling and blink thresholds are unchanged.",
+    "command": "Alternating test-results/core-before-glass and test-results/core-after-glass, built with cargo build --release --manifest-path core/Cargo.toml --example benchmark --locked. Order reverses each pair.",
+    "scope": "Same calibrated 15Hz varying-contour workload, six alternating pairs on a busy Intel desktop. Includes normal host scheduling variation. Excludes capture, Vision, Swift bridge and display; no whole-app CPU or accuracy gain is claimed.",
+    "runs": [
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.214081403,
+        "mean_ns_per_update": 214.081403,
+        "median_ns": 249,
+        "p95_ns": 290,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 0
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.1829599,
+        "mean_ns_per_update": 182.9599,
+        "median_ns": 216,
+        "p95_ns": 247,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 0
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.183100456,
+        "mean_ns_per_update": 183.100456,
+        "median_ns": 216,
+        "p95_ns": 250,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 1
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.215703061,
+        "mean_ns_per_update": 215.703061,
+        "median_ns": 249,
+        "p95_ns": 291,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 1
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.213798178,
+        "mean_ns_per_update": 213.798178,
+        "median_ns": 249,
+        "p95_ns": 290,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 2
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.183525196,
+        "mean_ns_per_update": 183.525196,
+        "median_ns": 216,
+        "p95_ns": 248,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 2
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.183597535,
+        "mean_ns_per_update": 183.597535,
+        "median_ns": 216,
+        "p95_ns": 245,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 3
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.214560634,
+        "mean_ns_per_update": 214.560634,
+        "median_ns": 249,
+        "p95_ns": 292,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 3
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.21448392,
+        "mean_ns_per_update": 214.48392,
+        "median_ns": 249,
+        "p95_ns": 290,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 4
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.18259396,
+        "mean_ns_per_update": 182.59396,
+        "median_ns": 216,
+        "p95_ns": 241,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 4
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.182996345,
+        "mean_ns_per_update": 182.996345,
+        "median_ns": 216,
+        "p95_ns": 248,
+        "blink_events": 16717,
+        "version": "after",
+        "pair": 5
+      },
+      {
+        "architecture": "x86_64",
+        "workload": "calibrated_tracking",
+        "frame_rate_hz": 15,
+        "updates": 1000000,
+        "calibration_updates": 30,
+        "warmup_updates": 3000,
+        "landmarks_per_eye": 8,
+        "sample_every_updates": 97,
+        "samples": 10310,
+        "elapsed_seconds": 0.215700014,
+        "mean_ns_per_update": 215.700014,
+        "median_ns": 249,
+        "p95_ns": 297,
+        "blink_events": 16717,
+        "version": "before",
+        "pair": 5
+      }
+    ],
+    "summary": {
+      "before": {
+        "median_ns": 249.0,
+        "p95_ns": 290.5,
+        "mean_ns_per_update": 214.522277
+      },
+      "after": {
+        "median_ns": 216.0,
+        "p95_ns": 247.5,
+        "mean_ns_per_update": 183.0484005
+      }
+    },
+    "medianLoopMeanReductionPercent": 14.671612170143057
   }
 }

@@ -28,6 +28,27 @@ private final class PixelBufferReleaseCounter {
 
 @main enum VisionPipelineTests {
     @MainActor static func main() async throws {
+        let packingCore = bm_tracker_new()!
+        defer { bm_tracker_free(packingCore) }
+        let contours = (0..<8).map { i in
+            let angle = Double(i) * .pi / 4
+            return CGPoint(x: 0.5 + 0.1 * cos(angle), y: 0.5 + 0.02 * sin(angle))
+        }
+        var metadata = BMInput(left: nil, left_count: 0, right: nil, right_count: 0,
+            face_width: 200, face_height: 300, timestamp: 0, confidence: 0.99, sensitivity: 0.5)
+        var packed = BMOutput()
+        for i in 1...30 {
+            metadata.timestamp = Double(i) / 15
+            packed = EyeTrackingService.processEyes(core: packingCore, left: contours, right: contours, input: metadata)
+        }
+        precondition(packed.phase == 2 && packed.flags & 2 != 0)
+        precondition(abs(packed.left_ratio - 0.3) < 1e-10 && packed.left_ratio == packed.right_ratio)
+        metadata.timestamp += 1.0 / 15
+        let oversized = EyeTrackingService.processEyes(core: packingCore, left: Array(repeating: .zero, count: 33), right: contours, input: metadata)
+        precondition(oversized.phase == 0 && oversized.calibration == 1)
+        metadata.timestamp += 1.0 / 15
+        let resumed = EyeTrackingService.processEyes(core: packingCore, left: contours, right: contours, input: metadata)
+        precondition(resumed.phase == 2 && resumed.flags & 4 == 0 && resumed.tracked_delta == 0)
         precondition(EyeTrackingService.captureDuration(ranges: [1...30]) == CMTime(value: 1, timescale: 15))
         precondition(EyeTrackingService.captureDuration(ranges: [24...60]) == nil)
         precondition(EyeTrackingService.captureDuration(ranges: []) == nil)

@@ -1,33 +1,34 @@
 {
-  "version": "2.8.1",
+  "version": "2.9",
   "date": "2026-10-24",
   "fixture": "Synthetic UI data only. No camera frames, personal observations or identity templates.",
   "checks": {
-    "rustTests": 11,
+    "rustTests": 12,
     "rustFmtClippy": "passed",
     "webModels": "passed",
     "swiftStatePoliciesABI": "passed",
     "sessionActivity": "passed including exact SDK console-key mapping and overlapping lock/sleep/display/console causes",
     "acStopPolicy": "passed reconnect cancellation, duplicate request and terminated-process cases",
-    "blankFrameVision": "passed including bounded 96-buffer release and stop drain",
+    "blankFrameVision": "passed bounded 96-buffer release, stop drain and the bounded contour bridge including oversized input and resume without phantom events",
     "nativeOverlay": "passed screen geometry, all Spaces, immediate hiding, interrupted animation and screen rebuild",
-    "nativeWKWebView": "passed all five pages, themes, minimum size, mirror replay, setup recovery, coverage clipping/empty state, SVG references and privacy artwork",
-    "signedBundleSmoke": "Resource, stylesheet, SVG, bridge and navigation checks pass in an isolated signed sandbox fixture with production entitlements and no camera. One initial independent minimize/reopen pass was not reproducible in later runs.",
-    "consolidatedNativeHarness": "Controls, hidden/closed window reopening, indicator states, setup routing and WebKit recovery pass before the strict minimize assertion fails. A separate stock NSWindow probe also failed to minimize. Full suite acceptance remains open; raw evidence: docs/native-minimize-host.txt.",
-    "hardware": "Camera allowed on 2.8 and current 2.8.1 reports calibrated native tracking. Final user window/mirror confirmation and physical fade, AC, lock/sleep/wake checks pending."
+    "nativeWKWebView": "passed all five pages in both themes, native toolbar routing and pause commands, minimum content bounds below toolbar, complete/zero goal logic, mirror replay, setup, coverage, SVG references and privacy artwork",
+    "signedBundleSmoke": "Passed bundled resources, native controls, setup routing, hidden/closed reopening, indicator states and WebKit recovery before the strict minimize assertion fails.",
+    "consolidatedNativeHarness": "Strict programmatic minimize still fails on this Mac. The prior stock NSWindow reproduction remains in docs/native-minimize-host.txt. Full suite acceptance remains open.",
+    "hardware": "2.9 installed; user camera, native toolbar and live mirror confirmation pending. Physical fading, AC reconnect, lock/sleep/wake and a prolonged 2.9 camera run remain unverified.",
+    "nativeMaterialCapture": "Composited light and dark images captured only from the synthetic test app using SCShareableContent.currentProcess, without general screen capture permission. Native toolbar labels and material inspected."
   },
   "render": {
     "light": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 8.633333333333333,
+      "meanMs": 7.733333333333333,
       "p95Ms": 9,
       "samples": 30,
       "theme": "light"
     },
     "dark": {
       "fixture": "451 synthetic native samples; excludes capture and Vision",
-      "meanMs": 7.866666666666666,
-      "p95Ms": 9,
+      "meanMs": 8.433333333333364,
+      "p95Ms": 11,
       "samples": 30,
       "theme": "dark"
     }
@@ -38,5 +39,15 @@
     "The live memory improvement requires a longer controlled camera run; short samples cannot prove leak elimination.",
     "The outgoing network client entitlement is required for WebKit helper startup; CSP blocks network connections and navigation accepts only the bundled main file.",
     "Programmatic window minimization is unresolved on this desktop session. A stock window reproduced the symptom; this does not establish that physical user minimization works."
-  ]
+  ],
+  "performance": {
+    "referenceCases": 928,
+    "coreMedianOfLoopMeansNs": {
+      "before": 214.522277,
+      "after": 183.0484005
+    },
+    "reductionPercent": 14.671612170143057,
+    "comparison": "Six alternating pairs; raw commands and results in docs/core-benchmark.json. Core only, excluding camera, Vision, bridge and display.",
+    "bridge": "Bounded temporary BMPoint buffer; Vision contour arrays reused for UI. No sampling, model, thresholds or calibration change."
+  }
 }

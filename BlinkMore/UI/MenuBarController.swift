@@ -126,6 +126,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func add(_ title: String, _ key: String, enabled: Bool = true) {
         let entry = NSMenuItem(title: title, action: #selector(selected(_:)), keyEquivalent: "")
         entry.target = self; entry.representedObject = key; entry.isEnabled = enabled
+        if enabled {
+            let symbols = ["open":"eye", "live":"waveform.path", "blinkMirror":"eyes", "setup":"camera.viewfinder",
+                "startReset":"sparkle", "pause":"pause", "reminders":"bell", "preview":"circle.lefthalf.filled",
+                "calibrate":"scope", "settings":"slider.horizontal.3"]
+            if let symbol = symbols[key] { entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
+            if key == "open" { entry.image = Self.mark(size: 16, source: resources?.appendingPathComponent("UI/eyesight.svg")) }
+            entry.image?.isTemplate = true
+        }
         contextMenu.addItem(entry)
     }
     @objc private func clicked() {
@@ -159,7 +167,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             case "count": entry.title = "\(today["blinks"] as? Int ?? 0) blinks today"
             case "rate": entry.title = (stats["recentRate"] as? Double).map { String(format: "Recent rate: %.1f/min", $0) } ?? "Recent rate: collecting"
             case "relative": entry.title = (stats["relativePercent"] as? Double).map { String(format: "%+.0f%% vs your baseline", $0) } ?? "Baseline: collecting prior days"
-            case "pause": entry.title = phase == .paused ? "Resume monitoring" : "Pause for 5 minutes"
+            case "pause":
+                entry.title = phase == .paused ? "Resume monitoring" : "Pause for 5 minutes"
+                entry.image = NSImage(systemSymbolName: phase == .paused ? "play" : "pause", accessibilityDescription: nil)
             case "reminders": entry.state = preferences["remindersEnabled"] as? Bool == false ? .off : .on
             case "calibrate": entry.isEnabled = ![.paused, .starting, .cameraDenied, .cameraMissing, .cameraError].contains(phase ?? .starting)
             default: break

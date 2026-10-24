@@ -1,5 +1,6 @@
 import AppKit
 import WebKit
+import ScreenCaptureKit
 
 @main enum DashboardTests {
     @MainActor static func main() {
@@ -48,7 +49,8 @@ import WebKit
                 preferences[key] = message["value"]; state["preferences"] = preferences
             }
         })
-        precondition(controller.window?.minSize == NSSize(width: 680, height: 520), "Dashboard minimum window size changed")
+        let minimum = controller.window!.minSize
+        precondition(minimum.width == 680 && (520...528).contains(minimum.height), "Native toolbar exceeded the compact window budget: \(minimum)")
         controller.selectTab(3); controller.showWindow(nil)
         let view = controller.webView
         for _ in 0..<100 {
@@ -70,8 +72,32 @@ import WebKit
             let image: NSImage? = await withCheckedContinuation { continuation in controller.takeSnapshot { continuation.resume(returning: $0) } }
             guard let data = image?.tiffRepresentation, let bitmap = NSBitmapImageRep(data: data), let png = bitmap.representation(using: .png, properties: [:]) else { throw CocoaError(.fileWriteUnknown) }
             try png.write(to: output.appendingPathComponent(name + ".png"))
+            if #available(macOS 14.4, *), name.hasSuffix("-0"), let window = controller.window {
+                NSApp.activate(ignoringOtherApps: true); window.makeKeyAndOrderFront(nil)
+                try await Task.sleep(for: .milliseconds(150))
+                // Current-process content captures only this synthetic test app, without screen permission.
+                let content = try await SCShareableContent.currentProcess
+                guard let ownWindow = content.windows.first(where: { $0.windowID == CGWindowID(window.windowNumber) }) else { throw CocoaError(.fileReadUnknown) }
+                let config = SCStreamConfiguration()
+                config.width = Int(window.frame.width * window.backingScaleFactor)
+                config.height = Int(window.frame.height * window.backingScaleFactor)
+                config.showsCursor = false; config.ignoreShadowsSingleWindow = true
+                let image = try await SCScreenshotManager.captureImage(contentFilter: SCContentFilter(desktopIndependentWindow: ownWindow), configuration: config)
+                let bitmap = NSBitmapImageRep(cgImage: image)
+                try bitmap.representation(using: .png, properties: [:])?.write(to: output.appendingPathComponent(name + "-native.png"))
+            }
         }
         try await refresh()
+        precondition(controller.window?.toolbar != nil && controller.pageControl.segmentCount == 5)
+        try await expect("return document.documentElement.classList.contains('native-controls') && getComputedStyle(document.querySelector('nav')).display === 'none'", true)
+        controller.pageControl.selectedSegment = 1
+        NSApp.sendAction(controller.pageControl.action!, to: controller.pageControl.target, from: controller.pageControl)
+        try await refresh()
+        try await expect("return document.body.dataset.page", "4")
+        controller.selectTab(3); try await refresh()
+        precondition(controller.pageControl.selectedSegment == 4)
+        controller.pauseControl.performClick(nil)
+        precondition(commands.contains { $0["action"] as? String == "pause" })
         try await expect("const ids=[...document.querySelectorAll('[id]')].map(e=>e.id);return new Set(ids).size===ids.length",true)
         try await expect("await document.fonts.load('500 21px Comfortaa'); return [...document.fonts].some(f=>f.family==='Comfortaa' && f.status==='loaded')", true)
         try await expect("return document.querySelector('.identity h1').textContent", "eyesight")
@@ -141,6 +167,9 @@ import WebKit
         state["coverage"] = coverageFixture; try await refresh()
         let offset = try await js("return parseFloat(getComputedStyle(document.getElementById('gauge-minutes')).strokeDashoffset)") as! Double
         precondition(abs(offset - 100.0 / 3) < 0.01)
+        try await expect("return document.getElementById('gauge-resets').closest('.gauge-card').dataset.complete", "true")
+        try await expect("return document.getElementById('reset-goal-note').textContent", "Goal reached")
+        try await expect("const references=[...document.querySelectorAll('.gauge-value,.intention-value,.gauge-rim')];return references.every(e=>{const s=getComputedStyle(e).stroke,id=s.match(/#[a-z-]+/);return id&&document.getElementById(id[0].slice(1))!==null})", true)
         _ = try await js("document.querySelector('#week-days button').focus(); document.querySelector('#week-days button').click()")
         var revisedStats = state["statistics"] as! [String: Any]
         var revisedWeek = revisedStats["week"] as! [[String: Any]]; revisedWeek[6]["blinkRate"] = 13.1
@@ -151,6 +180,7 @@ import WebKit
             state["phase"] = phase.rawValue; state["title"] = phase.title; state["detail"] = phase.detail
             try await refresh()
             try await expect("return document.getElementById('tracking-title').textContent", phase.title)
+            precondition(controller.pauseControl.title == (phase == .paused ? "Resume" : "Pause"))
             try await expect("return !document.getElementById('camera-settings').hidden", phase == .cameraDenied)
             try await expect("return !document.getElementById('tracking-rail').hidden", [.starting, .calibrating].contains(phase))
             if phase == .starting { try await expect("return document.getElementById('tracking-rail').hasAttribute('aria-valuenow')", false) }
@@ -309,7 +339,9 @@ import WebKit
         precondition(commands.contains { $0["key"] as? String == "sensitivity" && $0["value"] as? Double == 0.8 })
         precondition(commands.contains { $0["key"] as? String == "exercisesEnabled" && $0["value"] as? Bool == true })
         controller.window?.setContentSize(NSSize(width: 680, height: 520))
-        try await expect("return Math.round(innerWidth)===680&&Math.round(innerHeight)===520",true)
+        try await Task.sleep(for: .milliseconds(100))
+        let viewportFits = try await js("return Math.round(innerWidth)===680&&Math.round(innerHeight)===height", arguments: ["height": Int(controller.webView.bounds.height.rounded())]) as? Bool
+        precondition(viewportFits == true, "Web content must fit below the native toolbar")
         state["phase"] = "tracking"
         for tab in 0..<5 {
             controller.selectTab(tab); try await refresh()

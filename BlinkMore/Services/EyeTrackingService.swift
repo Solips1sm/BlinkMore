@@ -236,20 +236,20 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                       abs(measured.pitch?.doubleValue ?? 0) <= 0.55 else {
                     missing(.lowQuality, timestamp: timestamp); return
                 }
+                guard Self.clock() - timestamp <= 0.25 else {
+                    dropped += 1; missing(.delayed, timestamp: timestamp); return
+                }
+                let lp = left.normalizedPoints, rp = right.normalizedPoints
+                let box = measured.boundingBox
+                let result = Self.processEyes(core: core, left: lp, right: rp,
+                    input: BMInput(left: nil, left_count: 0, right: nil, right_count: 0,
+                        face_width: box.width * Double(CVPixelBufferGetWidth(image)),
+                        face_height: box.height * Double(CVPixelBufferGetHeight(image)),
+                        timestamp: timestamp, confidence: Double(measured.confidence), sensitivity: sensitivity))
                 let finished = Self.clock()
                 guard finished - timestamp <= 0.25 else {
                     dropped += 1; missing(.delayed, timestamp: timestamp); return
                 }
-                let lp = left.normalizedPoints.map { BMPoint(x: Double($0.x), y: Double($0.y)) }
-                let rp = right.normalizedPoints.map { BMPoint(x: Double($0.x), y: Double($0.y)) }
-                let box = measured.boundingBox
-                let result = lp.withUnsafeBufferPointer { l in rp.withUnsafeBufferPointer { r in
-                    bm_tracker_process(core, BMInput(left: l.baseAddress, left_count: UInt32(l.count),
-                        right: r.baseAddress, right_count: UInt32(r.count),
-                        face_width: box.width * Double(CVPixelBufferGetWidth(image)),
-                        face_height: box.height * Double(CVPixelBufferGetHeight(image)),
-                        timestamp: timestamp, confidence: Double(measured.confidence), sensitivity: sensitivity))
-                } }
                 if lastFrameTime > 0 && timestamp > lastFrameTime {
                     let instant = min(60, 1 / (timestamp - lastFrameTime))
                     fps = fps == 0 ? instant : fps * 0.85 + instant * 0.15
@@ -265,8 +265,7 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
                 default: frame.phase = .lowQuality
                 }
                 frame.timestamp = timestamp; frame.left = result.left_openness; frame.right = result.right_openness
-                frame.leftContour = lp.map { CGPoint(x: $0.x, y: $0.y) }
-                frame.rightContour = rp.map { CGPoint(x: $0.x, y: $0.y) }
+                frame.leftContour = lp; frame.rightContour = rp
                 frame.leftAperture = result.left_ratio; frame.rightAperture = result.right_ratio
                 frame.faceWidth = box.width * Double(CVPixelBufferGetWidth(image))
                 frame.faceHeight = box.height * Double(CVPixelBufferGetHeight(image))
@@ -330,6 +329,20 @@ final class EyeTrackingService: NSObject, AVCaptureVideoDataOutputSampleBufferDe
 
     static func captureDuration(ranges: [ClosedRange<Double>]) -> CMTime? {
         ranges.contains(where: { $0.contains(15) }) ? CMTime(value: 1, timescale: 15) : nil
+    }
+
+    static func processEyes(core: OpaquePointer, left: [CGPoint], right: [CGPoint], input: BMInput) -> BMOutput {
+        var input = input
+        input.left = nil; input.right = nil; input.left_count = 0; input.right_count = 0
+        guard (4...32).contains(left.count), (4...32).contains(right.count) else { return bm_tracker_process(core, input) }
+        // The bounded bridge buffer stays on the stack; native contours are reused for display.
+        return withUnsafeTemporaryAllocation(of: BMPoint.self, capacity: left.count + right.count) { points in
+            for (i, point) in left.enumerated() { points.baseAddress!.advanced(by: i).initialize(to: BMPoint(x: point.x, y: point.y)) }
+            for (i, point) in right.enumerated() { points.baseAddress!.advanced(by: left.count + i).initialize(to: BMPoint(x: point.x, y: point.y)) }
+            input.left = UnsafePointer(points.baseAddress!); input.left_count = UInt32(left.count)
+            input.right = UnsafePointer(points.baseAddress!.advanced(by: left.count)); input.right_count = UInt32(right.count)
+            return bm_tracker_process(core, input)
+        }
     }
 
     static func clock() -> Double { CMTimeGetSeconds(CMClockGetTime(CMClockGetHostTimeClock())) }

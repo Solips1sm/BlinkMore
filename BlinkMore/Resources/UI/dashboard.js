@@ -39,7 +39,7 @@
         $(pages[index]).animate([{ opacity: .35, transform: "translateY(5px)" }, { opacity: 1, transform: "translateY(0)" }], { duration: 180, easing: "ease-out" });
       }
     }
-    if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); }
+    if (current && index === 0) { live(current); rhythm(current.statistics.recentBins); progress(current); }
     if (current && index === 2) { progress(current); history(current.statistics.week, current.statistics.baselineRate); coverageView(current.coverage); }
     if (current && index === 4) {
       if (studio === "setup") setupView(current);
@@ -163,13 +163,17 @@
     $("rhythm-chart").replaceChildren(fragment);
     $("rhythm-chart").setAttribute("aria-label", `${fmt(blinks)} detected blinks in ${fmt(observed)} tracked seconds. Dashed intervals have no observations. Mark height caps at three events per second.`);
   }
+  const orbitDots = radius => Array.from({ length: 8 }, (_, i) => {
+    const angle = i * Math.PI / 4, x = (24 + radius * Math.cos(angle)).toFixed(2), y = (24 + radius * Math.sin(angle)).toFixed(2);
+    return `M${Number(x)-2.5} ${y}a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0`;
+  }).join("");
   const medal = {
     moment: "M7 29h34M13 28a11 11 0 0 1 22 0M24 9v5M10 15l4 4M38 15l-4 4M13 36h22",
-    petals: "M24 24C2 4 2 44 24 24C44 2 4 2 24 24C46 44 46 4 24 24C4 46 44 46 24 24ZM20 24h8M24 20v8",
+    petals: orbitDots(13) + "M24 20a4 4 0 1 0 0 8a4 4 0 1 0 0-8",
     orbit: "M11 35A17 17 0 1 1 37 35M24 3v6M3 24h6M39 24h6M24 15v9l8 6M16 42h16",
     days: "M6 33V24M12 33V16M18 33V20M24 33V10M30 33V17M36 33V13M42 33V22M6 39h36",
     hour: "M24 5a19 19 0 1 0 0 38a19 19 0 1 0 0-38M24 12v13l9 5M24 5v3M5 24h3M40 24h3",
-    bloom: "M24 24C4 0 0 24 24 24C0 44 24 48 24 24C44 48 48 24 24 24C48 4 24 0 24 24ZM24 19v10M19 24h10",
+    bloom: orbitDots(19) + "M12 24q12-15 24 0q-12 15-24 0ZM24 21a3 3 0 1 0 0 6a3 3 0 1 0 0-6",
     sun: "M12 28a12 12 0 0 1 24 0M5 29h38M24 5v7M8 11l5 5M40 11l-5 5M8 36h32M15 42h18",
     calendar: "M10 10h28v30H10ZM16 5v10M32 5v10M10 20h28M16 27h2M23 27h2M30 27h2M16 33h2M23 33h2M30 33h2"
   };
@@ -177,10 +181,16 @@
     const stats = state.statistics, model = BlinkMetrics.activity(stats.today, stats.week, stats.lifetime, state.preferences);
     model.gauges.forEach((g, i) => {
       const name = ["minutes", "days", "resets"][i], unit = ["min", "days", "resets"][i];
-      $("gauge-" + name).style.strokeDashoffset = String(100 * (1 - g.progress));
+      for (const id of ["gauge-" + name, "today-goal-" + name]) {
+        const arc = $(id), offset = String(100 * (1 - g.progress));
+        if (arc.style.strokeDashoffset !== offset) arc.style.strokeDashoffset = offset;
+        const opacity = g.progress > 0 ? "1" : "0";
+        if (arc.style.opacity !== opacity) arc.style.opacity = opacity;
+      }
+      const card = $(name + "-gauge").closest(".gauge-card"), complete = String(g.complete);
+      if (card.dataset.complete !== complete) card.dataset.complete = complete;
       text("goal-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} ${unit}`);
-      text(["time-goal-note", "day-goal-note", "reset-goal-note"][i], `Goal ${fmt(g.goal)} ${unit}${i === 1 ? " in seven" : ""}`);
-      $("today-goal-" + name).style.strokeDashoffset = String(100 * (1 - g.progress));
+      text(["time-goal-note", "day-goal-note", "reset-goal-note"][i], g.goal === null ? "Choose a goal in Settings" : g.complete ? "Goal reached" : `Goal ${fmt(g.goal)} ${unit}${i === 1 ? " in seven" : ""}`);
       text("today-value-" + name, `${fmt(g.current, i === 0 ? 1 : 0)} / ${fmt(g.goal)} ${unit}`);
       $(name + "-gauge").setAttribute("aria-label", `${fmt(g.current, i === 0 ? 1 : 0)} of ${fmt(g.goal)} ${unit}, personal observation goal`);
     });
@@ -477,7 +487,7 @@
     text("invitation-detail", due ? "A quiet break is ready." : "Blink, then look away.");
     $("exercise-later").hidden = !due; $("exercise-skip").hidden = !due;
     if (selected === 0) { live(state); rhythm(stats.recentBins); }
-    blinkPulse(state); progress(state); if (selected === 2) { history(stats.week, stats.baselineRate); coverageView(state.coverage); } exerciseView(state);
+    blinkPulse(state); if (selected === 0 || selected === 2) progress(state); if (selected === 2) { history(stats.week, stats.baselineRate); coverageView(state.coverage); } exerciseView(state);
     const cameras = state.cameras ?? [], key = JSON.stringify(cameras);
     if (key !== cameraKey) {
       cameraKey = key; const fragment = document.createDocumentFragment();
